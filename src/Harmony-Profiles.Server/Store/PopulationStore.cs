@@ -339,7 +339,6 @@ public sealed partial class PopulationStore(
                 c.Survived++;
                 c.CurrentSurvivalStreak++;
                 c.BestSurvivalStreak = Math.Max(c.BestSurvivalStreak, c.CurrentSurvivalStreak);
-                c.NeedsRegear = false;
             }
             else
             {
@@ -347,7 +346,8 @@ public sealed partial class PopulationStore(
                 if (survived) c.RunThroughRaids++;
                 else if (outcome < .012) c.MissingRaids++;
                 else if (outcome < .016) c.AwolRaids++;
-                c.NeedsRegear = !survived;
+                // Only fresh gear clears this. Surviving a later simulated raid must not bring the dead loadout back.
+                if (!survived) c.NeedsRegear = true;
             }
             AddRaidKills(c);
             c.TargetRaidSeconds = RaidDuration(c, true);
@@ -480,7 +480,9 @@ public sealed partial class PopulationStore(
                     ["prestigeLevel"] = encounter?.GeneratedPrestige ?? career.PrestigeLevel, ["experience"] = encounter?.GeneratedExperience ?? career.Experience, ["memberCategory"] = career.MemberCategory, ["selectedMemberCategory"] = career.SelectedMemberCategory, ["gameVersion"] = career.GameVersion, ["bannedState"] = false,
                     ["bannedUntil"] = 0, ["registrationDate"] = career.RegisteredUtc },
                 ["customization"] = customization, ["skills"] = career.Skills.DeepClone(),
-                ["equipment"] = (encounter?.Equipment ?? (career.NeedsRegear ? NakedEquipment(career.Equipment) : career.Equipment)).DeepClone(),
+                ["equipment"] = (encounter is not null
+                    ? (EncounterDied(encounter) ? NakedEquipment(encounter.Equipment) : encounter.Equipment)
+                    : career.NeedsRegear ? NakedEquipment(career.Equipment) : career.Equipment).DeepClone(),
                 ["achievements"] = PublicAchievements(career), ["favoriteItems"] = PublicShowcase(career),
                 ["pmcStats"] = new JsonObject { ["eft"] = new JsonObject { ["totalInGameTime"] = Lifetime(career, "TimeInRaid", (long)career.RaidSeconds + career.Observed.ActiveSeconds),
                     ["overAllCounters"] = new JsonObject { ["Items"] = counters } } },
@@ -686,6 +688,10 @@ public sealed partial class PopulationStore(
 
     // Under Fika the headless generates every bot, so its session never matches a player's.
     // The runtime profile ID checks still prove the reporter saw that bot in raid.
+    private bool EncounterDied(Encounter e) =>
+        population.RaidObservations.TryGetValue(e.AccountId, out var observation) && observation.Died
+        || population.AppliedStories.GetValueOrDefault(e.AccountId) is "Died" or "DiedUncounted" or "ConfirmedDeath";
+
     private bool CanAccess(Encounter e, MongoId session) => fikaPresent || e.SessionId == session.ToString();
 
     // Written on every PMC spawn, so skip the fsync. Losing one to a power cut only drops that alias.

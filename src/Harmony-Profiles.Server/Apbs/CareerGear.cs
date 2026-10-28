@@ -42,7 +42,7 @@ public sealed partial class PopulationStore
     {
         gearSession = session;
         bool initial = career.GearVersion == 0 && career.LastEquipmentAccount == 0 && !career.NeedsRegear;
-        if (!initial && !(career.IsOnline && career.GearPending && !career.NeedsRegear)) return;
+        if (!initial && !(career.IsOnline && career.GearPending)) return;
         // Generating here would hold the gate through APBS and stall bot spawns, so the viewer gets it on the next look.
         gearRequests[career.Id] = session;
         _ = Task.Run(DrainGearRequests);
@@ -87,12 +87,12 @@ public sealed partial class PopulationStore
         if (gearFailures.Add(career.Id)) logger.Warning($"[Harmony-Profiles] APBS profile gear deferred for account {career.AccountId}; existing equipment retained. {ex.GetBaseException().Message}");
     }
 
-    // Caller holds the gate. Claims up to three requests so a backlog cannot stretch one checkpoint.
+    // Caller holds the gate. Claims a bounded batch so a backlog cannot stretch one checkpoint.
     private List<GearRequest> TakeGearRequests(long now)
     {
         var result = new List<GearRequest>();
         if (gearFactory is null) return result;
-        foreach (var (id, session) in gearRequests.Take(3).ToArray())
+        foreach (var (id, session) in gearRequests.Take(GearBatch).ToArray())
         {
             gearRequests.Remove(id);
             if (!Ready || !population.Careers.TryGetValue(id, out var career)
@@ -147,14 +147,16 @@ public sealed partial class PopulationStore
         return equipment;
     }
 
-    private bool ProcessPendingGear(long now)
+    // One career per checkpoint never caught up with a large online population. Dead careers go first.
+    private const int GearBatch = 10;
+
+    private void ProcessPendingGear(long now)
     {
-        if (gearSession is not MongoId session) return false;
-        var career = population.Careers.Values.Where(c => !c.Retired && c.IsOnline && c.GearPending
+        if (gearSession is not MongoId session) return;
+        foreach (var career in population.Careers.Values.Where(c => !c.Retired && c.IsOnline && c.GearPending
                 && now >= c.NextGearAttemptUtc && now >= c.StoryHoldUntilUtc && now - c.LastEquipmentGeneratedUtc >= 900
-                && !IsObservedActive(c, now)).OrderBy(c => c.LastGearUpdateUtc).ThenBy(c => c.AccountId).FirstOrDefault();
-        if (career is null) return false;
-        gearRequests.TryAdd(career.Id, session);
-        return true;
+                && !IsObservedActive(c, now)).OrderByDescending(c => c.NeedsRegear).ThenBy(c => c.LastGearUpdateUtc)
+                .ThenBy(c => c.AccountId).Take(GearBatch))
+            gearRequests.TryAdd(career.Id, session);
     }
 }
