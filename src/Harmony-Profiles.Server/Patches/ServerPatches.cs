@@ -85,7 +85,9 @@ internal static class ServerPatches
         {
             var matches = store.Search(__0.Nickname ?? "", __1);
             var existing = (__result ?? []).Select(x => x.Aid).ToHashSet();
-            __result = (__result ?? []).Concat(matches.Where(x => !existing.Contains(x.Aid))).ToList();
+            // Fika's search lists the searcher too. Nobody can friend themselves.
+            __result = (__result ?? []).Where(x => x.Id != __1)
+                .Concat(matches.Where(x => !existing.Contains(x.Aid))).ToList();
         }
         catch (Exception ex) { store.Report(ex); }
     }

@@ -16,11 +16,15 @@ public sealed partial class PopulationStore
         foreach (var career in population.Careers.Values)
             career.SourceName = SourceName(career);
         var groups = population.Careers.Values.GroupBy(c => NameKey("", c.Name)).ToArray();
+        // Real players keep their names. A name pool can contain one (BotCallsigns has "user"), so that career moves aside.
+        var players = saves.GetProfiles().Values.Select(p => p.CharacterData?.PmcData?.Info?.Nickname)
+            .Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => NameKey("", n!)).ToHashSet();
+        occupiedNicknames.UnionWith(players);
         // Reserve every existing public name before allocating suffixes. Retired accounts keep theirs.
         foreach (var group in groups) occupiedNicknames.Add(group.Key);
         int changed = 0;
         foreach (var group in groups)
-            foreach (var career in group.OrderBy(c => c.AccountId).Skip(1))
+            foreach (var career in group.OrderBy(c => c.AccountId).Skip(players.Contains(group.Key) ? 0 : 1))
             {
                 career.Name = AllocateNickname(career.SourceName);
                 changed++;
