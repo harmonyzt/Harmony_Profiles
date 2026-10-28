@@ -1,0 +1,277 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using SPTarkov.Server.Core.Helpers.Profile;
+using SPTarkov.Server.Core.Models.Common;
+
+namespace HarmonyProfiles.Server;
+
+public sealed class ProgressionPrior
+{
+    public int MaximumLevel { get; set; }
+    public double RaidMinutes { get; set; }
+    public double PmcKills { get; set; }
+    public double ScavKills { get; set; }
+}
+
+public sealed class SimulationPolicy
+{
+    public List<ProgressionPrior> ProgressionPriors { get; set; } =
+    [
+        new() { MaximumLevel = 14, RaidMinutes = 11.44, PmcKills = 1.17, ScavKills = 2.17 },
+        new() { MaximumLevel = 29, RaidMinutes = 14.45, PmcKills = 1.61, ScavKills = 2.78 },
+        new() { MaximumLevel = 44, RaidMinutes = 16.28, PmcKills = 1.98, ScavKills = 2.56 },
+        new() { MaximumLevel = 79, RaidMinutes = 17.18, PmcKills = 2.28, ScavKills = 3.68 }
+    ];
+    public bool EnableApbsCareerIntegration { get; set; } = true;
+    public HideoutProgressionSettings Hideout { get; set; } = new();
+    public bool EnablePrestige { get; set; } = true;
+    public double MinimumPrestigeCycleHours { get; set; } = 500;
+    public bool EnableShowcase { get; set; } = true;
+    public bool EnablePostRaidStories { get; set; } = true;
+    public double PostRaidDeathChance { get; set; } = .01;
+    public double PostRaidRegearChance { get; set; } = .02;
+    public int StoryMinimumDelaySeconds { get; set; } = 120;
+    public int StoryMaximumDelaySeconds { get; set; } = 600;
+    public int StoryVisibilitySeconds { get; set; } = 900;
+
+    public void Validate()
+    {
+        if (Hideout is null) throw new InvalidDataException("Hideout policy is missing.");
+        Hideout.Validate();
+        if (ProgressionPriors is null || ProgressionPriors.Count is < 1 or > 79
+            || ProgressionPriors.Any(p => p is null || p.MaximumLevel is < 1 or > 79
+                || !double.IsFinite(p.RaidMinutes) || p.RaidMinutes is < 5 or > 45
+                || !double.IsFinite(p.PmcKills) || p.PmcKills is < 0 or > 20
+                || !double.IsFinite(p.ScavKills) || p.ScavKills is < 0 or > 20)
+            || !ProgressionPriors.Select(p => p.MaximumLevel).SequenceEqual(ProgressionPriors.Select(p => p.MaximumLevel).Distinct().Order())
+            || ProgressionPriors[^1].MaximumLevel != 79)
+            throw new InvalidDataException("Progression priors require increasing level bands ending at 79, 5-45 minute raids, and 0-20 kills per raid.");
+        if (!double.IsFinite(MinimumPrestigeCycleHours) || MinimumPrestigeCycleHours is < 10 or > 10000
+            || !double.IsFinite(PostRaidDeathChance) || !double.IsFinite(PostRaidRegearChance)
+            || PostRaidDeathChance < 0 || PostRaidRegearChance < 0 || PostRaidDeathChance + PostRaidRegearChance > 1
+            || StoryMinimumDelaySeconds < 30 || StoryMaximumDelaySeconds < StoryMinimumDelaySeconds || StoryMaximumDelaySeconds > 86400 || StoryVisibilitySeconds is < 60 or > 86400)
+            throw new InvalidDataException("Simulation policy is outside the supported ranges.");
+    }
+}
+
+public sealed record PrestigeRecord(int Level, string DefinitionId, long Utc, double LifetimeHours, int PreviousExperience, int CarriedItems);
+
+public sealed partial class PopulationStore
+{
+    private SimulationPolicy policy = new();
+    private JsonArray prestigeDefinitions = new();
+    private static double TotalSeconds(Career c) => c.RaidSeconds + c.Observed.ActiveSeconds;
+    private static double CycleHours(Career c) => Math.Max(0, TotalSeconds(c) - c.PrestigeCycleStartSeconds) / 3600;
+
+    private void LoadFeatures()
+    {
+        string path = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(directory)!, "simulation.json");
+        if (File.Exists(path)) policy = JsonSerializer.Deserialize<SimulationPolicy>(File.ReadAllText(path))
+            ?? throw new InvalidDataException("Simulation policy is empty.");
+        policy.Validate();
+        if (!File.Exists(path)) AtomicFile.Write(path, JsonSerializer.Serialize(policy, new JsonSerializerOptions { WriteIndented = true }));
+        prestigeDefinitions = JsonNode.Parse(json.Serialize(templates.Prestige)!)?["elements"]?.DeepClone().AsArray() ?? new();
+        foreach (var c in population.Careers.Values)
+        {
+            if (c.FeatureVersion != 0) continue;
+            c.PrestigeLevel = Math.Max(c.PrestigeLevel, c.LastGeneratedPrestige);
+            if (c.PrestigeLevel > 0) c.PrestigeCycleStartSeconds = TotalSeconds(c);
+            c.FeatureVersion = 1;
+        }
+    }
+
+    private bool PrestigeConditions(Career c, JsonArray conditions)
+    {
+        foreach (var condition in conditions.OfType<JsonObject>())
+        {
+            string[] allowed = ["id", "index", "dynamicLocale", "visibilityConditions", "globalQuestCounterId", "parentId", "value",
+                "compareMethod", "target", "status", "availableAfter", "dispersion", "areaType", "conditionType",
+                "minDurability", "maxDurability", "dogtagLevel", "onlyFoundInRaid", "isEncoded"];
+            if (condition.Any(p => p.Value is not null && !allowed.Contains(p.Key))
+                || condition["visibilityConditions"] is JsonArray { Count: > 0 }
+                || !string.IsNullOrEmpty(condition["globalQuestCounterId"]?.ToString())
+                || !string.IsNullOrEmpty(condition["parentId"]?.ToString())
+                || (condition["availableAfter"]?.GetValue<double>() ?? 0) > 0
+                || (condition["dispersion"]?.GetValue<double>() ?? 0) > 0) return false;
+            double value = condition["value"]?.GetValue<double>() ?? 0;
+            if (condition["compareMethod"] is { } compare && compare.ToString() != ">=") return false;
+            switch (condition["conditionType"]?.ToString())
+            {
+                case "Level": if (Level(c.Experience) < value) return false; break;
+                case "Skill":
+                    var skill = c.Skills["Common"]?.AsArray().OfType<JsonObject>()
+                        .FirstOrDefault(s => s["Id"]?.ToString() == condition["target"]?.ToString());
+                    if ((skill?["Progress"]?.GetValue<double>() ?? 0) / 100 < value) return false;
+                    break;
+                case "HideoutArea":
+                    int area = condition["areaType"]?.GetValue<int>() ?? -1;
+                    if (AreaLevel(c, area) < value) return false;
+                    break;
+                case "Quest":
+                    string id = condition["target"]?.ToString() ?? "";
+                    if (!IsId(id) || !templates.Quests.ContainsKey(new MongoId(id))
+                        || condition["status"] is not JsonArray statuses || !statuses.Any(s => s?.GetValue<int>() == 4)
+                        || CycleHours(c) < policy.MinimumPrestigeCycleHours * (1 + c.PrestigeLevel * .25)) return false;
+                    // These accounts have fictional quest histories. No player quest controller is invoked.
+                    break;
+                case "HasItem":
+                    if (condition["target"] is not JsonArray { Count: 1 } targets || targets[0]?.ToString() != "5449016a4bdc2d6f028b456f"
+                        || c.WealthRubles < value || condition["onlyFoundInRaid"]?.GetValue<bool>() == true
+                        || condition["isEncoded"]?.GetValue<bool>() == true || (condition["dogtagLevel"]?.GetValue<double>() ?? 0) > 0
+                        || (condition["minDurability"]?.GetValue<double>() ?? 0) > 0
+                        || (condition["maxDurability"]?.GetValue<double>() ?? 100) < 100)
+                        return false;
+                    break;
+                default: return false;
+            }
+        }
+        return conditions.Count > 0 && conditions.All(c => c is JsonObject);
+    }
+
+    private void TryPrestige(Career c, long now)
+    {
+        if (!policy.EnablePrestige || c.PrestigeLevel >= prestigeDefinitions.Count || IsObservedActive(c, now) || now < c.StoryHoldUntilUtc
+            || reservedCareers.Values.Any(ids => ids.Contains(c.Id)) || CycleHours(c) < policy.MinimumPrestigeCycleHours
+            || prestigeDefinitions[c.PrestigeLevel] is not JsonObject definition
+            || definition["conditions"] is not JsonArray conditions || !PrestigeConditions(c, conditions)) return;
+        var next = JsonSerializer.Deserialize<Career>(JsonSerializer.Serialize(c))!;
+        string definitionId = definition["id"]!.ToString();
+        var transfer = definition["transferConfigs"]?.AsObject();
+        if (transfer?["skillConfig"]?["transferMultiplier"] is not JsonValue skillRate
+            || transfer["masteringConfig"]?["transferMultiplier"] is not JsonValue masteryRate
+            || skillRate.GetValue<double>() is < 0 or > 1 || masteryRate.GetValue<double>() is < 0 or > 1) return;
+        var skills = next.Skills.DeepClone().AsObject();
+        foreach (string group in new[] { "Common", "Mastering" })
+            if (skills[group] is JsonArray entries)
+                foreach (var entry in entries.OfType<JsonObject>())
+                    entry["Progress"] = (entry["Progress"]?.GetValue<double>() ?? 0)
+                        * (group == "Common" ? skillRate.GetValue<double>() : masteryRate.GetValue<double>());
+        var carried = PrestigeCarry(next, transfer["stashConfig"] as JsonObject);
+        int oldXp = next.Experience;
+        next.PrestigeLevel++;
+        next.LastPrestigeUtc = now;
+        next.PrestigeCycleStartSeconds = TotalSeconds(next);
+        next.Experience = profileHelper.GetExperience(1) ?? 0;
+        next.PendingRaidSeconds = 0;
+        next.CurrentSurvivalStreak = 0;
+        next.DevelopmentVersion = 0;
+        EnsureDevelopment(next);
+        next.Skills = skills;
+        next.SkillCarry = skills["Common"]!.AsArray().OfType<JsonObject>()
+            .ToDictionary(s => s["Id"]!.ToString(), s => s["Progress"]?.GetValue<double>() ?? 0);
+        next.TradersInfo = new();
+        next.WealthRubles = 100000;
+        next.HideoutInvestment = 0;
+        next.NeedsRegear = true;
+        next.Equipment = EmptyEquipment();
+        next.EquipmentIsSimulated = true;
+        next.LastEquipmentAccount = 0;
+        string stashRoot = next.Stash["stash"]!.ToString();
+        var root = next.Stash["items"]!.AsArray().OfType<JsonObject>().First(i => i["_id"]!.ToString() == stashRoot).DeepClone();
+        next.Stash["items"] = new JsonArray(root);
+        foreach (var tree in carried)
+        {
+            tree[0]!["parentId"] = stashRoot;
+            foreach (var item in tree) next.Stash["items"]!.AsArray().Add(item!.DeepClone());
+        }
+        if (IsId(definitionId) && PrestigeHelper.PrestigeAchievements.TryGetValue(new MongoId(definitionId), out var achievement))
+            next.Achievements[achievement.ToString()] = now;
+        next.PrestigeHistory.Add(new(next.PrestigeLevel, definitionId, now, TotalSeconds(next) / 3600, oldXp, carried.Sum(t => t.Count)));
+        // All eligibility/reset work is staged before replacing the live fictional career fields.
+        foreach (var property in typeof(Career).GetProperties()) property.SetValue(c, property.GetValue(next));
+        dirty = true;
+        logger.Info($"[Harmony-Profiles] Synthetic prestige completed: account={c.AccountId}, prestige={c.PrestigeLevel}.");
+    }
+
+    private List<JsonArray> PrestigeCarry(Career c, JsonObject? config)
+    {
+        var result = new List<JsonArray>();
+        if (config is null || c.Stash["items"] is not JsonArray source) return result;
+        int columns = Math.Clamp(config["xCellCount"]?.GetValue<int>() ?? 0, 0, 20);
+        int rows = Math.Clamp(config["yCellCount"]?.GetValue<int>() ?? 0, 0, 30);
+        var included = config["filters"]?["includedItems"]?.AsArray().Select(v => v!.ToString()).ToHashSet() ?? [];
+        var excluded = config["filters"]?["excludedItems"]?.AsArray().Select(v => v!.ToString()).ToHashSet() ?? [];
+        int x = 0, y = 0, rowHeight = 0;
+        foreach (var item in source.OfType<JsonObject>().Where(i => i["parentId"]?.ToString() == c.Stash["stash"]?.ToString()))
+        {
+            string tpl = item["_tpl"]!.ToString();
+            if (tpl is "5449016a4bdc2d6f028b456f" or "5696686a4bdc2da3298b456a" or "569668774bdc2da2298b4568") continue;
+            if (excluded.Any(f => ItemBasedOn(tpl, f)) || !included.Any(f => ItemBasedOn(tpl, f))) continue;
+            var props = JsonNode.Parse(json.Serialize(templates.Items[new MongoId(tpl)])!)?["_props"];
+            int width = Math.Max(1, props?["Width"]?.GetValue<int>() ?? 1), height = Math.Max(1, props?["Height"]?.GetValue<int>() ?? 1);
+            if (width > columns || height > rows) continue;
+            if (x + width > columns) { x = 0; y += rowHeight; rowHeight = 0; }
+            if (y + height > rows) continue;
+            var tree = ItemTree(source, item["_id"]!.ToString());
+            tree[0]!["location"] = new JsonObject { ["x"] = x, ["y"] = y, ["r"] = 0, ["isSearched"] = true };
+            x += width; rowHeight = Math.Max(rowHeight, height);
+            result.Add(tree);
+        }
+        return result;
+    }
+
+    private bool ItemBasedOn(string tpl, string ancestor)
+    {
+        var seen = new HashSet<string>();
+        while (IsId(tpl) && seen.Add(tpl) && templates.Items.TryGetValue(new MongoId(tpl), out var item))
+        {
+            if (tpl == ancestor) return true;
+            tpl = JsonNode.Parse(json.Serialize(item)!)?["_parent"]?.ToString() ?? "";
+        }
+        return false;
+    }
+
+    private static int AreaLevel(Career c, int area) => c.Hideout["Areas"]?.AsArray().OfType<JsonObject>()
+        .FirstOrDefault(a => a["type"]?.GetValue<int>() == area)?["level"]?.GetValue<int>() ?? 0;
+
+    private static JsonArray ItemTree(JsonArray items, string root)
+    {
+        var keep = new HashSet<string> { root };
+        bool changed;
+        do
+        {
+            changed = false;
+            foreach (var item in items.OfType<JsonObject>())
+                if (item["parentId"] is { } parent && keep.Contains(parent.ToString())) changed |= keep.Add(item["_id"]!.ToString());
+        } while (changed);
+        return new JsonArray(items.OfType<JsonObject>().Where(i => keep.Contains(i["_id"]!.ToString()))
+            .OrderByDescending(i => i["_id"]!.ToString() == root).Select(i => i.DeepClone()).ToArray());
+    }
+
+    private void ScheduleStory(Encounter encounter, long now)
+    {
+        encounter.KillerCapturedUtc = now;
+        if (!policy.EnablePostRaidStories) return;
+        double roll = Stable(encounter.AccountId + ":post-raid");
+        encounter.StoryOutcome = roll < policy.PostRaidDeathChance ? "Died"
+            : roll < policy.PostRaidDeathChance + policy.PostRaidRegearChance ? "Regeared" : "None";
+        encounter.StoryDueUtc = now + policy.StoryMinimumDelaySeconds
+            + (long)(Stable(encounter.AccountId + ":story-delay") * (policy.StoryMaximumDelaySeconds - policy.StoryMinimumDelaySeconds));
+    }
+
+    private void ApplyStories(long now)
+    {
+        if (!policy.EnablePostRaidStories) return;
+        foreach (var e in encounters.Values.Where(e => e.StoryOutcome != "None" && e.KillerCapturedUtc > 0 && e.StoryDueUtc <= now
+            && !population.AppliedStories.ContainsKey(e.AccountId)))
+        {
+            var c = population.Careers[e.CareerId];
+            if (!population.SessionEndedUtc.TryGetValue(e.SessionId, out long ended) || ended < e.KillerCapturedUtc || IsObservedActive(c, now)) continue;
+            string result;
+            if (population.RaidObservations.TryGetValue(e.AccountId, out var observation) && observation.Died) result = "ObservedDeath";
+            else if (c.LastEquipmentOrder > e.GenerationOrder || c.EquipmentIsSimulated) result = "Superseded";
+            else if (e.StoryOutcome == "Died")
+            {
+                c.NeedsRegear = true;
+                if (observation is not null) { c.StoryDeaths++; result = "Died"; }
+                else result = "DiedUncounted";
+            }
+            else if (TryRegear(c, story: true)) result = "Regeared";
+            else if (now - e.StoryDueUtc < 1800) continue;
+            else result = "NoLoadoutAvailable";
+            if (result is "Died" or "DiedUncounted" or "Regeared") c.StoryHoldUntilUtc = now + policy.StoryVisibilitySeconds;
+            population.AppliedStories[e.AccountId] = result;
+            dirty = true;
+        }
+    }
+}

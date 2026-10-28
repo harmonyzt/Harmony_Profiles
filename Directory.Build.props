@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <GameRoot Condition="'$(GameRoot)' == ''">E:\SPT41</GameRoot>
+    <ServerPath Condition="'$(ServerPath)' == ''">$(GameRoot)\SPT_Runtime</ServerPath>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <Deterministic>true</Deterministic>
+    <PathMap>$(MSBuildThisFileDirectory)=/_/Harmony-Profiles/</PathMap>
+    <Version>0.14.0</Version>
+  </PropertyGroup>
+</Project>

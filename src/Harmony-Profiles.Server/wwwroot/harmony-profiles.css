@@ -1,0 +1,62 @@
+.harmony-profiles-editor {
+    --hp-text: #e6edf7; --hp-muted: #a7b8d0; --hp-line: rgba(136,184,244,.22);
+    --hp-blue: #74bdff; --hp-panel: rgba(17,34,57,.88);
+    color: var(--hp-text); background: radial-gradient(ellipse at 5% 0%,#18365b 0,transparent 52%),linear-gradient(145deg,#0c192c,#091220);
+    max-width: 1220px; margin: 1.25rem auto; padding: clamp(1rem,3vw,2.5rem);
+    border: 1px solid var(--hp-line); border-radius: 22px;
+    font: 15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;
+    box-shadow: 0 18px 60px #0004; color-scheme: dark;
+}
+.harmony-profiles-editor * { box-sizing: border-box; }
+.harmony-profiles-editor h1,.harmony-profiles-editor h2,.harmony-profiles-editor h3 { color: var(--hp-text); margin: 0 0 .6rem; font-weight: 650; line-height: 1.25; }
+.harmony-profiles-editor h1 { font-size: clamp(1.7rem,3vw,2.4rem); letter-spacing: -.04em; }
+.harmony-profiles-editor h2 { font-size: 1.2rem; }
+.harmony-profiles-editor h3 { font-size: 1rem; }
+.harmony-profiles-editor p { color: var(--hp-muted); margin: .4rem 0 1rem; max-width: 85ch; }
+.harmony-profiles-editor .hp-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+.harmony-profiles-editor .hp-heading p { margin: 0; }
+.harmony-profiles-editor .hp-eyebrow { color: var(--hp-blue); text-transform: uppercase; letter-spacing: .16em; font-size: .72rem; display: block; margin-bottom: .6rem; }
+.harmony-profiles-editor .hp-badge { display: inline-flex; align-items: center; flex-shrink: 0; background: #79bfff14; color: #aad5ff; border: 1px solid var(--hp-line); border-radius: 99px; padding: .3rem .75rem; font-size: .78rem; }
+.harmony-profiles-editor .hp-tabs { display: flex; gap: .4rem; overflow-x: auto; border-bottom: 1px solid var(--hp-line); padding-bottom: .65rem; margin-bottom: 1.3rem; }
+.harmony-profiles-editor button { font: inherit; line-height: 1.3; font-weight: 600; border: 1px solid #93ccff55; background: #316fa8; color: #fff; border-radius: 9px; padding: .7rem 1rem; cursor: pointer; transition: background .15s,border-color .15s; }
+.harmony-profiles-editor button:hover { background: #3d83c1; border-color: var(--hp-blue); }
+.harmony-profiles-editor button:focus-visible,.harmony-profiles-editor input:focus-visible,.harmony-profiles-editor select:focus-visible,.harmony-profiles-editor summary:focus-visible { outline: 2px solid #a4d5ff; outline-offset: 3px; }
+.harmony-profiles-editor .hp-tabs button { background: transparent; color: var(--hp-muted); border-color: transparent; white-space: nowrap; display: inline-flex; align-items: center; gap: .5rem; }
+.harmony-profiles-editor .hp-tabs button:hover,.harmony-profiles-editor .hp-tabs .hp-selected { background: #6aafff1c; color: #d9edff; border-color: #80bcff40; }
+.harmony-profiles-editor .hp-dot { height: 6px; width: 6px; background: #acd8ff; border-radius: 50%; }
+.harmony-profiles-editor .hp-card,.harmony-profiles-editor .hp-stats article { background: var(--hp-panel); background: linear-gradient(130deg,#1b33505e,#14243b8c); border: 1px solid var(--hp-line); border-radius: 14px; padding: clamp(1rem,2vw,1.5rem); margin-bottom: 1rem; box-shadow: inset 0 1px #b2d6ff08; backdrop-filter: blur(14px); }
+.harmony-profiles-editor .hp-stats { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: .9rem; }
+.harmony-profiles-editor .hp-stats span { color: var(--hp-muted); font-size: .82rem; }
+.harmony-profiles-editor .hp-stats strong { display: block; font-size: clamp(1.5rem,3vw,2.2rem); font-weight: 600; color: #c1e1ff; margin-top: .3rem; }
+.harmony-profiles-editor .hp-section-heading { display: flex; align-items: start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.harmony-profiles-editor .hp-section-heading p { margin-bottom: 0; }
+.harmony-profiles-editor .hp-notes,.harmony-profiles-editor .hp-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1.1rem 1.5rem; margin: 1.3rem 0; }
+.harmony-profiles-editor label { display: flex; flex-direction: column; gap: .5rem; color: #c6d6eb; font-size: .86rem; margin: 0; }
+.harmony-profiles-editor input:not([type=checkbox]),.harmony-profiles-editor select { display: block; width: 100%; min-width: 0; background: #09182bc9; border: 1px solid #779ac34f; border-radius: 8px; color: #e7f0ff; padding: .62rem .75rem; font: inherit; line-height: 1.4; }
+.harmony-profiles-editor select option { background: #101e32; color: var(--hp-text); }
+.harmony-profiles-editor .hp-check { flex-direction: row; align-items: center; gap: .65rem; padding: .6rem 0; }
+.harmony-profiles-editor input[type=checkbox] { accent-color: #6aafff; width: 17px; height: 17px; margin: 0; flex-shrink: 0; }
+.harmony-profiles-editor .hp-toolbar { display: flex; gap: 1rem; align-items: end; margin-bottom: 1.3rem; }
+.harmony-profiles-editor .hp-toolbar label { flex: 1; }
+.harmony-profiles-editor .hp-secondary { background: #16314d; border-color: var(--hp-line); }
+.harmony-profiles-editor .hp-secondary:hover { background: #214364; }
+.harmony-profiles-editor .hp-danger { background: transparent; color: #ffc0c0; border-color: #ff999947; }
+.harmony-profiles-editor .hp-danger:hover { background: #ad47592b; border-color: #f1a4af; }
+.harmony-profiles-editor .hp-save { display: flex; align-items: center; gap: 1rem; border-top: 1px solid var(--hp-line); margin-top: 1.4rem; padding-top: 1.2rem; }
+.harmony-profiles-editor .hp-save span,.harmony-profiles-editor .hp-hint { color: var(--hp-muted); font-size: .8rem; }
+.harmony-profiles-editor .hp-message { background: #183653; color: #d9ecff; border: 1px solid #85bcff55; border-radius: 10px; padding: .8rem 1rem; max-width: none; }
+.harmony-profiles-editor .hp-error { background: #402330; border-color: #d28598; color: #ffe0e7; }
+.harmony-profiles-editor details { border-top: 1px solid var(--hp-line); padding-top: 1rem; }
+.harmony-profiles-editor summary { color: var(--hp-blue); cursor: pointer; margin-bottom: .5rem; }
+.harmony-profiles-editor .hp-table-scroll { overflow-x: auto; margin: 1.2rem 0 .8rem; }
+.harmony-profiles-editor table { border-collapse: collapse; width: 100%; min-width: 520px; color: var(--hp-text); }
+.harmony-profiles-editor caption { caption-side: top; text-align: left; color: var(--hp-muted); padding: 0 0 .6rem; font-size: .85rem; }
+.harmony-profiles-editor th,.harmony-profiles-editor td { padding: .55rem; border-bottom: 1px solid var(--hp-line); text-align: left; background: transparent; }
+.harmony-profiles-editor th { color: #b5cce9; font-size: .78rem; font-weight: 500; }
+@media (max-width: 760px) {
+    .harmony-profiles-editor .hp-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    .harmony-profiles-editor .hp-grid,.harmony-profiles-editor .hp-notes { grid-template-columns: 1fr; }
+    .harmony-profiles-editor .hp-toolbar,.harmony-profiles-editor .hp-save { align-items: stretch; flex-direction: column; }
+    .harmony-profiles-editor .hp-section-heading { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) { .harmony-profiles-editor button { transition: none; } }

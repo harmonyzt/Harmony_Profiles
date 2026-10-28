@@ -1,0 +1,470 @@
+[
+  {
+    "MaximumLevel": 14,
+    "Modules": {
+      "17": {
+        "BuiltChance": 0.0096,
+        "MeanLevel": 0.01
+      },
+      "20": {
+        "BuiltChance": 0.0096,
+        "MeanLevel": 0.019
+      },
+      "19": {
+        "BuiltChance": 0.0096,
+        "MeanLevel": 0.01
+      },
+      "21": {
+        "BuiltChance": 0.0239,
+        "MeanLevel": 0.024
+      },
+      "27": {
+        "BuiltChance": 0.5742,
+        "MeanLevel": 0.574
+      },
+      "22": {
+        "BuiltChance": 0.0478,
+        "MeanLevel": 0.172
+      },
+      "26": {
+        "BuiltChance": 0.0048,
+        "MeanLevel": 0.014
+      },
+      "4": {
+        "BuiltChance": 0.21530000000000002,
+        "MeanLevel": 0.254
+      },
+      "23": {
+        "BuiltChance": 0.0048,
+        "MeanLevel": 0.005
+      },
+      "5": {
+        "BuiltChance": 0.1962,
+        "MeanLevel": 0.239
+      },
+      "15": {
+        "BuiltChance": 0.2967,
+        "MeanLevel": 0.349
+      },
+      "11": {
+        "BuiltChance": 0.0622,
+        "MeanLevel": 0.081
+      },
+      "8": {
+        "BuiltChance": 0.09570000000000001,
+        "MeanLevel": 0.134
+      },
+      "13": {
+        "BuiltChance": 0.0191,
+        "MeanLevel": 0.019
+      },
+      "7": {
+        "BuiltChance": 0.11,
+        "MeanLevel": 0.139
+      },
+      "16": {
+        "BuiltChance": 0.0048,
+        "MeanLevel": 0.014
+      },
+      "9": {
+        "BuiltChance": 0.21050000000000002,
+        "MeanLevel": 0.278
+      },
+      "14": {
+        "BuiltChance": 0.0048,
+        "MeanLevel": 0.005
+      },
+      "1": {
+        "BuiltChance": 0.5359,
+        "MeanLevel": 0.584
+      },
+      "12": {
+        "BuiltChance": 0.1435,
+        "MeanLevel": 0.182
+      },
+      "18": {
+        "BuiltChance": 0.0096,
+        "MeanLevel": 0.01
+      },
+      "3": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 2.928
+      },
+      "0": {
+        "BuiltChance": 0.5932999999999999,
+        "MeanLevel": 0.646
+      },
+      "2": {
+        "BuiltChance": 0.11960000000000001,
+        "MeanLevel": 0.163
+      },
+      "6": {
+        "BuiltChance": 0.0478,
+        "MeanLevel": 0.077
+      },
+      "24": {
+        "BuiltChance": 0.0191,
+        "MeanLevel": 0.033
+      },
+      "25": {
+        "BuiltChance": 0.0191,
+        "MeanLevel": 0.033
+      },
+      "10": {
+        "BuiltChance": 0.23920000000000002,
+        "MeanLevel": 0.273
+      }
+    }
+  },
+  {
+    "MaximumLevel": 29,
+    "Modules": {
+      "17": {
+        "BuiltChance": 0.12119999999999999,
+        "MeanLevel": 0.121
+      },
+      "20": {
+        "BuiltChance": 0.12119999999999999,
+        "MeanLevel": 0.364
+      },
+      "19": {
+        "BuiltChance": 0.12119999999999999,
+        "MeanLevel": 0.121
+      },
+      "21": {
+        "BuiltChance": 0.0808,
+        "MeanLevel": 0.081
+      },
+      "27": {
+        "BuiltChance": 0.6566,
+        "MeanLevel": 0.657
+      },
+      "22": {
+        "BuiltChance": 0.44439999999999996,
+        "MeanLevel": 2.232
+      },
+      "26": {
+        "BuiltChance": 0.0909,
+        "MeanLevel": 0.202
+      },
+      "4": {
+        "BuiltChance": 0.8384,
+        "MeanLevel": 1.242
+      },
+      "23": {
+        "BuiltChance": 0.2121,
+        "MeanLevel": 0.212
+      },
+      "5": {
+        "BuiltChance": 0.7676999999999999,
+        "MeanLevel": 1.263
+      },
+      "15": {
+        "BuiltChance": 0.8687,
+        "MeanLevel": 1.515
+      },
+      "11": {
+        "BuiltChance": 0.5253,
+        "MeanLevel": 0.788
+      },
+      "8": {
+        "BuiltChance": 0.6667000000000001,
+        "MeanLevel": 1.03
+      },
+      "13": {
+        "BuiltChance": 0.17170000000000002,
+        "MeanLevel": 0.172
+      },
+      "7": {
+        "BuiltChance": 0.6768000000000001,
+        "MeanLevel": 1.141
+      },
+      "16": {
+        "BuiltChance": 0.1616,
+        "MeanLevel": 0.273
+      },
+      "9": {
+        "BuiltChance": 0.7979999999999999,
+        "MeanLevel": 1.495
+      },
+      "14": {
+        "BuiltChance": 0.12119999999999999,
+        "MeanLevel": 0.121
+      },
+      "1": {
+        "BuiltChance": 0.9293,
+        "MeanLevel": 1.556
+      },
+      "12": {
+        "BuiltChance": 0.7475,
+        "MeanLevel": 1.02
+      },
+      "18": {
+        "BuiltChance": 0.1313,
+        "MeanLevel": 0.131
+      },
+      "3": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 3.172
+      },
+      "0": {
+        "BuiltChance": 0.9595999999999999,
+        "MeanLevel": 1.545
+      },
+      "2": {
+        "BuiltChance": 0.7373999999999999,
+        "MeanLevel": 1.172
+      },
+      "6": {
+        "BuiltChance": 0.4646,
+        "MeanLevel": 0.758
+      },
+      "24": {
+        "BuiltChance": 0.0909,
+        "MeanLevel": 0.212
+      },
+      "25": {
+        "BuiltChance": 0.0808,
+        "MeanLevel": 0.202
+      },
+      "10": {
+        "BuiltChance": 0.9192,
+        "MeanLevel": 1.283
+      }
+    }
+  },
+  {
+    "MaximumLevel": 44,
+    "Modules": {
+      "17": {
+        "BuiltChance": 0.12119999999999999,
+        "MeanLevel": 0.121
+      },
+      "20": {
+        "BuiltChance": 0.12119999999999999,
+        "MeanLevel": 0.333
+      },
+      "19": {
+        "BuiltChance": 0.12119999999999999,
+        "MeanLevel": 0.121
+      },
+      "21": {
+        "BuiltChance": 0.12119999999999999,
+        "MeanLevel": 0.121
+      },
+      "27": {
+        "BuiltChance": 0.9091,
+        "MeanLevel": 0.909
+      },
+      "22": {
+        "BuiltChance": 0.8787999999999999,
+        "MeanLevel": 4.939
+      },
+      "26": {
+        "BuiltChance": 0.2121,
+        "MeanLevel": 0.364
+      },
+      "4": {
+        "BuiltChance": 0.9394,
+        "MeanLevel": 1.848
+      },
+      "23": {
+        "BuiltChance": 0.5758,
+        "MeanLevel": 0.576
+      },
+      "5": {
+        "BuiltChance": 0.9091,
+        "MeanLevel": 2.03
+      },
+      "15": {
+        "BuiltChance": 0.9394,
+        "MeanLevel": 2.212
+      },
+      "11": {
+        "BuiltChance": 0.8484999999999999,
+        "MeanLevel": 1.152
+      },
+      "8": {
+        "BuiltChance": 0.9091,
+        "MeanLevel": 1.758
+      },
+      "13": {
+        "BuiltChance": 0.3333,
+        "MeanLevel": 0.333
+      },
+      "7": {
+        "BuiltChance": 0.8484999999999999,
+        "MeanLevel": 2.061
+      },
+      "16": {
+        "BuiltChance": 0.39390000000000003,
+        "MeanLevel": 0.727
+      },
+      "9": {
+        "BuiltChance": 0.9394,
+        "MeanLevel": 2.455
+      },
+      "14": {
+        "BuiltChance": 0.12119999999999999,
+        "MeanLevel": 0.121
+      },
+      "1": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 2.242
+      },
+      "12": {
+        "BuiltChance": 0.9394,
+        "MeanLevel": 1.545
+      },
+      "18": {
+        "BuiltChance": 0.0909,
+        "MeanLevel": 0.091
+      },
+      "3": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 3.121
+      },
+      "0": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 2.121
+      },
+      "2": {
+        "BuiltChance": 0.9394,
+        "MeanLevel": 2.03
+      },
+      "6": {
+        "BuiltChance": 0.9091,
+        "MeanLevel": 1.515
+      },
+      "24": {
+        "BuiltChance": 0.303,
+        "MeanLevel": 0.485
+      },
+      "25": {
+        "BuiltChance": 0.303,
+        "MeanLevel": 0.485
+      },
+      "10": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 2.091
+      }
+    }
+  },
+  {
+    "MaximumLevel": 79,
+    "Modules": {
+      "17": {
+        "BuiltChance": 0.8108,
+        "MeanLevel": 0.811
+      },
+      "20": {
+        "BuiltChance": 0.8378,
+        "MeanLevel": 1.811
+      },
+      "19": {
+        "BuiltChance": 0.7837999999999999,
+        "MeanLevel": 0.784
+      },
+      "21": {
+        "BuiltChance": 0.2973,
+        "MeanLevel": 0.297
+      },
+      "27": {
+        "BuiltChance": 0.973,
+        "MeanLevel": 0.973
+      },
+      "22": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 6.0
+      },
+      "26": {
+        "BuiltChance": 0.7568,
+        "MeanLevel": 1.784
+      },
+      "4": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 2.919
+      },
+      "23": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 1.0
+      },
+      "5": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 2.946
+      },
+      "15": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 3.0
+      },
+      "11": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 2.568
+      },
+      "8": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 2.919
+      },
+      "13": {
+        "BuiltChance": 0.9459000000000001,
+        "MeanLevel": 0.946
+      },
+      "7": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 2.919
+      },
+      "16": {
+        "BuiltChance": 0.9459000000000001,
+        "MeanLevel": 2.405
+      },
+      "9": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 2.973
+      },
+      "14": {
+        "BuiltChance": 0.7297,
+        "MeanLevel": 0.73
+      },
+      "1": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 2.946
+      },
+      "12": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 2.784
+      },
+      "18": {
+        "BuiltChance": 0.6486,
+        "MeanLevel": 0.649
+      },
+      "3": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 3.865
+      },
+      "0": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 2.946
+      },
+      "2": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 2.946
+      },
+      "6": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 2.865
+      },
+      "24": {
+        "BuiltChance": 0.8649,
+        "MeanLevel": 2.108
+      },
+      "25": {
+        "BuiltChance": 0.8649,
+        "MeanLevel": 2.108
+      },
+      "10": {
+        "BuiltChance": 1.0,
+        "MeanLevel": 2.946
+      }
+    }
+  }
+]
