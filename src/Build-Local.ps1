@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$GameRoot = 'E:\SPT41',
+    [string]$GameRoot = 'D:\401SPT',
     [string]$ServerPath = '',
     [ValidateSet('Debug', 'Release')][string]$Configuration = 'Release'
 )
