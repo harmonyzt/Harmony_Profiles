@@ -9,6 +9,7 @@ public sealed class HarmonyProfilesSettings
     public bool EnableFriendRequests { get; set; } = true;
     public double FriendAcceptanceChance { get; set; } = 0.5;
     public double FriendActivityMultiplier { get; set; } = 1.4;
+    public double OnlineRateMultiplier { get; set; } = 1;
     public int ProgressionThresholdSeconds { get; set; } = 3600;
     public int MaximumOfflineDays { get; set; } = 14;
 
@@ -32,6 +33,7 @@ public sealed class HarmonyProfilesSettings
     {
         if (!double.IsFinite(FriendAcceptanceChance) || FriendAcceptanceChance is < 0 or > 1
             || !double.IsFinite(FriendActivityMultiplier) || FriendActivityMultiplier is < 0 or > 5
+            || !double.IsFinite(OnlineRateMultiplier) || OnlineRateMultiplier is < 0 or > 10
             || ProgressionThresholdSeconds is < 60 or > 86400
             || MaximumOfflineDays is < 1 or > 365)
             throw new InvalidDataException("Harmony-Profiles config values are outside the supported ranges.");

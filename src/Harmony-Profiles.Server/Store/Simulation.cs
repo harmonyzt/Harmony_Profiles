@@ -122,15 +122,21 @@ public sealed partial class PopulationStore
     private bool IsObservedActive(Career c, long now) => population.RaidObservations.Values.Any(o => !o.Finished
         && now - o.LastReportUtc < 180 && encounters.TryGetValue(o.AccountId, out var active) && active.CareerId == c.Id);
 
+    private bool RollOnline(Career c)
+    {
+        if (c.Retired || c.DailyRaidHours <= 0) return false;
+        bool friend = population.Friendships.Values.Any(links => links.TryGetValue(c.Id, out var f) && f.Accepted && !f.Removed);
+        return Random.Shared.NextDouble() < Math.Min(.85,
+            c.DailyRaidHours / 24 * settings.OnlineRateMultiplier * (friend ? settings.FriendActivityMultiplier : 1));
+    }
+
     private void AdvanceOnline(long now)
     {
         foreach (var c in population.Careers.Values.Where(c => !c.Retired && now >= c.NextActivityUtc))
         {
             if (IsObservedActive(c, now) || now < c.StoryHoldUntilUtc) continue;
             long elapsed = Math.Clamp(now - Math.Max(c.LastActivityUtc, now - 1800), 0, 1800);
-            bool friend = population.Friendships.Values.Any(links => links.TryGetValue(c.Id, out var f) && f.Accepted && !f.Removed);
-            c.IsOnline = c.DailyRaidHours > 0 && Random.Shared.NextDouble()
-                < Math.Min(.85, c.DailyRaidHours / 24 * (friend ? settings.FriendActivityMultiplier : 1));
+            c.IsOnline = RollOnline(c);
             if (c.IsOnline)
             {
                 ApplySimulation(c, elapsed);

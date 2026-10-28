@@ -139,6 +139,7 @@
                     <div class="hp-grid">
                         <label title="Chance (0 to 1) that a simulated account accepts your friend request.">Friend acceptance chance<input type="number" min="0" max="1" step="0.01" @bind="config.FriendAcceptanceChance" /></label>
                         <label title="Accepted friends play and show online this many times as often as other accounts.">Friend activity multiplier<input type="number" min="0" max="5" step="0.1" @bind="config.FriendActivityMultiplier" /></label>
+                        <label title="Scales how often every account is online. 1 is the default, 2 doubles it.">Online rate multiplier<input type="number" min="0" max="10" step="0.1" @bind="config.OnlineRateMultiplier" /></label>
                         <label title="Minimum server downtime before accounts get simulated progress for the time you were away.">Offline progression threshold, seconds<input type="number" min="60" max="86400" @bind="config.ProgressionThresholdSeconds" /></label>
                         <label title="Cap on how many offline days of progress are simulated at server start.">Maximum offline days<input type="number" min="1" max="365" @bind="config.MaximumOfflineDays" /></label>
                     </div><p class="hp-hint">APBS owns generated faces, clothing, weapons, and equipment. Disabling new friend requests keeps existing accepted friendships.</p>

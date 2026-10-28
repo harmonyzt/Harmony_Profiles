@@ -105,7 +105,8 @@ public sealed partial class PopulationStore(
                     EnsureAccountIdentity(career);
                     PreserveLifetime(career);
                     EnsureLife(career, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                    career.IsOnline = false;
+                    // Roll now instead of starting everyone offline for the first 10-30 minutes.
+                    career.IsOnline = RollOnline(career);
                     career.LastActivityUtc = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                     career.NextActivityUtc = career.LastActivityUtc + Random.Shared.Next(600, 1801);
                     EnsureDevelopment(career);
