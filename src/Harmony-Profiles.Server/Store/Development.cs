@@ -31,34 +31,17 @@ public sealed partial class PopulationStore
         var native = NativeCharacter(c.Side, c.Edition);
         if (c.DevelopmentVersion == 0)
         {
-            c.Skills = native["Skills"]!.DeepClone().AsObject();
-            c.Hideout = native["Hideout"]!.DeepClone().AsObject();
-            c.Hideout["Seed"] = Guid.NewGuid().ToString("N");
-            c.Hideout["HideoutCounters"] = new JsonObject
-                { ["fuelCounter"] = 0, ["airFilterCounter"] = 0, ["waterFilterCounter"] = 0, ["craftingTimeCounter"] = 0 };
-            c.CustomizationStashId = NewId();
-            c.HideoutAreaStashes = new JsonObject();
-            c.HideoutItems = new JsonArray(new JsonObject
-                { ["_id"] = c.CustomizationStashId, ["_tpl"] = "673c7b00cbf4b984b5099181" });
-            c.Stash = GenerateStash(c, native["Inventory"]!.AsObject());
+            c.AreaLevels = new();
+            c.CustomizationStashId = StableId(c.Id + ":customization-stash");
             double hours = CycleHours(c);
             c.WealthRubles = Math.Clamp(100000 + hours * (c.Archetype == "Timmy" ? 5000 : 20000), 100000, 40_000_000);
         }
-        // Edition migration raises native starting privileges without resetting existing construction or items.
-        var states = c.Hideout["Areas"]!.AsArray();
+        // Edition migration raises native starting privileges without resetting existing construction.
         foreach (var baseline in native["Hideout"]!["Areas"]!.AsArray().OfType<JsonObject>())
         {
-            int type = baseline["type"]!.GetValue<int>();
-            var current = states.OfType<JsonObject>().FirstOrDefault(a => a["type"]!.GetValue<int>() == type);
-            if (current is null) states.Add(baseline.DeepClone());
-            else if (current["level"]!.GetValue<int>() < baseline["level"]!.GetValue<int>())
-            {
-                current["level"] = baseline["level"]!.DeepClone();
-                current["constructing"] = false;
-                current["completeTime"] = 0;
-            }
+            int type = baseline["type"]!.GetValue<int>(), level = baseline["level"]!.GetValue<int>();
+            if (level > AreaLevel(c, type)) c.AreaLevels[type] = level;
         }
-        SyncStashTemplate(c);
         c.DevelopmentVersion = 2;
         dirty = true;
     }
@@ -81,12 +64,21 @@ public sealed partial class PopulationStore
             .First(i => i["_id"]?.ToString() == root && i["parentId"] is null)["_tpl"]!.GetValue<string>();
     }
 
-    private void SyncStashTemplate(Career c)
+    private void SyncStashTemplate(Career c, JsonObject stash)
     {
         string template = StashTemplate(c);
-        string? root = c.Stash["stash"]?.ToString();
-        var item = (c.Stash["items"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault(i => i["_id"]?.ToString() == root);
+        string? root = stash["stash"]?.ToString();
+        var item = (stash["items"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault(i => i["_id"]?.ToString() == root);
         if (item is not null) item["_tpl"] = template;
+    }
+
+    // Only prestige reads the stash, so it is rolled then unless a previous prestige stored one.
+    private JsonObject CareerStash(Career c)
+    {
+        var stash = Assets(c).Stash?.DeepClone().AsObject()
+            ?? GenerateStash(c, NativeCharacter(c.Side, c.Edition)["Inventory"]!.AsObject());
+        SyncStashTemplate(c, stash);
+        return stash;
     }
 
     private JsonObject GenerateStash(Career c, JsonObject inventory)
@@ -126,57 +118,62 @@ public sealed partial class PopulationStore
     private void Develop(Career c)
     {
         EnsureDevelopment(c);
-        double hours = CycleHours(c);
-        if (c.Skills["Common"] is JsonArray skills)
-            foreach (var skill in skills.OfType<JsonObject>())
-            {
-                string id = skill["Id"]!.GetValue<string>();
-                double rate = id is "Endurance" or "Strength" ? 2.5 : 1.3;
-                double progress = Math.Min(5100, c.SkillCarry.GetValueOrDefault(id) + hours * rate * (.5 + Stable(c.Id + ":" + id)));
-                skill["Progress"] = Math.Max(skill["Progress"]?.GetValue<double>() ?? 0, progress);
-            }
-        UpdateTraders(c, hours);
-        AdvanceHideout(c, hours);
+        AdvanceHideout(c, CycleHours(c));
         EnsureShowcase(c);
         c.Achievements = EarnedMilestones(c, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
         dirty = true;
     }
 
-    private void UpdateTraders(Career c, double hours)
+    // Skill progress only ever grows with cycle hours, so it is computed instead of stored.
+    private static double SkillProgress(Career c, string id, double native, double hours)
     {
-        int playerLevel = Level(c.Experience);
-        foreach (var (id, trader) in traders)
-        {
-            double sales = hours * (c.Archetype == "Timmy" ? 3000 : 12000);
-            double standing = Math.Min(1.5, hours / 800);
-            int loyalty = 0;
-            if (trader.Base.LoyaltyLevels is not null)
-                for (int i = 0; i < trader.Base.LoyaltyLevels.Count; i++)
-                {
-                    var stage = trader.Base.LoyaltyLevels[i];
-                    if (playerLevel >= (stage.MinLevel ?? 1) && sales >= (stage.MinSalesSum ?? 0)
-                        && standing >= (stage.MinStanding ?? 0)) loyalty = i + 1;
-                    else break;
-                }
-            c.TradersInfo[id.ToString()] = new JsonObject { ["loyaltyLevel"] = loyalty,
-                ["salesSum"] = sales, ["standing"] = standing, ["unlocked"] = loyalty > 0 };
-        }
+        double rate = id is "Endurance" or "Strength" ? 2.5 : 1.3;
+        return Math.Max(native, Math.Min(5100, c.SkillCarry.GetValueOrDefault(id) + hours * rate * (.5 + Stable(c.Id + ":" + id))));
     }
+
+    private double SkillProgress(Career c, string? id)
+    {
+        var native = NativeCharacter(c.Side, c.Edition)["Skills"]?["Common"]?.AsArray().OfType<JsonObject>()
+            .FirstOrDefault(s => s["Id"]?.GetValue<string>() == id);
+        return native is null ? 0 : SkillProgress(c, id!, native["Progress"]?.GetValue<double>() ?? 0, CycleHours(c));
+    }
+
+    private JsonObject CareerSkills(Career c)
+    {
+        var skills = NativeCharacter(c.Side, c.Edition)["Skills"]!.DeepClone().AsObject();
+        double hours = CycleHours(c);
+        if (skills["Common"] is JsonArray common)
+            foreach (var skill in common.OfType<JsonObject>())
+                skill["Progress"] = SkillProgress(c, skill["Id"]!.GetValue<string>(), skill["Progress"]?.GetValue<double>() ?? 0, hours);
+        return skills;
+    }
+
+    private int TraderLoyalty(Career c, MongoId id)
+    {
+        if (!traders.TryGetValue(id, out var trader) || trader?.Base.LoyaltyLevels is null) return 0;
+        double hours = CycleHours(c);
+        int playerLevel = Level(c.Experience);
+        double sales = hours * (c.Archetype == "Timmy" ? 3000 : 12000);
+        double standing = Math.Min(1.5, hours / 800);
+        int loyalty = 0;
+        for (int i = 0; i < trader.Base.LoyaltyLevels.Count; i++)
+        {
+            var stage = trader.Base.LoyaltyLevels[i];
+            if (playerLevel >= (stage.MinLevel ?? 1) && sales >= (stage.MinSalesSum ?? 0)
+                && standing >= (stage.MinStanding ?? 0)) loyalty = i + 1;
+            else break;
+        }
+        return loyalty;
+    }
+
+    private HideoutArea[] HideoutAreas() => hideout.Areas.Concat(hideout.CustomAreas ?? []).Where(a => a.IsEnabled != false && a.Type is not null)
+        .GroupBy(a => (int)a.Type!.Value).Select(g => g.First()).ToArray();
 
     private void AdvanceHideout(Career c, double hours)
     {
-        var allAreas = hideout.Areas.Concat(hideout.CustomAreas ?? []).Where(a => a.IsEnabled != false && a.Type is not null)
-            .GroupBy(a => (int)a.Type!.Value).Select(g => g.First()).ToArray();
-        var states = c.Hideout["Areas"]!.AsArray();
-        var levels = states.OfType<JsonObject>().ToDictionary(a => a["type"]!.GetValue<int>(),
-            a => a["level"]!.GetValue<int>());
-        foreach (var area in allAreas)
-        {
-            int type = (int)area.Type!.Value;
-            if (!levels.TryAdd(type, 0)) continue;
-            states.Add(new JsonObject { ["type"] = type, ["level"] = 0, ["active"] = false,
-                ["constructing"] = false, ["completeTime"] = 0, ["passiveBonusesEnabled"] = false, ["slots"] = new JsonArray() });
-        }
+        var allAreas = HideoutAreas();
+        var levels = new Dictionary<int, int>(c.AreaLevels);
+        foreach (var area in allAreas) levels.TryAdd((int)area.Type!.Value, 0);
         // Advance one stage at a time until all admitted dependencies settle. Unknown requirements block locally.
         bool upgraded;
         do
@@ -201,12 +198,30 @@ public sealed partial class PopulationStore
                 upgraded = true;
             }
         } while (upgraded);
-        foreach (var area in allAreas)
+        foreach (var (type, level) in levels)
+            if (level > 0) c.AreaLevels[type] = level;
+    }
+
+    // The profile view's hideout, built from the stored area levels. Root IDs are stable per career.
+    private (JsonObject Hideout, JsonObject AreaStashes, JsonArray Items) BuildHideout(Career c)
+    {
+        var result = NativeCharacter(c.Side, c.Edition)["Hideout"]!.DeepClone().AsObject();
+        result["Seed"] = (StableId(c.Id + ":hideout-seed") + StableId(c.Id + ":hideout-seed:2"))[..32];
+        result["HideoutCounters"] = new JsonObject
+            { ["fuelCounter"] = 0, ["airFilterCounter"] = 0, ["waterFilterCounter"] = 0, ["craftingTimeCounter"] = 0 };
+        var states = result["Areas"]!.AsArray();
+        var areaStashes = new JsonObject();
+        var items = new JsonArray(new JsonObject { ["_id"] = c.CustomizationStashId, ["_tpl"] = "673c7b00cbf4b984b5099181" });
+        foreach (var area in HideoutAreas())
         {
             int type = (int)area.Type!.Value;
-            int level = levels[type];
+            var state = states.OfType<JsonObject>().FirstOrDefault(a => a["type"]!.GetValue<int>() == type);
+            if (state is null)
+                states.Add(state = new JsonObject { ["type"] = type, ["level"] = 0, ["active"] = false,
+                    ["constructing"] = false, ["completeTime"] = 0, ["passiveBonusesEnabled"] = false, ["slots"] = new JsonArray() });
+            int level = AreaLevel(c, type);
             if (area.Stages is null || !area.Stages.TryGetValue(level.ToString(), out var stage)) continue;
-            var state = states.OfType<JsonObject>().First(a => a["type"]!.GetValue<int>() == type);
+            if (state["level"]!.GetValue<int>() != level) { state["constructing"] = false; state["completeTime"] = 0; }
             state["level"] = level;
             state["active"] = level > 0 && area.NeedsFuel != true;
             state["passiveBonusesEnabled"] = level > 0 && area.NeedsFuel != true;
@@ -217,14 +232,11 @@ public sealed partial class PopulationStore
             state["slots"] = slots;
             if (stage.Container is not MongoId container || container.IsEmpty || !templates.Items.ContainsKey(container)) continue;
             if (type == 3) container = new MongoId(StashTemplate(c));
-            string key = type.ToString();
-            string root = c.HideoutAreaStashes[key]?.GetValue<string>() ?? NewId();
-            c.HideoutAreaStashes[key] = root;
-            var rootItem = c.HideoutItems.OfType<JsonObject>().FirstOrDefault(i => i["_id"]?.GetValue<string>() == root);
-            if (rootItem is null) c.HideoutItems.Add(new JsonObject { ["_id"] = root, ["_tpl"] = container.ToString() });
-            else rootItem["_tpl"] = container.ToString();
+            string root = StableId(c.Id + ":area-stash:" + type);
+            areaStashes[type.ToString()] = root;
+            items.Add(new JsonObject { ["_id"] = root, ["_tpl"] = container.ToString() });
         }
-        SyncStashTemplate(c);
+        return (result, areaStashes, items);
     }
 
     private static bool AreaRequirements(List<HideoutAreaRequirement>? requirements, Dictionary<int, int> levels) =>
@@ -242,13 +254,11 @@ public sealed partial class PopulationStore
                     if (r.AreaType is not int type || levels.GetValueOrDefault(type) < (r.RequiredLevel ?? 0)) return double.PositiveInfinity;
                     break;
                 case "Skill":
-                    var skill = c.Skills["Common"]!.AsArray().OfType<JsonObject>()
-                        .FirstOrDefault(s => s["Id"]?.GetValue<string>() == r.SkillName);
                     // A conservative progress threshold for the low native Hideout skill requirements.
-                    if ((skill?["Progress"]?.GetValue<double>() ?? 0) < (r.SkillLevel ?? 0) * 100) return double.PositiveInfinity;
+                    if (SkillProgress(c, r.SkillName) < (r.SkillLevel ?? 0) * 100) return double.PositiveInfinity;
                     break;
                 case "TraderLoyalty":
-                    if ((c.TradersInfo[r.TraderId.ToString()]?["loyaltyLevel"]?.GetValue<int>() ?? 0) < (r.LoyaltyLevel ?? 0))
+                    if (TraderLoyalty(c, r.TraderId) < (r.LoyaltyLevel ?? 0))
                         return double.PositiveInfinity;
                     break;
                 case "Item":

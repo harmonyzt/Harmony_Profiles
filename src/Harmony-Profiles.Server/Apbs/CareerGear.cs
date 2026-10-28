@@ -32,7 +32,7 @@ public sealed partial class PopulationStore
     {
         foreach (var career in population.Careers.Values.Where(c => !c.Retired))
         {
-            if (career.LastEquipmentOrder == 0 && !HasVisibleLoadout(career.Equipment) && career.StoryHoldUntilUtc == 0)
+            if (career.LastEquipmentOrder == 0 && !career.VisibleLoadout && career.StoryHoldUntilUtc == 0)
                 career.NeedsRegear = false;
             if (career.GearVersion == 0) career.GearPending = true;
         }
@@ -70,7 +70,7 @@ public sealed partial class PopulationStore
     private void ApplyGear(Career career, JsonObject equipment, long now)
     {
         if (!ValidEquipment(equipment) || !HasVisibleLoadout(equipment)) throw new InvalidDataException("APBS did not produce a usable equipment tree.");
-        career.Equipment = equipment;
+        SetEquipment(career, equipment);
         career.EquipmentIsSimulated = true;
         career.NeedsRegear = false;
         career.LastEquipmentAccount = 0;

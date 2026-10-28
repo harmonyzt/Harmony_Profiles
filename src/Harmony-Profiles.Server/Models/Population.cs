@@ -1,11 +1,13 @@
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using SPTarkov.Server.Core.Models.Utils;
 
 namespace HarmonyProfiles.Server;
 
 public sealed class Population
 {
-    public int SchemaVersion { get; set; } = 11;
+    public int SchemaVersion { get; set; } = 12;
+    public string TemplateFingerprint { get; set; } = "";
     public int CoverageVersion { get; set; }
     public Dictionary<int, string> AppliedStories { get; set; } = new();
     public Dictionary<string, long> SessionEndedUtc { get; set; } = new();
@@ -65,7 +67,6 @@ public sealed class Career
     public double PrestigeCycleStartSeconds { get; set; }
     public List<PrestigeRecord> PrestigeHistory { get; set; } = new();
     public Dictionary<string, double> SkillCarry { get; set; } = new();
-    public JsonArray ShowcaseItems { get; set; } = new();
     public Dictionary<string, int> ShowcaseAreas { get; set; } = new();
     public long StoryDeaths { get; set; }
     public long StoryHoldUntilUtc { get; set; }
@@ -73,12 +74,9 @@ public sealed class Career
     public ObservedCareer Observed { get; set; } = new();
     public double WealthRubles { get; set; }
     public double HideoutInvestment { get; set; }
-    public JsonObject Stash { get; set; } = new();
-    public JsonObject Hideout { get; set; } = new();
-    public JsonObject HideoutAreaStashes { get; set; } = new();
-    public JsonArray HideoutItems { get; set; } = new();
+    // Hideout area type to built level. Zero levels are left out.
+    public Dictionary<int, int> AreaLevels { get; set; } = new();
     public string CustomizationStashId { get; set; } = "";
-    public JsonObject TradersInfo { get; set; } = new();
     public Dictionary<string, long> Achievements { get; set; } = new();
     public int LastEquipmentAccount { get; set; }
     public long LastEquipmentOrder { get; set; }
@@ -87,8 +85,21 @@ public sealed class Career
     public int LastGeneratedExperience { get; set; }
     public int LastGeneratedPrestige { get; set; }
     public JsonObject Customization { get; set; } = new();
+    public bool VisibleLoadout { get; set; }
+}
+
+// The heavy per-career JSON, kept in Data/careers/<id>.json and loaded on demand.
+public sealed class CareerAssets
+{
+    public int SchemaVersion { get; set; } = 1;
+    public string CareerId { get; set; } = "";
     public JsonObject Equipment { get; set; } = new();
-    public JsonObject Skills { get; set; } = new();
+    public JsonArray ShowcaseItems { get; set; } = new();
+    // Null until a prestige carries items over. Before that the stash is rolled from the native template when needed.
+    public JsonObject? Stash { get; set; }
+    [JsonIgnore] internal long Version;
+    [JsonIgnore] internal long SavedVersion;
+    internal void Changed() => Version++;
 }
 
 public sealed class Encounter
@@ -110,6 +121,8 @@ public sealed class Encounter
     public long StoryDueUtc { get; set; }
     public bool KillerCaptured { get; set; }
     public string? RaidId { get; set; }
+    // Equipment lives only in the encounter file once trimmed.
+    [JsonIgnore] public bool Trimmed { get; set; }
 }
 
 public sealed class KillerReport : IRequestData

@@ -48,9 +48,7 @@ public sealed partial class PopulationStore
             {
                 case "Level": if (Level(c.Experience) < value) return false; break;
                 case "Skill":
-                    var skill = c.Skills["Common"]?.AsArray().OfType<JsonObject>()
-                        .FirstOrDefault(s => s["Id"]?.ToString() == condition["target"]?.ToString());
-                    if ((skill?["Progress"]?.GetValue<double>() ?? 0) / 100 < value) return false;
+                    if (SkillProgress(c, condition["target"]?.ToString()) / 100 < value) return false;
                     break;
                 case "HideoutArea":
                     int area = condition["areaType"]?.GetValue<int>() ?? -1;
@@ -89,13 +87,14 @@ public sealed partial class PopulationStore
         if (transfer?["skillConfig"]?["transferMultiplier"] is not JsonValue skillRate
             || transfer["masteringConfig"]?["transferMultiplier"] is not JsonValue masteryRate
             || skillRate.GetValue<double>() is < 0 or > 1 || masteryRate.GetValue<double>() is < 0 or > 1) return;
-        var skills = next.Skills.DeepClone().AsObject();
+        var skills = CareerSkills(c);
         foreach (string group in new[] { "Common", "Mastering" })
             if (skills[group] is JsonArray entries)
                 foreach (var entry in entries.OfType<JsonObject>())
                     entry["Progress"] = (entry["Progress"]?.GetValue<double>() ?? 0)
                         * (group == "Common" ? skillRate.GetValue<double>() : masteryRate.GetValue<double>());
-        var carried = PrestigeCarry(next, transfer["stashConfig"] as JsonObject);
+        var stash = CareerStash(c);
+        var carried = PrestigeCarry(stash, transfer["stashConfig"] as JsonObject);
         int oldXp = next.Experience;
         next.PrestigeLevel++;
         next.LastPrestigeUtc = now;
@@ -105,43 +104,46 @@ public sealed partial class PopulationStore
         next.CurrentSurvivalStreak = 0;
         next.DevelopmentVersion = 0;
         EnsureDevelopment(next);
-        next.Skills = skills;
         next.SkillCarry = skills["Common"]!.AsArray().OfType<JsonObject>()
             .ToDictionary(s => s["Id"]!.ToString(), s => s["Progress"]?.GetValue<double>() ?? 0);
-        next.TradersInfo = new();
         next.WealthRubles = 100000;
         next.HideoutInvestment = 0;
         next.NeedsRegear = true;
-        next.Equipment = EmptyEquipment();
         next.EquipmentIsSimulated = true;
         next.LastEquipmentAccount = 0;
-        string stashRoot = next.Stash["stash"]!.ToString();
-        var root = next.Stash["items"]!.AsArray().OfType<JsonObject>().First(i => i["_id"]!.ToString() == stashRoot).DeepClone();
-        next.Stash["items"] = new JsonArray(root);
+        string stashRoot = stash["stash"]!.ToString();
+        var root = stash["items"]!.AsArray().OfType<JsonObject>().First(i => i["_id"]!.ToString() == stashRoot).DeepClone();
+        var items = new JsonArray(root);
         foreach (var tree in carried)
         {
             tree[0]!["parentId"] = stashRoot;
-            foreach (var item in tree) next.Stash["items"]!.AsArray().Add(item!.DeepClone());
+            foreach (var item in tree) items.Add(item!.DeepClone());
         }
+        stash["items"] = items;
+        SyncStashTemplate(next, stash);
         if (IsId(definitionId) && PrestigeHelper.PrestigeAchievements.TryGetValue(new MongoId(definitionId), out var achievement))
             next.Achievements[achievement.ToString()] = now;
         next.PrestigeHistory.Add(new(next.PrestigeLevel, definitionId, now, TotalSeconds(next) / 3600, oldXp, carried.Sum(t => t.Count)));
         // All eligibility/reset work is staged before replacing the live fictional career fields.
         foreach (var property in typeof(Career).GetProperties()) property.SetValue(c, property.GetValue(next));
+        SetEquipment(c, EmptyEquipment());
+        var assets = Assets(c);
+        assets.Stash = stash;
+        assets.Changed();
         dirty = true;
         logger.Info($"[Harmony-Profiles] Synthetic prestige completed: account={c.AccountId}, prestige={c.PrestigeLevel}.");
     }
 
-    private List<JsonArray> PrestigeCarry(Career c, JsonObject? config)
+    private List<JsonArray> PrestigeCarry(JsonObject stash, JsonObject? config)
     {
         var result = new List<JsonArray>();
-        if (config is null || c.Stash["items"] is not JsonArray source) return result;
+        if (config is null || stash["items"] is not JsonArray source) return result;
         int columns = Math.Clamp(config["xCellCount"]?.GetValue<int>() ?? 0, 0, 20);
         int rows = Math.Clamp(config["yCellCount"]?.GetValue<int>() ?? 0, 0, 30);
         var included = config["filters"]?["includedItems"]?.AsArray().Select(v => v!.ToString()).ToHashSet() ?? [];
         var excluded = config["filters"]?["excludedItems"]?.AsArray().Select(v => v!.ToString()).ToHashSet() ?? [];
         int x = 0, y = 0, rowHeight = 0;
-        foreach (var item in source.OfType<JsonObject>().Where(i => i["parentId"]?.ToString() == c.Stash["stash"]?.ToString()))
+        foreach (var item in source.OfType<JsonObject>().Where(i => i["parentId"]?.ToString() == stash["stash"]?.ToString()))
         {
             string tpl = item["_tpl"]!.ToString();
             if (tpl is "5449016a4bdc2d6f028b456f" or "5696686a4bdc2da3298b456a" or "569668774bdc2da2298b4568") continue;
@@ -170,8 +172,7 @@ public sealed partial class PopulationStore
         return false;
     }
 
-    private static int AreaLevel(Career c, int area) => c.Hideout["Areas"]?.AsArray().OfType<JsonObject>()
-        .FirstOrDefault(a => a["type"]?.GetValue<int>() == area)?["level"]?.GetValue<int>() ?? 0;
+    private static int AreaLevel(Career c, int area) => c.AreaLevels.GetValueOrDefault(area);
 
     private static JsonArray ItemTree(JsonArray items, string root)
     {

@@ -65,13 +65,11 @@ public sealed partial class PopulationStore(
                     FileAccess.ReadWrite, FileShare.None);
                 var path = Path.Combine(directory, "population.json");
                 population = File.Exists(path)
-                    ? JsonSerializer.Deserialize<Population>(File.ReadAllText(path)) ?? throw new InvalidDataException("Empty population")
+                    ? ReadPopulation(path) ?? throw new InvalidDataException("Empty population")
                     : new Population();
                 settings = HarmonyProfilesSettings.Load(Path.Combine(Path.GetDirectoryName(directory)!, "config.json"));
                 ValidatePopulation();
-                if (population.SchemaVersion < 11 && File.Exists(path))
-                    File.Copy(path, Path.Combine(directory, "population.schema" + population.SchemaVersion + "-" + NewId() + ".json"));
-                population.SchemaVersion = 11;
+                IndexCareerFiles();
                 allocatedAccounts.UnionWith(population.Careers.Values.Select(c => c.AccountId));
                 var playerAccounts = saves.GetProfiles().Values.Where(p => p.ProfileInfo?.Aid is not null)
                     .Select(p => p.ProfileInfo!.Aid!.Value).ToHashSet();
@@ -90,6 +88,7 @@ public sealed partial class PopulationStore(
                 population.LastGenerationOrder = Math.Max(population.LastGenerationOrder,
                     encounters.Values.Select(e => e.GenerationOrder).DefaultIfEmpty().Max());
                 RestoreLatestEquipment();
+                foreach (var encounter in encounters.Values) TrimEncounter(encounter);
                 LoadMilestones();
                 // Receipts expire only after the corresponding alias is no longer accepted.
                 foreach (int account in population.RaidObservations.Keys.Where(a => !encounters.ContainsKey(a)).ToArray())
@@ -99,9 +98,10 @@ public sealed partial class PopulationStore(
                 }
                 foreach (int account in population.AppliedStories.Keys.Where(a => !encounters.ContainsKey(a)).ToArray())
                     population.AppliedStories.Remove(account);
+                string fingerprint = TemplateFingerprint();
+                bool repairAssets = fingerprint != population.TemplateFingerprint;
                 foreach (var career in population.Careers.Values)
                 {
-                    career.Equipment = RepairEquipment(career.Equipment);
                     EnsureAccountIdentity(career);
                     PreserveLifetime(career);
                     EnsureLife(career, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
@@ -110,9 +110,14 @@ public sealed partial class PopulationStore(
                     career.LastActivityUtc = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                     career.NextActivityUtc = career.LastActivityUtc + Random.Shared.Next(600, 1801);
                     EnsureDevelopment(career);
-                    RepairCareerAssets(career);
-                    RepairShowcase(career);
+                    RepairAppearance(career);
+                    if (repairAssets && assetFiles.Contains(career.Id))
+                    {
+                        RepairCareerAssets(career);
+                        RepairShowcase(career);
+                    }
                 }
+                population.TemplateFingerprint = fingerprint;
                 EnsureCareerCoverage();
                 SeedMissingLoadouts();
                 Simulate(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
@@ -139,6 +144,7 @@ public sealed partial class PopulationStore(
                     socialHarmony.UnpatchSelf();
                     logger.Warning("[Harmony-Profiles] Social integration disabled; profiles and progression remain available. " + ex.Message);
                 }
+                SaveChangedAssets();
                 SavePopulation();
                 Ready = true;
                 checkpoint = new Timer(_ => Checkpoint(), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
@@ -161,7 +167,9 @@ public sealed partial class PopulationStore(
 
     private void ValidatePopulation()
     {
-        if (population.SchemaVersion is < 1 or > 11 || population.CoverageVersion is < 0 or > 1 || population.Careers is null || population.Friendships is null || population.RaidObservations is null || population.AppliedStories is null || population.SessionEndedUtc is null || population.LastGenerationOrder is < 0 or >= 1_000_000_000_000)
+        if (population.SchemaVersion != 12)
+            throw new InvalidDataException("Population data is from an older build and has no migration; delete the mod's Data folder.");
+        if (population.TemplateFingerprint is null || population.CoverageVersion is < 0 or > 1 || population.Careers is null || population.Friendships is null || population.RaidObservations is null || population.AppliedStories is null || population.SessionEndedUtc is null || population.LastGenerationOrder is < 0 or >= 1_000_000_000_000)
             throw new InvalidDataException("Unsupported population schema; preserve Data and migrate explicitly.");
         foreach (var (account, observation) in population.RaidObservations)
         {
@@ -195,7 +203,7 @@ public sealed partial class PopulationStore(
                 || !double.IsFinite(c.PrestigeCycleStartSeconds) || c.PrestigeCycleStartSeconds < 0
                 || c.PrestigeCycleStartSeconds > c.RaidSeconds + c.Observed.ActiveSeconds
                 || c.SkillCarry is null || c.SkillCarry.Any(s => !double.IsFinite(s.Value) || s.Value < 0 || s.Value > 5100)
-                || c.ShowcaseAreas is null || c.ShowcaseItems is null || c.ShowcaseAreas.Count > 128 || c.ShowcaseItems.Count > 4096 || c.ShowcaseAreas.Any(s => !IsId(s.Key) || s.Value is not (16 or 24))
+                || c.ShowcaseAreas is null || c.ShowcaseAreas.Count > 128 || c.ShowcaseAreas.Any(s => !IsId(s.Key) || s.Value is not (16 or 24))
                 || c.Edition is null || c.GameVersion is null
                 || (c.Edition.Length > 0 && (!editions.Contains(c.Edition) || c.GameVersion.Length is < 1 or > 64))
                 || c.MemberCategory is < 0 or > 2047 || c.SelectedMemberCategory is < 0 or > 2047
@@ -223,10 +231,10 @@ public sealed partial class PopulationStore(
                 || (long)c.MissingRaids + c.AwolRaids + c.RunThroughRaids + c.Survived > c.Raids
                 || c.CurrentSurvivalStreak < 0 || c.BestSurvivalStreak < c.CurrentSurvivalStreak
                 || !double.IsFinite(c.PendingLiveSeconds) || c.PendingLiveSeconds < 0
-                || c.Experience < 0 || c.Equipment is null || c.Customization is null || c.Skills is null
+                || c.Experience < 0 || c.Customization is null
                 || c.DevelopmentVersion is < 0 or > 2 || !double.IsFinite(c.WealthRubles) || c.WealthRubles < 0
-                || !double.IsFinite(c.HideoutInvestment) || c.HideoutInvestment < 0 || c.Stash is null
-                || c.Hideout is null || c.HideoutAreaStashes is null || c.HideoutItems is null || c.TradersInfo is null)
+                || !double.IsFinite(c.HideoutInvestment) || c.HideoutInvestment < 0
+                || c.AreaLevels is null || c.AreaLevels.Any(a => a.Key is < 0 or > 1000 || a.Value is < 1 or > 100))
                 throw new InvalidDataException($"Invalid career {id}; restore a known-good population backup.");
         }
     }
@@ -268,9 +276,7 @@ public sealed partial class PopulationStore(
                 + Random.Shared.NextDouble() * (personality.MaximumDailyHours - personality.MinimumDailyHours),
             SurvivalChance = personality.MinimumSurvival + Random.Shared.NextDouble()
                 * (personality.MaximumSurvival - personality.MinimumSurvival),
-            Experience = profileHelper.GetExperience(level) ?? 0,
-            Skills = JsonNode.Parse(json.Serialize(bots.Base.Skills)!)!.AsObject(),
-            Equipment = EmptyEquipment()
+            Experience = profileHelper.GetExperience(level) ?? 0
         };
         var a = type.BotAppearance;
         var body = Pick(a.Body);
@@ -404,6 +410,7 @@ public sealed partial class PopulationStore(
             encounters.Add(encounter.AccountId, encounter);
             bot.Aid = encounter.AccountId;
             RememberEquipment(career, encounter);
+            TrimEncounter(encounter);
             career.NeedsRegear = false;
             career.LastGeneratedLevel = bot.Info.Level ?? 1;
             career.LastGeneratedExperience = bot.Info.Experience ?? 0;
@@ -451,7 +458,13 @@ public sealed partial class PopulationStore(
             }
             if (encounter is null) RefreshSimulatedLoadout(career, session);
             EnsureShowcase(career);
+            // Drops rack guns the current loadout now carries.
+            RepairShowcase(career);
             QueueShowcase(career);
+            var equipment = encounter is not null
+                ? (EncounterDied(encounter) ? NakedEquipment(EncounterEquipment(encounter)) : EncounterEquipment(encounter))
+                : career.NeedsRegear ? NakedEquipment(CareerEquipment(career)) : CareerEquipment(career);
+            var (hideoutState, areaStashes, hideoutItems) = BuildHideout(career);
             var appearance = encounter?.Customization ?? career.Customization;
             var customization = new JsonObject();
             foreach (var (key, value) in appearance) customization[char.ToLowerInvariant(key[0]) + key[1..]] = value?.DeepClone();
@@ -480,19 +493,17 @@ public sealed partial class PopulationStore(
                 ["info"] = new JsonObject { ["nickname"] = career.Name, ["side"] = career.Side,
                     ["prestigeLevel"] = encounter?.GeneratedPrestige ?? career.PrestigeLevel, ["experience"] = encounter?.GeneratedExperience ?? career.Experience, ["memberCategory"] = career.MemberCategory, ["selectedMemberCategory"] = career.SelectedMemberCategory, ["gameVersion"] = career.GameVersion, ["bannedState"] = false,
                     ["bannedUntil"] = 0, ["registrationDate"] = career.RegisteredUtc },
-                ["customization"] = customization, ["skills"] = career.Skills.DeepClone(),
-                ["equipment"] = (encounter is not null
-                    ? (EncounterDied(encounter) ? NakedEquipment(encounter.Equipment) : encounter.Equipment)
-                    : career.NeedsRegear ? NakedEquipment(career.Equipment) : career.Equipment).DeepClone(),
+                ["customization"] = customization, ["skills"] = CareerSkills(career),
+                ["equipment"] = equipment.DeepClone(),
                 ["achievements"] = PublicAchievements(career), ["favoriteItems"] = PublicShowcase(career),
                 ["pmcStats"] = new JsonObject { ["eft"] = new JsonObject { ["totalInGameTime"] = Lifetime(career, "TimeInRaid", (long)career.RaidSeconds + career.Observed.ActiveSeconds),
                     ["overAllCounters"] = new JsonObject { ["Items"] = counters } } },
                 ["scavStats"] = new JsonObject { ["eft"] = new JsonObject { ["totalInGameTime"] = 0,
                     ["overAllCounters"] = new JsonObject { ["Items"] = new JsonArray() } } },
-                ["hideout"] = career.Hideout.DeepClone(),
+                ["hideout"] = hideoutState,
                 ["customizationStash"] = career.CustomizationStashId,
-                ["hideoutAreaStashes"] = career.HideoutAreaStashes.DeepClone(),
-                ["items"] = career.HideoutItems.DeepClone()
+                ["hideoutAreaStashes"] = areaStashes,
+                ["items"] = hideoutItems
             };
             return json.Deserialize<GetOtherProfileResponse>(response.ToJsonString());
         }
@@ -522,6 +533,7 @@ public sealed partial class PopulationStore(
             // An older killer report must not replace the loadout from a newer generated encounter.
             if (population.Careers.TryGetValue(e.CareerId, out var career) && career.LastEquipmentAccount == e.AccountId)
                 RememberEquipment(career, updated);
+            TrimEncounter(updated);
             return true;
         }
     }
@@ -633,7 +645,8 @@ public sealed partial class PopulationStore(
 
     private void Checkpoint()
     {
-        (long Sequence, string Text)? snapshot = null;
+        (long Sequence, byte[] Utf8)? snapshot = null;
+        List<AssetSnapshot> assets = [];
         List<GearRequest> gear;
         lock (gate)
         {
@@ -645,6 +658,7 @@ public sealed partial class PopulationStore(
                 AdvanceOnline(now);
                 Simulate(now);
                 ProcessProfileEquipment(now);
+                assets = SnapshotChangedAssets();
                 if (dirty) snapshot = SnapshotPopulation();
             }
             catch (Exception ex) { logger.Error($"[Harmony-Profiles] Checkpoint failed; retaining in-memory changes for retry. {ex.Message}"); }
@@ -652,6 +666,12 @@ public sealed partial class PopulationStore(
             catch (Exception ex) { Report(ex); gear = []; }
         }
         // Disk and APBS work run outside the gate so bot generation and profile requests never wait on them.
+        try
+        {
+            foreach (var asset in assets) WriteAssets(asset);
+            lock (gate) foreach (var asset in assets) Saved(asset);
+        }
+        catch (Exception ex) { logger.Error($"[Harmony-Profiles] Career file save failed; retaining in-memory changes for retry. {ex.Message}"); }
         if (snapshot is { } pending)
         {
             try { WritePopulation(pending); }
@@ -664,19 +684,26 @@ public sealed partial class PopulationStore(
         foreach (var request in gear) GenerateRequestedGear(request);
     }
 
-    private (long Sequence, string Text) SnapshotPopulation()
+    // Bytes and streams keep the large population file out of UTF-16 strings.
+    private static Population? ReadPopulation(string path)
+    {
+        using var stream = File.OpenRead(path);
+        return JsonSerializer.Deserialize<Population>(stream);
+    }
+
+    private (long Sequence, byte[] Utf8) SnapshotPopulation()
     {
         dirty = false;
-        return (++saveSequence, JsonSerializer.Serialize(population));
+        return (++saveSequence, JsonSerializer.SerializeToUtf8Bytes(population));
     }
 
     // Snapshots are taken under the gate, so a higher sequence is always newer. Never let an older one land last.
-    private void WritePopulation((long Sequence, string Text) snapshot)
+    private void WritePopulation((long Sequence, byte[] Utf8) snapshot)
     {
         lock (saveGate)
         {
             if (snapshot.Sequence <= writtenSequence) return;
-            AtomicFile.Write(Path.Combine(directory, "population.json"), snapshot.Text);
+            AtomicFile.Write(Path.Combine(directory, "population.json"), snapshot.Utf8);
             writtenSequence = snapshot.Sequence;
         }
     }
@@ -696,14 +723,17 @@ public sealed partial class PopulationStore(
     private bool CanAccess(Encounter e, MongoId session) => fikaPresent || e.SessionId == session.ToString();
 
     // Written on every PMC spawn, so skip the fsync. Losing one to a power cut only drops that alias.
-    private void WriteEncounter(Encounter e) =>
+    private void WriteEncounter(Encounter e)
+    {
+        if (e.Trimmed) throw new InvalidOperationException("A trimmed encounter has no equipment to write.");
         AtomicFile.Write(Path.Combine(directory, "encounters", e.AccountId + ".json"), JsonSerializer.Serialize(e), durable: false);
+    }
     private static string NameKey(string side, string name) => side.ToUpperInvariant() + "\n" + name.Normalize(NormalizationForm.FormC).ToUpperInvariant();
     private static string NewId() => Convert.ToHexString(RandomNumberGenerator.GetBytes(12)).ToLowerInvariant();
     private static bool IsId(string? value) => value is { Length: 24 } && value.All(Uri.IsHexDigit);
-    private static JsonObject EmptyEquipment()
+    private static JsonObject EmptyEquipment(string? id = null)
     {
-        string id = NewId();
+        id ??= NewId();
         return new JsonObject { ["Id"] = id, ["Items"] = new JsonArray(new JsonObject
             { ["_id"] = id, ["_tpl"] = "55d7217a4bdc2d86028b456d" }) };
     }
@@ -727,6 +757,7 @@ public sealed partial class PopulationStore(
                 ApplyStories(now);
                 AdvanceOnline(now);
                 Simulate(now);
+                SaveChangedAssets();
                 if (dirty) SavePopulation();
             }
             catch (Exception ex) { logger.Error($"[Harmony-Profiles] Final save failed. {ex}"); }

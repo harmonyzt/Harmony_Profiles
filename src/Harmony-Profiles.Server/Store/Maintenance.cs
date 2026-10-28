@@ -39,9 +39,8 @@ public sealed partial class PopulationStore
         }
     }
 
-    private void RepairCareerAssets(Career c)
+    private void RepairAppearance(Career c)
     {
-        c.Equipment = RepairEquipment(c.Equipment);
         var native = NativeCharacter(c.Side, c.Edition);
         foreach (string part in new[] { "Head", "Body", "Hands", "Feet", "Voice" })
         {
@@ -49,11 +48,20 @@ public sealed partial class PopulationStore
             if (IsId(asset) && templates.Customization.ContainsKey(new MongoId(asset!))) continue;
             if (native["Customization"]?[part] is { } fallback) c.Customization[part] = fallback.DeepClone();
         }
-        if (c.Stash["stash"] is not JsonValue root || c.Stash["items"] is not JsonArray items) return;
+    }
+
+    private void RepairCareerAssets(Career c)
+    {
+        var assets = Assets(c);
+        var equipment = RepairEquipment(assets.Equipment);
+        if (equipment.ToJsonString() != assets.Equipment.ToJsonString()) SetEquipment(c, equipment);
+        if (assets.Stash?["stash"] is not JsonValue root || assets.Stash["items"] is not JsonArray items) return;
         var shape = new JsonObject { ["Id"] = root.DeepClone(), ["Items"] = items.DeepClone() };
         var repaired = RepairEquipment(shape);
-        if (repaired["Id"]?.ToString() != root.ToString())
-            c.Stash = GenerateStash(c, native["Inventory"]!.AsObject());
-        else c.Stash["items"] = repaired["Items"]!.DeepClone();
+        if (repaired["Items"]!.ToJsonString() == items.ToJsonString()) return;
+        // A broken carried stash falls back to a freshly rolled one.
+        if (repaired["Id"]?.ToString() != root.ToString()) assets.Stash = null;
+        else assets.Stash["items"] = repaired["Items"]!.DeepClone();
+        assets.Changed();
     }
 }

@@ -178,10 +178,11 @@ public sealed partial class PopulationStore
     {
         var trees = new List<JsonArray>();
         if (AreaLevel(c, area) <= 0) return trees;
+        var items = Assets(c).ShowcaseItems;
         foreach (var (root, type) in c.ShowcaseAreas)
         {
             if (type != area) continue;
-            var tree = ItemTree(c.ShowcaseItems, root);
+            var tree = ItemTree(items, root);
             if (FitsShowcase(c, area, trees.Append(tree))) trees.Add(tree);
         }
         return trees;
@@ -190,9 +191,10 @@ public sealed partial class PopulationStore
     private bool PinShowcase(Career c, JsonArray source, string root, int area)
     {
         var tree = ItemTree(source, root);
-        if (!ValidShowcaseTree(tree) || c.ShowcaseAreas.Count >= 128 || c.ShowcaseItems.Count + tree.Count > 4096) return false;
+        var assets = Assets(c);
+        if (!ValidShowcaseTree(tree) || c.ShowcaseAreas.Count >= 128 || assets.ShowcaseItems.Count + tree.Count > 4096) return false;
         string tpl = tree[0]!["_tpl"]!.ToString();
-        if (c.ShowcaseAreas.Keys.Any(id => c.ShowcaseItems.OfType<JsonObject>()
+        if (c.ShowcaseAreas.Keys.Any(id => assets.ShowcaseItems.OfType<JsonObject>()
             .Any(i => i["_id"]?.ToString() == id && i["_tpl"]?.ToString() == tpl))) return false;
         var current = VisibleShowcaseTrees(c, area);
         if (current.Count >= ShowcaseTarget(c, area) || !FitsShowcase(c, area, current.Append(tree))) return false;
@@ -203,8 +205,9 @@ public sealed partial class PopulationStore
             item["_id"] = ids[old];
             if (old == root) { item.Remove("parentId"); item.Remove("slotId"); item.Remove("location"); }
             else item["parentId"] = ids[item["parentId"]!.ToString()];
-            c.ShowcaseItems.Add(item.DeepClone());
+            assets.ShowcaseItems.Add(item.DeepClone());
         }
+        assets.Changed();
         c.ShowcaseAreas.Add(ids[root], area);
         validatedFavorites.Add(ids[root]);
         dirty = true;
@@ -219,7 +222,7 @@ public sealed partial class PopulationStore
     private void PinGeneratedWeapons(Career c, JsonObject equipment)
     {
         if (AreaLevel(c, 24) <= 0) return;
-        var carried = EquippedWeapons(c.Equipment).Select(i => i["_tpl"]!.ToString()).ToHashSet();
+        var carried = EquippedWeapons(CareerEquipment(c)).Select(i => i["_tpl"]!.ToString()).ToHashSet();
         var items = equipment["Items"]!.AsArray();
         foreach (var weapon in EquippedWeapons(equipment).Where(i => !carried.Contains(i["_tpl"]!.ToString())))
             PinShowcase(c, items, weapon["_id"]!.ToString(), 24);
@@ -238,11 +241,13 @@ public sealed partial class PopulationStore
 
     private void DevelopShowcase(Career c)
     {
-        if (AreaLevel(c, 16) <= 0 || VisibleShowcaseTrees(c, 16).Count >= ShowcaseTarget(c, 16)) return;
+        // The pinned count is checked first so a full collection never loads the career file.
+        if (AreaLevel(c, 16) <= 0 || c.ShowcaseAreas.Count(p => p.Value == 16) >= ShowcaseTarget(c, 16)
+            || VisibleShowcaseTrees(c, 16).Count >= ShowcaseTarget(c, 16)) return;
         showcasePrices ??= templates.Handbook.Items.Where(i => i.Price is > 0)
             .GroupBy(i => i.Id.ToString()).ToDictionary(g => g.Key, g => g.First().Price!.Value);
         double budget = Math.Clamp(25000 + Math.Pow(Level(c.Experience), 2) * 800 + TotalSeconds(c) / 36, 25000, 10000000);
-        var used = c.ShowcaseAreas.Keys.Select(id => c.ShowcaseItems.OfType<JsonObject>()
+        var used = c.ShowcaseAreas.Keys.Select(id => Assets(c).ShowcaseItems.OfType<JsonObject>()
             .FirstOrDefault(i => i["_id"]?.ToString() == id)?["_tpl"]?.ToString()).ToHashSet();
         int level = AreaLevel(c, 16);
         if (!trophyCatalogs.TryGetValue(level, out var catalog))
@@ -301,13 +306,14 @@ public sealed partial class PopulationStore
         var retained = new JsonArray();
         var roots = new Dictionary<string, int>();
         var ids = new HashSet<string>();
-        var carried = EquippedWeapons(c.Equipment).Select(i => i["_tpl"]!.ToString()).ToHashSet();
+        var assets = Assets(c);
+        var carried = EquippedWeapons(assets.Equipment).Select(i => i["_tpl"]!.ToString()).ToHashSet();
         foreach (var (root, area) in c.ShowcaseAreas)
         {
             JsonArray tree;
             try
             {
-                tree = ItemTree(c.ShowcaseItems, root);
+                tree = ItemTree(assets.ShowcaseItems, root);
                 if (!ValidShowcaseTree(tree) || tree.OfType<JsonObject>().Any(i => ids.Contains(i["_id"]!.ToString()))
                     || (area == 24 && carried.Contains(tree[0]!["_tpl"]!.ToString()))) continue;
             }
@@ -321,13 +327,12 @@ public sealed partial class PopulationStore
                 retained.Add(item.DeepClone());
             }
         }
-        if (c.ShowcaseItems.ToJsonString() != retained.ToJsonString() || c.ShowcaseAreas.Count != roots.Count)
-        {
-            dirty = true;
-            if (c.ShowcaseAreas.Count > roots.Count)
-                logger.Info($"[Harmony-Profiles] Removed {c.ShowcaseAreas.Count - roots.Count} invalid, dogtag or carried-gun showcase trees for account {c.AccountId}; career retained.");
-        }
-        c.ShowcaseItems = retained;
+        if (assets.ShowcaseItems.ToJsonString() == retained.ToJsonString() && c.ShowcaseAreas.Count == roots.Count) return;
+        dirty = true;
+        assets.Changed();
+        if (c.ShowcaseAreas.Count > roots.Count)
+            logger.Info($"[Harmony-Profiles] Removed {c.ShowcaseAreas.Count - roots.Count} invalid, dogtag or carried-gun showcase trees for account {c.AccountId}; career retained.");
+        assets.ShowcaseItems = retained;
         c.ShowcaseAreas = roots;
     }
 

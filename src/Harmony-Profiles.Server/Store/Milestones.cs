@@ -116,9 +116,10 @@ public sealed partial class PopulationStore
         foreach (var group in encounters.Values.GroupBy(e => e.CareerId))
         {
             var career = population.Careers[group.Key];
+            string? current = CareerEquipment(career)["Id"]?.ToString();
             var latest = group.OrderByDescending(e => e.GenerationOrder).ThenByDescending(e => e.GeneratedUtc)
                 .ThenByDescending(e => e.AccountId == career.LastEquipmentAccount)
-                .ThenByDescending(e => e.Equipment["Id"]?.ToString() == career.Equipment["Id"]?.ToString())
+                .ThenByDescending(e => EncounterEquipment(e)["Id"]?.ToString() == current)
                 .ThenByDescending(e => e.AccountId).First();
             // Expiration of the newest alias must not resurrect an older, longer-retained killer loadout.
             if ((!career.EquipmentIsSimulated && career.LastEquipmentAccount == 0) || latest.AccountId == career.LastEquipmentAccount
@@ -138,7 +139,7 @@ public sealed partial class PopulationStore
         career.LastEquipmentOrder = encounter.GenerationOrder;
         career.SimulatedLoadoutOrder = population.LastGenerationOrder;
         career.LastEquipmentGeneratedUtc = encounter.GeneratedUtc;
-        career.Equipment = encounter.Equipment.DeepClone().AsObject();
+        SetEquipment(career, EncounterEquipment(encounter).DeepClone().AsObject());
         career.Customization = encounter.Customization.DeepClone().AsObject();
         dirty = true;
     }
