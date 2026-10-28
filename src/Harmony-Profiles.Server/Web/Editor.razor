@@ -7,15 +7,16 @@
 @using static Microsoft.AspNetCore.Components.Web.RenderMode
 @layout SPTarkov.Server.Web.Layout.BaseMainLayout
 @attribute [Authorize]
+@attribute [ExcludeFromInteractiveRouting]
 @rendermode InteractiveServer
 
 <PageTitle>Harmony-Profiles</PageTitle>
-<link href="/harmony-profiles-assets/harmony-profiles.css" rel="stylesheet" />
+<link href="/harmony-profiles-assets/harmony-profiles.css?v=20261028-approved6" rel="stylesheet" />
 <main class="harmony-profiles-editor">
     <header class="hp-heading">
-        <div><span class="hp-eyebrow">Population control</span><h1>Harmony-Profiles</h1>
+        <div><span class="hp-eyebrow"><span class="hp-mark" aria-hidden="true">H</span> Harmony / server tools</span><h1>Population <span>manager</span></h1>
             <p>Persistent identities. Stories between raids.</p></div>
-        <span class="hp-badge">@(snapshot is null ? "Unavailable" : "Connected")</span>
+        <div class="hp-header-status"><span class="hp-status-dot" aria-hidden="true"></span><div><strong>Harmony-Profiles</strong><small>@(snapshot is null ? "Settings unavailable" : "Settings loaded")</small></div></div>
     </header>
     @if (!string.IsNullOrEmpty(message))
     {
@@ -23,32 +24,38 @@
     }
     @if (snapshot is not null)
     {
-        <nav class="hp-tabs" role="tablist" aria-label="Population settings">
+        <div class="hp-workspace"><nav class="hp-tabs" aria-label="Population settings sections">
             @foreach (string tab in tabs)
             {
-                <button type="button" role="tab" id="hp-tab-@tab" aria-controls="hp-panel" aria-selected="@(activeTab == tab ? "true" : "false")"
-                    class="@(activeTab == tab ? "hp-selected" : "")" @onclick="() => activeTab = tab">@tab
-                    @if (TabDirty(tab)) { <span class="hp-dot" aria-label="Unsaved changes"></span> }
+                <button type="button" aria-pressed="@(activeTab == tab ? "true" : "false")"
+                    class="@(activeTab == tab ? "hp-selected" : "")" @onclick="() => activeTab = tab"><span class="hp-nav-copy"><strong>@tab</strong><small>@TabDescription(tab)</small></span>
+                    @if (TabDirty(tab)) { <span class="hp-dot" aria-hidden="true"></span><span class="hp-sr-only">, unsaved changes</span> }
                 </button>
             }
+            <p class="hp-nav-note">Each section saves separately. Switch sections without losing your edits.</p>
         </nav>
-        <div id="hp-panel" role="tabpanel" aria-labelledby="hp-tab-@activeTab" class="hp-panel">
+        <div class="hp-panel" @key="activeTab">
             @if (activeTab == "Overview")
             {
+                <div class="hp-overview-title"><div><h2>Population overview</h2><p>A snapshot of your server’s persistent population.</p></div><button type="button" class="hp-secondary" @onclick="RefreshStatus">Refresh status</button></div>
                 <div class="hp-stats">
-                    <article title="Persistent PMC careers, one per bot name."><span>Accounts</span><strong>@snapshot.Careers.ToString("N0")</strong></article>
-                    <article title="Accounts currently marked online. Re-rolled for each account every 10-30 minutes from its daily raid hours."><span>Simulated online</span><strong>@snapshot.Online.ToString("N0")</strong></article>
-                    <article title="Accounts that have prestiged at least once."><span>Prestiged</span><strong>@snapshot.Prestiged.ToString("N0")</strong></article>
-                    <article title="Killer stories waiting to resolve (a later death or regear)."><span>Pending stories</span><strong>@snapshot.PendingStories.ToString("N0")</strong></article>
+                    <article title="Persistent PMC careers, one per bot name."><span>Accounts</span><strong>@snapshot.Careers.ToString("N0")</strong><small>Persistent identities</small></article>
+                    <article class="hp-stat-online" title="Accounts currently marked online. Re-rolled for each account every 10-30 minutes from its daily raid hours."><span>Simulated online</span><strong>@snapshot.Online.ToString("N0")</strong><small>Current activity</small></article>
+                    <article title="Accounts that have prestiged at least once."><span>Prestiged</span><strong>@snapshot.Prestiged.ToString("N0")</strong><small>Accounts with prestige</small></article>
+                    <article class="hp-stat-story" title="Killer stories waiting to resolve (a later death or regear)."><span>Pending stories</span><strong>@snapshot.PendingStories.ToString("N0")</strong><small>Outcomes awaiting resolution</small></article>
                 </div>
-                <section class="hp-card"><div class="hp-section-heading"><h2>Your population</h2><button type="button" class="hp-secondary" @onclick="RefreshStatus">Refresh status</button></div>
+                <section class="hp-card"><div class="hp-section-heading"><div><h2>A population with a history</h2></div></div>
                     <p>APBS supplies equipment and appearance. Persistent careers keep their identity, history, and friendships between raids.</p>
                     <div class="hp-notes"><div><h3>Hideouts</h3><p>Everyone has an overview. Actual entrance requires an accepted friendship. Edition privileges and native requirements shape construction.</p></div>
                         <div><h3>Between raids</h3><p>Online accounts progress at scheduled checkpoints. Recent encounters and visible story outcomes protect their loadouts. Showcase favorites stay pinned.</p></div></div>
                     <details><summary>Generation details</summary><p>@snapshot.GenerationMode</p><p>APBS career selections: @snapshot.ApbsMatched.ToString("N0"). Unmatched level ranges: @snapshot.ApbsFallback.ToString("N0").</p></details>
                 </section>
                 <section class="hp-card hp-settings-note"><h2>Changes stay in their section</h2><p>Switch tabs freely. Save buttons apply only that section. Reload replaces all unsaved edits with the saved settings.</p>
-                    <button type="button" class="hp-secondary" @onclick="Reload">Reload all saved settings</button></section>
+                    <button type="button" class="hp-secondary" @onclick="RequestReload">Reload saved settings</button>
+                    @if (confirmReload)
+                    {
+                        <div class="hp-confirm" role="group" aria-label="Discard unsaved settings"><p>Discard your unsaved changes in all sections?</p><button type="button" class="hp-danger" @onclick="Reload">Discard and reload</button><button type="button" class="hp-secondary" @onclick="() => confirmReload = false">Keep editing</button></div>
+                    }</section>
             }
             else if (activeTab == "Personalities")
             {
@@ -58,27 +65,30 @@
                     </select></label><button type="button" class="hp-secondary" @onclick="Add">Add personality</button></div>
                     @if (Current is { } p)
                     {
-                        <div class="hp-grid">
+                        <fieldset class="hp-fieldset"><legend>Identity &amp; distribution</legend><div class="hp-grid">
                             <label title="Personality ID. Careers store this name, so renaming it moves existing careers to the first personality.">Name<input @bind="p.Id" /></label>
                             <label title="How often new accounts roll this personality, relative to the other weights.">Population weight<input type="number" min="1" max="1000" @bind="p.Weight" /></label>
+                        </div></fieldset><fieldset class="hp-fieldset"><legend>Starting experience</legend><p>Ranges used when a new account is created.</p><div class="hp-grid">
                             <label title="Fewest raid hours a new account of this personality starts with.">Starting hours, minimum<input type="number" @bind="p.MinimumHours" /></label>
                             <label title="Most raid hours a new account of this personality starts with.">Starting hours, maximum<input type="number" @bind="p.MaximumHours" /></label>
                             <label title="Lowest level a new account of this personality starts at.">Starting level, minimum<input type="number" min="1" max="79" @bind="p.MinimumLevel" /></label>
                             <label title="Highest level a new account of this personality starts at.">Starting level, maximum<input type="number" min="1" max="79" @bind="p.MaximumLevel" /></label>
+                        </div></fieldset><fieldset class="hp-fieldset"><legend>Raid behavior</legend><p>Hours are daily totals. Survival chances use 0 to 1 (0.5 = 50%).</p><div class="hp-grid">
                             <label title="Least time per day this account plays. It also sets how often the account shows as online.">Daily raid hours, minimum<input type="number" step="0.05" @bind="p.MinimumDailyHours" /></label>
                             <label title="Most time per day this account plays. It also sets how often the account shows as online.">Daily raid hours, maximum<input type="number" step="0.05" @bind="p.MaximumDailyHours" /></label>
                             <label title="Lowest chance (0 to 1) to survive a simulated raid.">Survival chance, minimum<input type="number" min="0" max="1" step="0.01" @bind="p.MinimumSurvival" /></label>
                             <label title="Highest chance (0 to 1) to survive a simulated raid.">Survival chance, maximum<input type="number" min="0" max="1" step="0.01" @bind="p.MaximumSurvival" /></label>
                             <label title="Shortest simulated raid. Clamped to 5-45 minutes.">Raid minutes, minimum<input type="number" @bind="p.MinimumRaidMinutes" /></label>
                             <label title="Longest simulated raid. Clamped to 5-45 minutes.">Raid minutes, maximum<input type="number" @bind="p.MaximumRaidMinutes" /></label>
+                        </div></fieldset><fieldset class="hp-fieldset"><legend>Personality progression</legend><div class="hp-grid">
                             <label title="Personality this account turns into after enough raid hours, e.g. Timmy into Casual.">Progress to<select @bind="p.ProgressTo"><option value="">Stay this personality</option>
                                 @foreach (var target in people.Where(t => t != p)) { <option value="@target.Id">@target.Id</option> }
                             </select></label>
                             <label title="Total raid hours before the account switches to the Progress to personality.">Progress after account raid hours<input type="number" @bind="p.TransitionHours" /></label>
-                        </div>
-                        <button type="button" class="hp-danger" @onclick="Remove">Remove selected personality</button>
+                        </div></fieldset>
+                        <details class="hp-remove"><summary>Remove this personality</summary><p>Remove @p.Id from this draft? Save personalities to apply the removal.</p><button type="button" class="hp-danger" @onclick="Remove">Remove @p.Id</button></details>
                     }
-                    <div class="hp-save"><button type="button" @onclick="SavePeople">Save personalities</button><span>Starting ranges apply to new accounts. Progression targets affect existing accounts.</span></div>
+                    <div class="hp-save"><button type="button" disabled="@(!Dirty("personalities"))" @onclick="SavePeople">Save personalities</button><span>Starting ranges apply to new accounts. Progression targets affect existing accounts.</span></div>
                 </section>
             }
             else if (activeTab == "Simulation")
@@ -88,10 +98,11 @@
                     <div class="hp-table-scroll"><table><caption>Raid history priors</caption><thead><tr><th>Maximum level</th><th>Raid minutes</th><th>PMC kills / raid</th><th>Scav kills / raid</th></tr></thead><tbody>
                         @foreach (var prior in simulation.ProgressionPriors)
                         {
-                            <tr @key="prior"><td><input aria-label="Maximum level" type="number" min="1" max="79" @bind="prior.MaximumLevel" /></td>
-                                <td><input aria-label="Raid minutes" type="number" min="5" max="45" step="0.01" @bind="prior.RaidMinutes" /></td>
-                                <td><input aria-label="PMC kills per raid" type="number" min="0" max="20" step="0.01" @bind="prior.PmcKills" /></td>
-                                <td><input aria-label="Scav kills per raid" type="number" min="0" max="20" step="0.01" @bind="prior.ScavKills" /></td></tr>
+                            var row = simulation.ProgressionPriors.IndexOf(prior) + 1;
+                            <tr @key="prior"><td><input aria-label="Maximum level, band @row" type="number" min="1" max="79" @bind="prior.MaximumLevel" /></td>
+                                <td><input aria-label="Raid minutes, band @row" type="number" min="5" max="45" step="0.01" @bind="prior.RaidMinutes" /></td>
+                                <td><input aria-label="PMC kills per raid, band @row" type="number" min="0" max="20" step="0.01" @bind="prior.PmcKills" /></td>
+                                <td><input aria-label="Scav kills per raid, band @row" type="number" min="0" max="20" step="0.01" @bind="prior.ScavKills" /></td></tr>
                         }
                     </tbody></table></div><p class="hp-hint">Bands must increase and end at level 79. These averages are priors, not identical targets for every account.</p>
                 </section>
@@ -119,7 +130,7 @@
                         <label title="How long a story outcome stays visible before the account carries on normally.">Outcome visibility, seconds<input type="number" min="60" max="86400" @bind="simulation.StoryVisibilitySeconds" /></label>
                     </div><p class="hp-hint">Death and regear chances together cannot exceed 1.</p>
                 </section>
-                <div class="hp-save hp-card"><button type="button" @onclick="SavePolicy">Save simulation policy</button><span>Applies all simulation controls on this tab.</span></div>
+                <div class="hp-save hp-card"><button type="button" disabled="@(!Dirty("simulation"))" @onclick="SavePolicy">Save simulation policy</button><span>Applies all simulation controls on this tab.</span></div>
             }
             else
             {
@@ -131,10 +142,14 @@
                         <label title="Minimum server downtime before accounts get simulated progress for the time you were away.">Offline progression threshold, seconds<input type="number" min="60" max="86400" @bind="config.ProgressionThresholdSeconds" /></label>
                         <label title="Cap on how many offline days of progress are simulated at server start.">Maximum offline days<input type="number" min="1" max="365" @bind="config.MaximumOfflineDays" /></label>
                     </div><p class="hp-hint">APBS owns generated faces, clothing, weapons, and equipment. Disabling new friend requests keeps existing accepted friendships.</p>
-                    <div class="hp-save"><button type="button" @onclick="SaveConfig">Save population settings</button><span>Existing identities and accepted friends remain.</span></div>
+                    <div class="hp-save"><button type="button" disabled="@(!Dirty("settings"))" @onclick="SaveConfig">Save population settings</button><span>Existing identities and accepted friends remain.</span></div>
                 </section>
             }
-        </div>
+        </div></div>
+    }
+    else
+    {
+        <section class="hp-card hp-empty"><h2>Settings are unavailable</h2><p>The population store could not be loaded. Try again when the server is ready.</p><button type="button" class="hp-secondary" @onclick="Reload">Try again</button></section>
     }
 </main>
 
@@ -147,7 +162,15 @@
     private readonly Dictionary<string, string> baselines = new();
     private string activeTab = "Overview", message = "";
     private int selectedIndex;
-    private bool error;
+    private bool error, confirmReload;
+    private static string TabDescription(string tab) => tab switch {
+        "Overview" => "Status & quick access", "Personalities" => "Identity & raid behavior",
+        "Simulation" => "Progression & stories", _ => "Friendships & offline activity" };
+    private void RequestReload()
+    {
+        if (tabs.Any(TabDirty)) confirmReload = true;
+        else Reload();
+    }
     private PersonalityTemplate? Current => selectedIndex >= 0 && selectedIndex < people.Count ? people[selectedIndex] : people.FirstOrDefault();
     private static PopulationStore Store => PopulationStore.Active ?? throw new InvalidOperationException("Harmony-Profiles is not ready.");
     protected override void OnInitialized() => Reload();
@@ -167,7 +190,7 @@
             var nextConfig = JsonSerializer.Deserialize<HarmonyProfilesSettings>(saved.SettingsJson)!;
             snapshot = saved; people = nextPeople; simulation = nextPolicy; config = nextConfig;
             foreach (string section in new[] { "personalities", "simulation", "settings" }) baselines[section] = Contents(section);
-            selectedIndex = 0; error = false; message = "Saved settings loaded.";
+            selectedIndex = 0; confirmReload = false; error = false; message = "";
         }
         catch (Exception ex) { error = true; message = ex.Message; }
     }
