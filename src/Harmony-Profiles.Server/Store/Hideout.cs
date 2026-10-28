@@ -5,28 +5,6 @@ using SPTarkov.Server.Core.Models.Utils;
 
 namespace HarmonyProfiles.Server;
 
-public sealed class HideoutProgressionSettings
-{
-    public double ConstructionSpeed { get; set; } = 1;
-    public double MaterialCostMultiplier { get; set; } = 1;
-    public double BuiltChanceMultiplier { get; set; } = 1;
-
-    public void Validate()
-    {
-        if (!double.IsFinite(ConstructionSpeed) || ConstructionSpeed is < .25 or > 4
-            || !double.IsFinite(MaterialCostMultiplier) || MaterialCostMultiplier is < .25 or > 4
-            || !double.IsFinite(BuiltChanceMultiplier) || BuiltChanceMultiplier is < .25 or > 2)
-            throw new InvalidDataException("Hideout speed/cost must be 0.25-4 and built chance must be 0.25-2.");
-    }
-}
-
-public sealed class HideoutAccessRequest : IRequestData
-{
-    public string AccountId { get; set; } = "";
-}
-
-public sealed record HideoutAccessDecision(int ProtocolVersion, bool Managed, bool CanEnter, string Reason);
-
 public sealed partial class PopulationStore
 {
     private sealed class HideoutCohort

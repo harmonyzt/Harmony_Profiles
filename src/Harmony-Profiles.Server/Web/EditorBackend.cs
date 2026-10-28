@@ -4,9 +4,6 @@ using System.Text.Json;
 
 namespace HarmonyProfiles.Server;
 
-public sealed record EditorSnapshot(string PersonalitiesJson, string PersonalitiesRevision, string PolicyJson,
-    string PolicyRevision, string SettingsJson, string SettingsRevision, int Careers, int Online, int PendingStories, int Prestiged, string GenerationMode, long ApbsMatched, long ApbsFallback);
-
 public sealed partial class PopulationStore
 {
     private string EditorPath(string section) => System.IO.Path.Combine(System.IO.Path.GetDirectoryName(directory)!, section switch

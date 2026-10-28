@@ -3,14 +3,6 @@ using SPTarkov.Server.Core.Models.Utils;
 
 namespace HarmonyProfiles.Server;
 
-public sealed class KillerLookup : IRequestData
-{
-    public string AccountId { get; set; } = "";
-    public string RuntimeProfileId { get; set; } = "";
-    public string Nickname { get; set; } = "";
-    public string Side { get; set; } = "";
-}
-
 public sealed partial class PopulationStore
 {
     public int? ResolveKiller(KillerLookup request, MongoId session)
