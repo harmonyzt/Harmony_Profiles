@@ -48,6 +48,8 @@ public sealed class Plugin : BaseUnityPlugin
             harmony.Patch(view, prefix: new HarmonyMethod(typeof(Plugin), nameof(View)));
             DeathProfileUi.Install(harmony);
             HideoutAccessGate.Install(harmony);
+            try { HideoutVisitGuard.Install(harmony); }
+            catch (Exception ex) { Logger.LogWarning("Hideout visit guard disabled. " + ex.Message); }
             activityHarmony = new Harmony("com.local.harmony-profiles.activity");
             try { RaidActivity.Install(activityHarmony); }
             catch (Exception ex)
