@@ -1,62 +1,105 @@
-.harmony-profiles-editor {
-    --hp-text: #e6edf7; --hp-muted: #a7b8d0; --hp-line: rgba(136,184,244,.22);
-    --hp-blue: #74bdff; --hp-panel: rgba(17,34,57,.88);
-    color: var(--hp-text); background: radial-gradient(ellipse at 5% 0%,#18365b 0,transparent 52%),linear-gradient(145deg,#0c192c,#091220);
-    max-width: 1220px; margin: 1.25rem auto; padding: clamp(1rem,3vw,2.5rem);
-    border: 1px solid var(--hp-line); border-radius: 22px;
-    font: 15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;
-    box-shadow: 0 18px 60px #0004; color-scheme: dark;
+/* Harmony editor — approved mixed-surface design. */
+main.harmony-profiles-editor {
+ --hp-text:#f4f4f5; --hp-muted:#c8cbd2; --hp-line:#45474d; --hp-accent:#eea397;
+ color:var(--hp-text); color-scheme:dark; background:#17191d;
+ font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;
+ max-width:1440px; margin:1.5rem auto; border:1px solid #45474d; border-radius:14px;
+ box-shadow:0 18px 50px #0003;
 }
-.harmony-profiles-editor * { box-sizing: border-box; }
-.harmony-profiles-editor h1,.harmony-profiles-editor h2,.harmony-profiles-editor h3 { color: var(--hp-text); margin: 0 0 .6rem; font-weight: 650; line-height: 1.25; }
-.harmony-profiles-editor h1 { font-size: clamp(1.7rem,3vw,2.4rem); letter-spacing: -.04em; }
-.harmony-profiles-editor h2 { font-size: 1.2rem; }
-.harmony-profiles-editor h3 { font-size: 1rem; }
-.harmony-profiles-editor p { color: var(--hp-muted); margin: .4rem 0 1rem; max-width: 85ch; }
-.harmony-profiles-editor .hp-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
-.harmony-profiles-editor .hp-heading p { margin: 0; }
-.harmony-profiles-editor .hp-eyebrow { color: var(--hp-blue); text-transform: uppercase; letter-spacing: .16em; font-size: .72rem; display: block; margin-bottom: .6rem; }
-.harmony-profiles-editor .hp-badge { display: inline-flex; align-items: center; flex-shrink: 0; background: #79bfff14; color: #aad5ff; border: 1px solid var(--hp-line); border-radius: 99px; padding: .3rem .75rem; font-size: .78rem; }
-.harmony-profiles-editor .hp-tabs { display: flex; gap: .4rem; overflow-x: auto; border-bottom: 1px solid var(--hp-line); padding-bottom: .65rem; margin-bottom: 1.3rem; }
-.harmony-profiles-editor button { font: inherit; line-height: 1.3; font-weight: 600; border: 1px solid #93ccff55; background: #316fa8; color: #fff; border-radius: 9px; padding: .7rem 1rem; cursor: pointer; transition: background .15s,border-color .15s; }
-.harmony-profiles-editor button:hover { background: #3d83c1; border-color: var(--hp-blue); }
-.harmony-profiles-editor button:focus-visible,.harmony-profiles-editor input:focus-visible,.harmony-profiles-editor select:focus-visible,.harmony-profiles-editor summary:focus-visible { outline: 2px solid #a4d5ff; outline-offset: 3px; }
-.harmony-profiles-editor .hp-tabs button { background: transparent; color: var(--hp-muted); border-color: transparent; white-space: nowrap; display: inline-flex; align-items: center; gap: .5rem; }
-.harmony-profiles-editor .hp-tabs button:hover,.harmony-profiles-editor .hp-tabs .hp-selected { background: #6aafff1c; color: #d9edff; border-color: #80bcff40; }
-.harmony-profiles-editor .hp-dot { height: 6px; width: 6px; background: #acd8ff; border-radius: 50%; }
-.harmony-profiles-editor .hp-card,.harmony-profiles-editor .hp-stats article { background: var(--hp-panel); background: linear-gradient(130deg,#1b33505e,#14243b8c); border: 1px solid var(--hp-line); border-radius: 14px; padding: clamp(1rem,2vw,1.5rem); margin-bottom: 1rem; box-shadow: inset 0 1px #b2d6ff08; backdrop-filter: blur(14px); }
-.harmony-profiles-editor .hp-stats { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: .9rem; }
-.harmony-profiles-editor .hp-stats span { color: var(--hp-muted); font-size: .82rem; }
-.harmony-profiles-editor .hp-stats strong { display: block; font-size: clamp(1.5rem,3vw,2.2rem); font-weight: 600; color: #c1e1ff; margin-top: .3rem; }
-.harmony-profiles-editor .hp-section-heading { display: flex; align-items: start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
-.harmony-profiles-editor .hp-section-heading p { margin-bottom: 0; }
-.harmony-profiles-editor .hp-notes,.harmony-profiles-editor .hp-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1.1rem 1.5rem; margin: 1.3rem 0; }
-.harmony-profiles-editor label { display: flex; flex-direction: column; gap: .5rem; color: #c6d6eb; font-size: .86rem; margin: 0; }
-.harmony-profiles-editor input:not([type=checkbox]),.harmony-profiles-editor select { display: block; width: 100%; min-width: 0; background: #09182bc9; border: 1px solid #779ac34f; border-radius: 8px; color: #e7f0ff; padding: .62rem .75rem; font: inherit; line-height: 1.4; }
-.harmony-profiles-editor select option { background: #101e32; color: var(--hp-text); }
-.harmony-profiles-editor .hp-check { flex-direction: row; align-items: center; gap: .65rem; padding: .6rem 0; }
-.harmony-profiles-editor input[type=checkbox] { accent-color: #6aafff; width: 17px; height: 17px; margin: 0; flex-shrink: 0; }
-.harmony-profiles-editor .hp-toolbar { display: flex; gap: 1rem; align-items: end; margin-bottom: 1.3rem; }
-.harmony-profiles-editor .hp-toolbar label { flex: 1; }
-.harmony-profiles-editor .hp-secondary { background: #16314d; border-color: var(--hp-line); }
-.harmony-profiles-editor .hp-secondary:hover { background: #214364; }
-.harmony-profiles-editor .hp-danger { background: transparent; color: #ffc0c0; border-color: #ff999947; }
-.harmony-profiles-editor .hp-danger:hover { background: #ad47592b; border-color: #f1a4af; }
-.harmony-profiles-editor .hp-save { display: flex; align-items: center; gap: 1rem; border-top: 1px solid var(--hp-line); margin-top: 1.4rem; padding-top: 1.2rem; }
-.harmony-profiles-editor .hp-save span,.harmony-profiles-editor .hp-hint { color: var(--hp-muted); font-size: .8rem; }
-.harmony-profiles-editor .hp-message { background: #183653; color: #d9ecff; border: 1px solid #85bcff55; border-radius: 10px; padding: .8rem 1rem; max-width: none; }
-.harmony-profiles-editor .hp-error { background: #402330; border-color: #d28598; color: #ffe0e7; }
-.harmony-profiles-editor details { border-top: 1px solid var(--hp-line); padding-top: 1rem; }
-.harmony-profiles-editor summary { color: var(--hp-blue); cursor: pointer; margin-bottom: .5rem; }
-.harmony-profiles-editor .hp-table-scroll { overflow-x: auto; margin: 1.2rem 0 .8rem; }
-.harmony-profiles-editor table { border-collapse: collapse; width: 100%; min-width: 520px; color: var(--hp-text); }
-.harmony-profiles-editor caption { caption-side: top; text-align: left; color: var(--hp-muted); padding: 0 0 .6rem; font-size: .85rem; }
-.harmony-profiles-editor th,.harmony-profiles-editor td { padding: .55rem; border-bottom: 1px solid var(--hp-line); text-align: left; background: transparent; }
-.harmony-profiles-editor th { color: #b5cce9; font-size: .78rem; font-weight: 500; }
-@media (max-width: 760px) {
-    .harmony-profiles-editor .hp-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
-    .harmony-profiles-editor .hp-grid,.harmony-profiles-editor .hp-notes { grid-template-columns: 1fr; }
-    .harmony-profiles-editor .hp-toolbar,.harmony-profiles-editor .hp-save { align-items: stretch; flex-direction: column; }
-    .harmony-profiles-editor .hp-section-heading { flex-wrap: wrap; }
+.harmony-profiles-editor * {box-sizing:border-box}
+.harmony-profiles-editor h1,.harmony-profiles-editor h2,.harmony-profiles-editor h3 {color:var(--hp-text);font-weight:650;line-height:1.25;margin:0 0 8px}
+.harmony-profiles-editor h1 {font-size:clamp(30px,3.5vw,42px);letter-spacing:-1px;margin-bottom:12px}
+.harmony-profiles-editor h1 span {color:var(--hp-accent)}
+.harmony-profiles-editor h2 {font-size:25px;letter-spacing:-.5px}
+.harmony-profiles-editor h3 {font-size:19px}
+.harmony-profiles-editor p {font-size:16px;line-height:1.7;color:var(--hp-muted);margin:0 0 16px;opacity:1}
+.harmony-profiles-editor .hp-heading {padding:30px 34px;background:linear-gradient(115deg,#272326,#35282c 65%,#26282f);border-bottom:1px solid #494046;display:flex;justify-content:space-between;align-items:center;gap:20px;border-radius:13px 13px 0 0}
+.harmony-profiles-editor .hp-heading p {margin:0}
+.harmony-profiles-editor .hp-eyebrow {display:flex;align-items:center;gap:10px;color:#f3b4a9;font-size:13px;letter-spacing:1.5px;font-weight:650;text-transform:uppercase;margin-bottom:18px}
+.harmony-profiles-editor .hp-mark {background:var(--hp-accent);color:#21191b;border-radius:7px;padding:4px 10px;font-size:18px;letter-spacing:0}
+.harmony-profiles-editor .hp-header-status {display:flex;align-items:center;gap:10px;background:#22332e;border:1px solid #4f7063;border-radius:8px;padding:10px 16px;color:#c5ead7;font-size:14px}
+.harmony-profiles-editor .hp-header-status strong,.harmony-profiles-editor .hp-header-status small {display:block;white-space:nowrap;font-size:14px}
+.harmony-profiles-editor .hp-status-dot {width:8px;height:8px;border-radius:50%;background:#a1d2b9;flex:none}
+.harmony-profiles-editor .hp-workspace {display:grid;grid-template-columns:255px minmax(0,1fr);align-items:stretch}
+.harmony-profiles-editor .hp-tabs {padding:26px 16px;background:#20242c;border-right:1px solid #393e48;border-radius:0 0 0 13px}
+.harmony-profiles-editor button {font:inherit;min-height:44px;cursor:pointer;transition:background .18s,transform .18s,border-color .18s;background:var(--hp-accent);color:#241d1d;border:1px solid #f4beb5;border-radius:7px;padding:10px 18px;font-weight:600}
+.harmony-profiles-editor button:hover {background:#f4b8ae}
+.harmony-profiles-editor button:focus-visible,.harmony-profiles-editor input:focus-visible,.harmony-profiles-editor select:focus-visible,.harmony-profiles-editor summary:focus-visible {outline:3px solid #f1b5aa;outline-offset:3px}
+.harmony-profiles-editor .hp-tabs button {display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:15px 16px;margin:0 0 10px;border:1px solid transparent;background:transparent;color:#f4f4f5;border-radius:8px}
+.harmony-profiles-editor .hp-nav-copy {display:block}
+.harmony-profiles-editor .hp-nav-copy strong {display:block;font-size:20px;font-weight:650;line-height:1.4}
+.harmony-profiles-editor .hp-nav-copy small {display:block;font-size:16px;color:#d0d3dc;margin-top:4px;line-height:1.5;font-weight:400}
+.harmony-profiles-editor .hp-tabs .hp-selected {background:#35303a;border-color:#84646c;box-shadow:inset 3px 0 var(--hp-accent)}
+.harmony-profiles-editor .hp-tabs button:hover {background:#30343e}
+.harmony-profiles-editor .hp-nav-note {border-top:1px solid #434854;margin:28px 16px 0;padding-top:18px;font-size:14px;color:#bfc5d0}
+.harmony-profiles-editor .hp-panel {padding:28px;min-width:0;animation:hp-enter .25s ease-out}
+.harmony-profiles-editor .hp-overview-title,.harmony-profiles-editor .hp-section-heading {display:flex;justify-content:space-between;align-items:start;gap:16px;margin-bottom:22px}
+.harmony-profiles-editor .hp-overview-title {align-items:center}
+.harmony-profiles-editor .hp-overview-title p,.harmony-profiles-editor .hp-section-heading p {margin:0}
+.harmony-profiles-editor .hp-secondary {background:#30343b;border:1px solid #626874;color:#f2f3f6;padding:9px 15px}
+.harmony-profiles-editor .hp-secondary:hover {background:#414650}
+.harmony-profiles-editor .hp-stats {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:24px}
+.harmony-profiles-editor .hp-stats article {background:#25282e;border:1px solid #444850;border-radius:10px;padding:17px 20px;animation:hp-enter .35s ease-out both}
+.harmony-profiles-editor .hp-stats strong {display:block;font-size:34px;font-weight:600;letter-spacing:-1px;margin:6px 0;color:#fafafa;font-variant-numeric:tabular-nums}
+.harmony-profiles-editor .hp-stats span {color:#d5d7de;font-size:16px}
+.harmony-profiles-editor .hp-stats small {font-size:14px;color:#bfc4cf}
+.harmony-profiles-editor .hp-stats .hp-stat-online {background:#24312c;border-color:#4d665a;animation-delay:40ms}
+.harmony-profiles-editor .hp-stats .hp-stat-story {background:#2d2938;border-color:#625773;animation-delay:80ms}
+.harmony-profiles-editor .hp-card {padding:22px;background:#24262a;border:1px solid #45474d;border-radius:10px;margin-bottom:18px}
+.harmony-profiles-editor .hp-notes {display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:22px;padding-top:20px;border-top:1px solid #45474d}
+.harmony-profiles-editor .hp-notes p {font-size:15px}
+.harmony-profiles-editor .hp-settings-note {background:transparent;border-style:dashed}
+.harmony-profiles-editor .hp-settings-note h2 {font-size:19px}
+.harmony-profiles-editor .hp-grid {display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:16px 0}
+.harmony-profiles-editor label {display:flex;flex-direction:column;gap:7px;color:#e8e8ec;font-size:16px;line-height:1.5;margin:0}
+.harmony-profiles-editor input:not([type=checkbox]),.harmony-profiles-editor select {display:block;width:100%;min-width:0;font:inherit;font-size:16px;min-height:44px;border:1px solid #747985;background:#171b21;color:#fafafa;border-radius:7px;padding:10px}
+.harmony-profiles-editor input:hover,.harmony-profiles-editor select:hover {border-color:#a7abb4}
+.harmony-profiles-editor .hp-check {flex-direction:row;align-items:center;gap:10px;padding:12px;background:#20242c;border:1px solid #515866;border-radius:7px;cursor:pointer}
+.harmony-profiles-editor input[type=checkbox] {accent-color:var(--hp-accent);width:20px;height:20px;margin:0;flex:none}
+.harmony-profiles-editor .hp-toolbar {display:flex;align-items:end;gap:16px;margin-bottom:22px}
+.harmony-profiles-editor .hp-toolbar label {flex:1}
+.harmony-profiles-editor .hp-fieldset {border:0;border-top:1px solid var(--hp-line);margin:24px 0;padding:12px 0 0;min-width:0}
+.harmony-profiles-editor .hp-fieldset legend {float:none;width:auto;font-size:19px;font-weight:600;color:#f4f4f5;padding:0 12px 0 0}
+.harmony-profiles-editor .hp-badge {display:inline-flex;border:1px solid #61736c;background:#293730;color:#d4e9dd;font-size:14px;padding:5px 10px;border-radius:20px;white-space:nowrap}
+.harmony-profiles-editor .hp-save {position:sticky;bottom:12px;z-index:2;display:flex;align-items:center;gap:16px;background:#303039;border:1px solid #74707c;border-radius:9px;padding:16px;margin-top:24px;box-shadow:0 8px 25px #0004}
+.harmony-profiles-editor .hp-save span,.harmony-profiles-editor .hp-hint {font-size:15px;color:#d0d3dc}
+.harmony-profiles-editor button:disabled {cursor:default;background:#363940;color:#c4c7ce;border-color:#666a73;transform:none}
+.harmony-profiles-editor .hp-danger {background:#3e2b2c;color:#ffcec8;border-color:#a57570}
+.harmony-profiles-editor .hp-danger:hover {background:#543739}
+.harmony-profiles-editor .hp-message {background:#293a33;color:#e0eee7;border:1px solid #698374;border-radius:8px;padding:12px 18px;margin:16px 28px}
+.harmony-profiles-editor .hp-error {background:#482a2a;color:#ffebe8;border-color:#d89891}
+.harmony-profiles-editor details {border-top:1px solid var(--hp-line);padding-top:16px;margin-top:18px}
+.harmony-profiles-editor summary {color:#efbbb3;cursor:pointer;min-height:36px;font-weight:600}
+.harmony-profiles-editor .hp-confirm {margin-top:16px;padding-top:16px;border-top:1px solid var(--hp-line)}
+.harmony-profiles-editor .hp-confirm button {margin:4px 8px 4px 0}
+.harmony-profiles-editor .hp-table-scroll {overflow-x:auto;margin:20px 0 12px}
+.harmony-profiles-editor table {border-collapse:collapse;width:100%;min-width:520px}
+.harmony-profiles-editor caption {text-align:left;font-size:17px;color:#f4f4f5;padding-bottom:12px}
+.harmony-profiles-editor th,.harmony-profiles-editor td {text-align:left;border-bottom:1px solid var(--hp-line);padding:9px;background:transparent}
+.harmony-profiles-editor th {background:#20242c;color:#dedfe3;font-size:15px;font-weight:600}
+.harmony-profiles-editor .hp-dot {width:8px;height:8px;background:#eea397;border-radius:50%;flex:none}
+.harmony-profiles-editor .hp-sr-only {position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+.harmony-profiles-editor .hp-empty {margin:28px}
+@keyframes hp-enter {from{opacity:.5;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+.harmony-profiles-editor button:not(:disabled):hover {transform:translateY(-1px)}
+.harmony-profiles-editor button:not(:disabled):active {transform:translateY(0)}
+@media(max-width:800px) {
+ .harmony-profiles-editor .hp-heading {padding:24px;flex-wrap:wrap}
+ .harmony-profiles-editor .hp-workspace {grid-template-columns:1fr}
+ .harmony-profiles-editor .hp-tabs {display:grid;grid-template-columns:1fr 1fr;padding:12px;gap:6px;border-right:0;border-bottom:1px solid #393e48;border-radius:0}
+ .harmony-profiles-editor .hp-tabs button {margin:0;padding:12px}
+ .harmony-profiles-editor .hp-nav-copy strong {font-size:18px}
+ .harmony-profiles-editor .hp-nav-copy small {font-size:15px}
+ .harmony-profiles-editor .hp-nav-note {display:none}
+ .harmony-profiles-editor .hp-panel {padding:20px}
+ .harmony-profiles-editor .hp-overview-title,.harmony-profiles-editor .hp-section-heading {flex-wrap:wrap}
 }
-@media (prefers-reduced-motion: reduce) { .harmony-profiles-editor button { transition: none; } }
+@media(max-width:550px) {
+ main.harmony-profiles-editor {margin:.5rem auto}
+ .harmony-profiles-editor .hp-grid,.harmony-profiles-editor .hp-notes {grid-template-columns:1fr}
+ .harmony-profiles-editor .hp-toolbar,.harmony-profiles-editor .hp-save {flex-direction:column;align-items:stretch}
+ .harmony-profiles-editor .hp-stats article {padding:14px}
+ .harmony-profiles-editor .hp-stats small {display:block}
+}
+@media(prefers-reduced-motion:reduce) {.harmony-profiles-editor * {animation:none!important;transition:none!important;transform:none!important}}
+@media(forced-colors:active) {.harmony-profiles-editor .hp-tabs .hp-selected {border:2px solid Highlight}}
