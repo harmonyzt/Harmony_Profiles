@@ -30,12 +30,12 @@ public sealed partial class PopulationStore
     // The roll per account and achievement is fixed, so levelling up only ever adds achievements.
     private double StoryChance(Career c, string id, string rarity)
     {
-        var (share, scale) = rarity switch
+        // Custom achievements from other mods may use their own rarity names; those count as Rare.
+        var (share, scale) = (rarity ?? "").ToLowerInvariant() switch
         {
-            "Common" => (policy.Achievements.Common, 12d),
-            "Rare" => (policy.Achievements.Rare, 30d),
-            "Legendary" => (policy.Achievements.Legendary, 50d),
-            _ => (0d, 1d)
+            "common" => (policy.Achievements.Common, 12d),
+            "legendary" => (policy.Achievements.Legendary, 50d),
+            _ => (policy.Achievements.Rare, 30d)
         };
         double reach = (1 - Math.Exp(-Level(c.Experience) / scale)) / (1 - Math.Exp(-79 / scale));
         return Math.Min(.98, share * reach * (.4 + 1.2 * Skill(c)) * (.5 + Stable(id + ":difficulty")));
