@@ -15,7 +15,6 @@ public sealed partial class PopulationStore
     private readonly Dictionary<string, HashSet<string>> showcaseAncestors = new();
     private readonly HashSet<string> validatedFavorites = new();
     private readonly Dictionary<string, (int Width, int Height)> showcaseSizes = new();
-    private bool showcaseTurn;
     private readonly HashSet<string> showcaseWarnings = new();
 
     private JsonObject ShowcaseProps(string tpl)
@@ -212,12 +211,17 @@ public sealed partial class PopulationStore
         return true;
     }
 
+    private static IEnumerable<JsonObject> EquippedWeapons(JsonObject equipment) =>
+        equipment["Items"]!.AsArray().OfType<JsonObject>().Where(i => i["parentId"]?.ToString() == equipment["Id"]!.ToString()
+            && i["slotId"]?.ToString() is "FirstPrimaryWeapon" or "SecondPrimaryWeapon" or "Holster");
+
+    // Rack guns come from a separately generated loadout, never one the PMC is carrying right now.
     private void PinGeneratedWeapons(Career c, JsonObject equipment)
     {
         if (AreaLevel(c, 24) <= 0) return;
+        var carried = EquippedWeapons(c.Equipment).Select(i => i["_tpl"]!.ToString()).ToHashSet();
         var items = equipment["Items"]!.AsArray();
-        foreach (var weapon in items.OfType<JsonObject>().Where(i => i["parentId"]?.ToString() == equipment["Id"]!.ToString()
-            && i["slotId"]?.ToString() is "FirstPrimaryWeapon" or "SecondPrimaryWeapon" or "Holster"))
+        foreach (var weapon in EquippedWeapons(equipment).Where(i => !carried.Contains(i["_tpl"]!.ToString())))
             PinShowcase(c, items, weapon["_id"]!.ToString(), 24);
     }
 
@@ -234,7 +238,6 @@ public sealed partial class PopulationStore
 
     private void DevelopShowcase(Career c)
     {
-        PinGeneratedWeapons(c, c.Equipment);
         if (AreaLevel(c, 16) <= 0 || VisibleShowcaseTrees(c, 16).Count >= ShowcaseTarget(c, 16)) return;
         showcasePrices ??= templates.Handbook.Items.Where(i => i.Price is > 0)
             .GroupBy(i => i.Id.ToString()).ToDictionary(g => g.Key, g => g.First().Price!.Value);
@@ -298,13 +301,15 @@ public sealed partial class PopulationStore
         var retained = new JsonArray();
         var roots = new Dictionary<string, int>();
         var ids = new HashSet<string>();
+        var carried = EquippedWeapons(c.Equipment).Select(i => i["_tpl"]!.ToString()).ToHashSet();
         foreach (var (root, area) in c.ShowcaseAreas)
         {
             JsonArray tree;
             try
             {
                 tree = ItemTree(c.ShowcaseItems, root);
-                if (!ValidShowcaseTree(tree) || tree.OfType<JsonObject>().Any(i => ids.Contains(i["_id"]!.ToString()))) continue;
+                if (!ValidShowcaseTree(tree) || tree.OfType<JsonObject>().Any(i => ids.Contains(i["_id"]!.ToString()))
+                    || (area == 24 && carried.Contains(tree[0]!["_tpl"]!.ToString()))) continue;
             }
             catch { continue; }
             roots.Add(root, area);
@@ -320,7 +325,7 @@ public sealed partial class PopulationStore
         {
             dirty = true;
             if (c.ShowcaseAreas.Count > roots.Count)
-                logger.Info($"[Harmony-Profiles] Removed {c.ShowcaseAreas.Count - roots.Count} invalid/dogtag showcase trees for account {c.AccountId}; career retained.");
+                logger.Info($"[Harmony-Profiles] Removed {c.ShowcaseAreas.Count - roots.Count} invalid, dogtag or carried-gun showcase trees for account {c.AccountId}; career retained.");
         }
         c.ShowcaseItems = retained;
         c.ShowcaseAreas = roots;
@@ -356,8 +361,7 @@ public sealed partial class PopulationStore
 
     private void ProcessProfileEquipment(long now)
     {
-        showcaseTurn = !showcaseTurn;
-        if (showcaseTurn) { if (!ProcessPendingShowcase(now)) ProcessPendingGear(now); }
-        else if (!ProcessPendingGear(now)) ProcessPendingShowcase(now);
+        ProcessPendingGear(now);
+        ProcessPendingShowcase(now);
     }
 }

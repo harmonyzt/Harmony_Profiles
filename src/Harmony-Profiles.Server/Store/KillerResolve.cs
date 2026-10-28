@@ -12,7 +12,7 @@ public sealed partial class PopulationStore
             if (!Ready || request is null || request.Nickname is null || request.RuntimeProfileId is null
                 || request.AccountId is null || request.Side is null || request.Nickname.Length > 128
                 || request.RuntimeProfileId.Length > 64 || request.AccountId.Length > 32 || request.Side.Length > 16) return null;
-            var owned = encounters.Values.Where(e => e.SessionId == session.ToString()).ToArray();
+            var owned = encounters.Values.Where(e => CanAccess(e, session)).ToArray();
             if (int.TryParse(request.AccountId, out int aid) && owned.Any(e => e.AccountId == aid)) return aid;
             var direct = owned.Where(e => e.RuntimeProfileId == request.RuntimeProfileId).ToArray();
             if (IsId(request.RuntimeProfileId) && direct.Length == 1) return direct[0].AccountId;

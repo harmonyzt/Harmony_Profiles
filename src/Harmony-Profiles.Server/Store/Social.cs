@@ -15,7 +15,7 @@ public sealed partial class PopulationStore
     {
         if (population.Careers.TryGetValue(profileId.ToString(), out var direct)) return direct;
         var encounter = encounters.Values.FirstOrDefault(e => e.RuntimeProfileId == profileId.ToString()
-            && e.SessionId == session.ToString());
+            && CanAccess(e, session));
         return encounter is not null && population.Careers.TryGetValue(encounter.CareerId, out var c) ? c : null;
     }
 

@@ -50,7 +50,7 @@ public sealed partial class PopulationStore
                 return new(1, false, false, "Native Hideout permissions apply.");
             if (!Ready) return new(1, true, false, "Harmony-Profiles is unavailable.");
             byAccount.TryGetValue(aid, out var career);
-            if (career is null && encounters.TryGetValue(aid, out var encounter) && encounter.SessionId == session.ToString())
+            if (career is null && encounters.TryGetValue(aid, out var encounter) && CanAccess(encounter, session))
                 population.Careers.TryGetValue(encounter.CareerId, out career);
             if (career is null) return new(1, true, false, "This account is unavailable.");
             bool accepted = SocialReady && population.Friendships.TryGetValue(session.ToString(), out var friends)
