@@ -6,16 +6,16 @@ $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 [xml]$properties = Get-Content -LiteralPath (Join-Path $projectRoot 'Directory.Build.props') -Raw
 $version = [string]$properties.Project.PropertyGroup.Version
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Release version must have three numeric components.' }
-$packageRoot = Join-Path $projectRoot "artifacts/Harmony-Profiles-$version"
+$packageRoot = Join-Path $projectRoot "artifacts/PBT-$version"
 $archive = "$packageRoot.zip"
 if ((Test-Path -LiteralPath $packageRoot) -or (Test-Path -LiteralPath $archive)) {
     throw 'Release output already exists. Existing artifacts were preserved.'
 }
 
 $files = [ordered]@{
-    "src/Harmony-Profiles.Client/bin/$Configuration/netstandard2.1/Harmony-Profiles.Client.dll" = 'BepInEx/plugins/Harmony-Profiles/Harmony-Profiles.Client.dll'
-    "src/Harmony-Profiles.Server/bin/$Configuration/net10.0/Harmony-Profiles.Server.dll" = 'SPT_Runtime/user/mods/Harmony-Profiles/Harmony-Profiles.Server.dll'
-    'src/Harmony-Profiles.Server/wwwroot/harmony-profiles.css' = 'SPT_Runtime/user/mods/Harmony-Profiles/wwwroot/harmony-profiles.css'
+    "src/PBT.Client/bin/$Configuration/netstandard2.1/PBT.Client.dll" = 'BepInEx/plugins/PBT/PBT.Client.dll'
+    "src/PBT.Server/bin/$Configuration/net10.0/PBT.Server.dll" = 'SPT_Runtime/user/mods/PBT/PBT.Server.dll'
+    'src/PBT.Server/wwwroot/pbt.css' = 'SPT_Runtime/user/mods/PBT/wwwroot/pbt.css'
 }
 foreach ($source in $files.Keys) {
     $path = Join-Path $projectRoot $source
@@ -55,5 +55,5 @@ try {
     }
 }
 finally { $zip.Dispose() }
-Write-Host "Packaged Harmony-Profiles ${version}: two DLLs and required CSS only."
+Write-Host "Packaged PBT ${version}: two DLLs and required CSS only."
 Write-Host $archive

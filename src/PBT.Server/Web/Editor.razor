@@ -1,0 +1,248 @@
+@page "/pbt"
+@namespace PBT.Server.Web
+@using PBT.Server
+@using System.Text.Json
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Web
+@using static Microsoft.AspNetCore.Components.Web.RenderMode
+@layout SPTarkov.Server.Web.Layout.BaseMainLayout
+@attribute [Authorize]
+@attribute [ExcludeFromInteractiveRouting]
+@rendermode InteractiveServer
+
+<PageTitle>PBT - Progressive Bot Profiles</PageTitle>
+<link href="/pbt-assets/pbt.css?v=20261028-pbt" rel="stylesheet" />
+<main class="pbt-editor">
+    <header class="hp-heading">
+        <div><span class="hp-eyebrow"><span class="hp-mark" aria-hidden="true">P</span> PBT / Progressive Bot Profiles</span><h1>Population <span>manager</span></h1>
+            <p>Persistent identities. Stories between raids.</p></div>
+        <div class="hp-header-status"><span class="hp-status-dot" aria-hidden="true"></span><div><strong>PBT</strong><small>@(snapshot is null ? "Settings unavailable" : "Settings loaded")</small></div></div>
+    </header>
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <p role="status" aria-live="polite" class="hp-message @(error ? "hp-error" : "")">@message</p>
+    }
+    @if (snapshot is not null)
+    {
+        <div class="hp-workspace"><nav class="hp-tabs" aria-label="Population settings sections">
+            @foreach (string tab in tabs)
+            {
+                <button type="button" aria-pressed="@(activeTab == tab ? "true" : "false")"
+                    class="@(activeTab == tab ? "hp-selected" : "")" @onclick="() => activeTab = tab"><span class="hp-nav-copy"><strong>@tab</strong><small>@TabDescription(tab)</small></span>
+                    @if (TabDirty(tab)) { <span class="hp-dot" aria-hidden="true"></span><span class="hp-sr-only">, unsaved changes</span> }
+                </button>
+            }
+            <p class="hp-nav-note">Each section saves separately. Switch sections without losing your edits.</p>
+        </nav>
+        <div class="hp-panel" @key="activeTab">
+            @if (activeTab == "Overview")
+            {
+                <div class="hp-overview-title"><div><h2>Population overview</h2><p>A snapshot of your server’s persistent population.</p></div><button type="button" class="hp-secondary" @onclick="RefreshStatus">Refresh status</button></div>
+                <div class="hp-stats">
+                    <article title="Persistent PMC careers, one per bot name."><span>Accounts</span><strong>@snapshot.Careers.ToString("N0")</strong><small>Persistent identities</small></article>
+                    <article class="hp-stat-online" title="Accounts currently marked online. Re-rolled for each account every 10-30 minutes from its daily raid hours."><span>Simulated online</span><strong>@snapshot.Online.ToString("N0")</strong><small>Current activity</small></article>
+                    <article title="Accounts that have prestiged at least once."><span>Prestiged</span><strong>@snapshot.Prestiged.ToString("N0")</strong><small>Accounts with prestige</small></article>
+                    <article class="hp-stat-story" title="Killer stories waiting to resolve (a later death or regear)."><span>Pending stories</span><strong>@snapshot.PendingStories.ToString("N0")</strong><small>Outcomes awaiting resolution</small></article>
+                </div>
+                <section class="hp-card"><div class="hp-section-heading"><div><h2>A population with a history</h2></div></div>
+                    <p>APBS supplies equipment and appearance. Persistent careers keep their identity, history, and friendships between raids.</p>
+                    <div class="hp-notes"><div><h3>Hideouts</h3><p>Everyone has an overview. Actual entrance requires an accepted friendship. Edition privileges and native requirements shape construction.</p></div>
+                        <div><h3>Between raids</h3><p>Online accounts progress at scheduled checkpoints. Recent encounters and visible story outcomes protect their loadouts. Showcase favorites stay pinned.</p></div></div>
+                    <details><summary>Generation details</summary><p>@snapshot.GenerationMode</p><p>APBS career selections: @snapshot.ApbsMatched.ToString("N0"). Unmatched level ranges: @snapshot.ApbsFallback.ToString("N0").</p></details>
+                </section>
+                <section class="hp-card hp-settings-note"><h2>Changes stay in their section</h2><p>Switch tabs freely. Save buttons apply only that section. Reload replaces all unsaved edits with the saved settings.</p>
+                    <button type="button" class="hp-secondary" @onclick="RequestReload">Reload saved settings</button>
+                    @if (confirmReload)
+                    {
+                        <div class="hp-confirm" role="group" aria-label="Discard unsaved settings"><p>Discard your unsaved changes in all sections?</p><button type="button" class="hp-danger" @onclick="Reload">Discard and reload</button><button type="button" class="hp-secondary" @onclick="() => confirmReload = false">Keep editing</button></div>
+                    }</section>
+            }
+            else if (activeTab == "Personalities")
+            {
+                <section class="hp-card"><div class="hp-section-heading"><div><h2>Personalities</h2><p>Starting ranges and progression targets. Edits affect future simulation without rerolling existing accounts.</p></div><span class="hp-badge">@Draft("personalities")</span></div>
+                    <div class="hp-toolbar"><label>Selected personality<select @bind="selectedIndex">
+                        @for (int index = 0; index < people.Count; index++) { <option value="@index">@people[index].Id</option> }
+                    </select></label><button type="button" class="hp-secondary" @onclick="Add">Add personality</button></div>
+                    @if (Current is { } p)
+                    {
+                        <fieldset class="hp-fieldset"><legend>Identity &amp; distribution</legend><div class="hp-grid">
+                            <label title="Personality ID. Careers store this name, so renaming it moves existing careers to the first personality.">Name<input @bind="p.Id" /></label>
+                            <label title="How often new accounts roll this personality, relative to the other weights.">Population weight<input type="number" min="1" max="1000" @bind="p.Weight" /></label>
+                        </div></fieldset><fieldset class="hp-fieldset"><legend>Starting experience</legend><p>Ranges used when a new account is created. Raids, hours and kills are worked out from the level, so they always fit it.</p><div class="hp-grid">
+                            <label title="Lowest level a new account of this personality starts at.">Starting level, minimum<input type="number" min="1" max="79" @bind="p.MinimumLevel" /></label>
+                            <label title="Highest level a new account of this personality starts at.">Starting level, maximum<input type="number" min="1" max="79" @bind="p.MaximumLevel" /></label>
+                        </div></fieldset><fieldset class="hp-fieldset"><legend>Raid behavior</legend><p>Hours are daily totals. Survival chances use 0 to 1 (0.5 = 50%).</p><div class="hp-grid">
+                            <label title="Least time per day this account plays. It also sets how often the account shows as online.">Daily raid hours, minimum<input type="number" step="0.05" @bind="p.MinimumDailyHours" /></label>
+                            <label title="Most time per day this account plays. It also sets how often the account shows as online.">Daily raid hours, maximum<input type="number" step="0.05" @bind="p.MaximumDailyHours" /></label>
+                            <label title="Survival chance (0 to 1) of the least skilled accounts. Skill also sets kills, so low survival means fewer kills.">Survival chance, minimum<input type="number" min="0" max="1" step="0.01" @bind="p.MinimumSurvival" /></label>
+                            <label title="Survival chance (0 to 1) of the most skilled accounts.">Survival chance, maximum<input type="number" min="0" max="1" step="0.01" @bind="p.MaximumSurvival" /></label>
+                            <label title="Shortest simulated raid. Clamped to 3-60 minutes.">Raid minutes, minimum<input type="number" @bind="p.MinimumRaidMinutes" /></label>
+                            <label title="Longest simulated raid. Clamped to 3-60 minutes.">Raid minutes, maximum<input type="number" @bind="p.MaximumRaidMinutes" /></label>
+                        </div></fieldset><fieldset class="hp-fieldset"><legend>Personality progression</legend><div class="hp-grid">
+                            <label title="Personality this account turns into after enough raid hours, e.g. Timmy into Casual.">Progress to<select @bind="p.ProgressTo"><option value="">Stay this personality</option>
+                                @foreach (var target in people.Where(t => t != p)) { <option value="@target.Id">@target.Id</option> }
+                            </select></label>
+                            <label title="Total raid hours before the account switches to the Progress to personality.">Progress after account raid hours<input type="number" @bind="p.TransitionHours" /></label>
+                        </div></fieldset>
+                        <details class="hp-remove"><summary>Remove this personality</summary><p>Remove @p.Id from this draft? Save personalities to apply the removal.</p><button type="button" class="hp-danger" @onclick="Remove">Remove @p.Id</button></details>
+                    }
+                    <div class="hp-save"><button type="button" disabled="@(!Dirty("personalities"))" @onclick="SavePeople">Save personalities</button><span>Starting ranges apply to new accounts. Progression targets affect existing accounts.</span></div>
+                </section>
+            }
+            else if (activeTab == "Simulation")
+            {
+                <section class="hp-card"><div class="hp-section-heading"><div><h2>Progression</h2><p>Level cohorts guide varied account histories. Native requirements remain in force.</p></div><span class="hp-badge">@Draft("simulation")</span></div>
+                    <label class="hp-check" title="When APBS spawns a PMC, reuse an existing career whose level fits APBS's level range, so you meet the same players again."><input type="checkbox" @bind="simulation.EnableApbsCareerIntegration" /> Select persistent careers within APBS level ranges</label>
+                    <div class="hp-table-scroll"><table><caption>Raid history priors</caption><thead><tr><th>Maximum level</th><th title="Average length of a raid the account survives.">Survived raid minutes</th><th title="Average length of a raid that ends in death.">Death raid minutes</th><th title="For an average-skill account. Skill and personality scale it.">PMC kills / raid</th><th title="For an average-skill account. Skill and personality scale it.">Scav kills / raid</th></tr></thead><tbody>
+                        @foreach (var prior in simulation.ProgressionPriors)
+                        {
+                            var row = simulation.ProgressionPriors.IndexOf(prior) + 1;
+                            <tr @key="prior"><td><input aria-label="Maximum level, band @row" type="number" min="1" max="79" @bind="prior.MaximumLevel" /></td>
+                                <td><input aria-label="Survived raid minutes, band @row" type="number" min="3" max="60" step="0.5" @bind="prior.SurvivedMinutes" /></td>
+                                <td><input aria-label="Death raid minutes, band @row" type="number" min="3" max="60" step="0.5" @bind="prior.DeathMinutes" /></td>
+                                <td><input aria-label="PMC kills per raid, band @row" type="number" min="0" max="20" step="0.01" @bind="prior.PmcKills" /></td>
+                                <td><input aria-label="Scav kills per raid, band @row" type="number" min="0" max="20" step="0.01" @bind="prior.ScavKills" /></td></tr>
+                        }
+                    </tbody></table></div><p class="hp-hint">Bands must increase and end at level 79. These averages are priors, not identical targets for every account.</p>
+                    <div class="hp-grid">
+                        <label title="XP for a survived raid at level 0. Raid XP decides how many raids an account needed to reach its level.">Survived raid XP, base<input type="number" min="100" max="100000" step="100" @bind="simulation.RaidExperience.SurvivedBase" /></label>
+                        <label title="Extra survived raid XP per level.">Survived raid XP, per level<input type="number" min="0" max="10000" step="10" @bind="simulation.RaidExperience.SurvivedPerLevel" /></label>
+                        <label title="Extra survived raid XP per level squared, so high levels earn much more per raid.">Survived raid XP, per level squared<input type="number" min="0" max="1000" step="0.5" @bind="simulation.RaidExperience.SurvivedPerLevelSquared" /></label>
+                        <label title="Share (0 to 1) of the survived XP a death still earns.">Death XP share<input type="number" min="0" max="1" step="0.05" @bind="simulation.RaidExperience.DeathShare" /></label>
+                        <label title="Online time is raid time times a factor between these two, for menus, hideout and flea.">Online time factor, minimum<input type="number" min="1" max="5" step="0.05" @bind="simulation.OnlineTimeMinimum" /></label>
+                        <label title="Upper end of the online time factor.">Online time factor, maximum<input type="number" min="1" max="5" step="0.05" @bind="simulation.OnlineTimeMaximum" /></label>
+                        <label title="Share (0 to 1) of level 79, average-skill accounts that own a given Common achievement. Lower levels own fewer, skill scales it.">Common achievement share<input type="number" min="0" max="1" step="0.01" @bind="simulation.Achievements.Common" /></label>
+                        <label title="Same for Rare achievements, mostly boss kills.">Rare achievement share<input type="number" min="0" max="1" step="0.01" @bind="simulation.Achievements.Rare" /></label>
+                        <label title="Same for Legendary achievements, mostly events and Kappa.">Legendary achievement share<input type="number" min="0" max="1" step="0.01" @bind="simulation.Achievements.Legendary" /></label>
+                    </div><p class="hp-hint">With the defaults an average account needs about 60 raids for level 15, 440 for level 40 and 3,800 for level 79.</p>
+                </section>
+                <section class="hp-card"><h2>Hideout construction</h2><p>Season cohort observations guide module preferences. Time, wealth, personality, and native prerequisites still decide upgrades. Existing construction is never downgraded.</p>
+                    <div class="hp-grid">
+                        <label title="How fast simulated accounts build hideout modules. 1 is normal, 2 is twice as fast.">Construction speed<input type="number" min="0.25" max="4" step="0.05" @bind="simulation.Hideout.ConstructionSpeed" /></label>
+                        <label title="How much simulated hideout upgrades cost the account. Higher means slower upgrades.">Material cost multiplier<input type="number" min="0.25" max="4" step="0.05" @bind="simulation.Hideout.MaterialCostMultiplier" /></label>
+                        <label title="Scales how likely each hideout module is to be built at all for an account's level.">Built chance multiplier<input type="number" min="0.25" max="2" step="0.05" @bind="simulation.Hideout.BuiltChanceMultiplier" /></label>
+                    </div><p class="hp-hint">1 is the default. Edition starting privileges remain. Seasonal events and emergency-wall history are not fabricated.</p>
+                </section>
+                <section class="hp-card"><h2>Prestige and showcases</h2><p>Prestige follows installed requirements and fictional quest histories. Lifetime history and account registration persist. Favorites stay pinned until an item becomes unavailable.</p>
+                    <div class="hp-grid">
+                        <label class="hp-check" title="Let simulated accounts prestige when they meet the installed prestige requirements."><input type="checkbox" @bind="simulation.EnablePrestige" /> Prestige progression</label>
+                        <label title="Raid hours an account needs since its last prestige before it can prestige again.">Minimum raid hours per prestige cycle<input type="number" min="10" max="10000" @bind="simulation.MinimumPrestigeCycleHours" /></label>
+                        <label class="hp-check" title="Fill weapon racks and trophy stands, only for accounts that have built those hideout modules."><input type="checkbox" @bind="simulation.EnableShowcase" /> Hideout-gated showcases</label>
+                    </div>
+                </section>
+                <section class="hp-card"><h2>Post-raid stories</h2><p>A killer can later die or regear. Outcomes are mutually exclusive, delayed, and never rewrite historical killer equipment.</p>
+                    <label class="hp-check" title="After a PMC kills you, it may later die or regear, so its profile changes between raids."><input type="checkbox" @bind="simulation.EnablePostRaidStories" /> Enable post-raid stories</label>
+                    <div class="hp-grid">
+                        <label title="Chance (0 to 1) that a PMC who killed you dies later.">Later death chance<input type="number" min="0" max="1" step="0.001" @bind="simulation.PostRaidDeathChance" /></label>
+                        <label title="Chance (0 to 1) that a PMC who killed you swaps to new gear later.">Survivor regear chance<input type="number" min="0" max="1" step="0.001" @bind="simulation.PostRaidRegearChance" /></label>
+                        <label title="Earliest time after your death that a story outcome can happen.">Delay, minimum seconds<input type="number" min="30" max="86400" @bind="simulation.StoryMinimumDelaySeconds" /></label>
+                        <label title="Latest time after your death that a story outcome can happen.">Delay, maximum seconds<input type="number" min="30" max="86400" @bind="simulation.StoryMaximumDelaySeconds" /></label>
+                        <label title="How long a story outcome stays visible before the account carries on normally.">Outcome visibility, seconds<input type="number" min="60" max="86400" @bind="simulation.StoryVisibilitySeconds" /></label>
+                    </div><p class="hp-hint">Death and regear chances together cannot exceed 1.</p>
+                </section>
+                <div class="hp-save hp-card"><button type="button" disabled="@(!Dirty("simulation"))" @onclick="SavePolicy">Save simulation policy</button><span>Applies all simulation controls on this tab.</span></div>
+            }
+            else
+            {
+                <section class="hp-card"><div class="hp-section-heading"><div><h2>Population</h2><p>Friendships and activity between server sessions.</p></div><span class="hp-badge">@Draft("settings")</span></div>
+                    <label class="hp-check" title="Allow sending friend requests to simulated accounts."><input type="checkbox" @bind="config.EnableFriendRequests" /> Bot friend requests</label>
+                    <div class="hp-grid">
+                        <label title="Chance (0 to 1) that a simulated account accepts your friend request.">Friend acceptance chance<input type="number" min="0" max="1" step="0.01" @bind="config.FriendAcceptanceChance" /></label>
+                        <label title="Accepted friends play and show online this many times as often as other accounts.">Friend activity multiplier<input type="number" min="0" max="5" step="0.1" @bind="config.FriendActivityMultiplier" /></label>
+                        <label title="Scales how often every account is online. 1 is the default, 2 doubles it.">Online rate multiplier<input type="number" min="0" max="10" step="0.1" @bind="config.OnlineRateMultiplier" /></label>
+                        <label title="Minimum server downtime before accounts get simulated progress for the time you were away.">Offline progression threshold, seconds<input type="number" min="60" max="86400" @bind="config.ProgressionThresholdSeconds" /></label>
+                        <label title="Cap on how many offline days of progress are simulated at server start.">Maximum offline days<input type="number" min="1" max="365" @bind="config.MaximumOfflineDays" /></label>
+                    </div><p class="hp-hint">APBS owns generated faces, clothing, weapons, and equipment. Disabling new friend requests keeps existing accepted friendships.</p>
+                    <div class="hp-save"><button type="button" disabled="@(!Dirty("settings"))" @onclick="SaveConfig">Save population settings</button><span>Existing identities and accepted friends remain.</span></div>
+                </section>
+            }
+        </div></div>
+    }
+    else
+    {
+        <section class="hp-card hp-empty"><h2>Settings are unavailable</h2><p>The population store could not be loaded. Try again when the server is ready.</p><button type="button" class="hp-secondary" @onclick="Reload">Try again</button></section>
+    }
+</main>
+
+@code {
+    private static readonly string[] tabs = ["Overview", "Personalities", "Simulation", "Population"];
+    private EditorSnapshot? snapshot;
+    private List<PersonalityTemplate> people = new();
+    private SimulationPolicy simulation = new();
+    private PbtSettings config = new();
+    private readonly Dictionary<string, string> baselines = new();
+    private string activeTab = "Overview", message = "";
+    private int selectedIndex;
+    private bool error, confirmReload;
+    private static string TabDescription(string tab) => tab switch {
+        "Overview" => "Status & quick access", "Personalities" => "Identity & raid behavior",
+        "Simulation" => "Progression & stories", _ => "Friendships & offline activity" };
+    private void RequestReload()
+    {
+        if (tabs.Any(TabDirty)) confirmReload = true;
+        else Reload();
+    }
+    private PersonalityTemplate? Current => selectedIndex >= 0 && selectedIndex < people.Count ? people[selectedIndex] : people.FirstOrDefault();
+    private static PopulationStore Store => PopulationStore.Active ?? throw new InvalidOperationException("PBT is not ready.");
+    protected override void OnInitialized() => Reload();
+    private string Contents(string section) => section switch {
+        "personalities" => JsonSerializer.Serialize(people), "simulation" => JsonSerializer.Serialize(simulation), _ => JsonSerializer.Serialize(config) };
+    private bool Dirty(string section) => baselines.TryGetValue(section, out var baseline) && baseline != Contents(section);
+    private string Draft(string section) => Dirty(section) ? "Unsaved changes" : "Saved";
+    private bool TabDirty(string tab) => tab switch {
+        "Personalities" => Dirty("personalities"), "Simulation" => Dirty("simulation"), "Population" => Dirty("settings"), _ => false };
+    private void Reload()
+    {
+        try
+        {
+            var saved = Store.GetEditorSnapshot();
+            var nextPeople = JsonSerializer.Deserialize<List<PersonalityTemplate>>(saved.PersonalitiesJson)!;
+            var nextPolicy = JsonSerializer.Deserialize<SimulationPolicy>(saved.PolicyJson)!;
+            var nextConfig = JsonSerializer.Deserialize<PbtSettings>(saved.SettingsJson)!;
+            snapshot = saved; people = nextPeople; simulation = nextPolicy; config = nextConfig;
+            foreach (string section in new[] { "personalities", "simulation", "settings" }) baselines[section] = Contents(section);
+            selectedIndex = 0; confirmReload = false; error = false; message = "";
+        }
+        catch (Exception ex) { error = true; message = ex.Message; }
+    }
+    private void RefreshStatus()
+    {
+        try
+        {
+            var status = Store.GetEditorSnapshot();
+            snapshot = snapshot! with { Careers = status.Careers, Online = status.Online, PendingStories = status.PendingStories,
+                Prestiged = status.Prestiged, GenerationMode = status.GenerationMode, ApbsMatched = status.ApbsMatched, ApbsFallback = status.ApbsFallback };
+            error = false; message = "Status refreshed. Unsaved edits are retained.";
+        }
+        catch (Exception ex) { error = true; message = ex.Message; }
+    }
+    private void Add()
+    {
+        int number = 1; while (people.Any(p => p.Id == "Custom" + number)) number++;
+        people.Add(new PersonalityTemplate { Id = "Custom" + number }); selectedIndex = people.Count - 1;
+    }
+    private void Remove() { if (Current is { } item) people.Remove(item); selectedIndex = 0; }
+    private void SavePeople()
+    {
+        foreach (var item in people) if (string.IsNullOrWhiteSpace(item.ProgressTo)) item.ProgressTo = null;
+        Save("personalities", snapshot!.PersonalitiesRevision);
+    }
+    private void SavePolicy() => Save("simulation", snapshot!.PolicyRevision);
+    private void SaveConfig() => Save("settings", snapshot!.SettingsRevision);
+    private void Save(string section, string revision)
+    {
+        try
+        {
+            string value = Contents(section);
+            Store.SaveEditorSection(section, value, revision);
+            var saved = Store.GetEditorSnapshot();
+            snapshot = section switch {
+                "personalities" => snapshot! with { PersonalitiesRevision = saved.PersonalitiesRevision },
+                "simulation" => snapshot! with { PolicyRevision = saved.PolicyRevision },
+                _ => snapshot! with { SettingsRevision = saved.SettingsRevision } };
+            baselines[section] = value; error = false;
+            message = "Saved and applied. Other unsaved sections are unchanged.";
+        }
+        catch (Exception ex) { error = true; message = ex.Message; }
+    }
+}
