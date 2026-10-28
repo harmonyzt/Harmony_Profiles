@@ -30,9 +30,16 @@ foreach ($source in $files.Keys) {
     New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $projectRoot $source) -Destination $target
 }
-Compress-Archive -Path (Join-Path $packageRoot '*') -DestinationPath $archive -CompressionLevel Optimal
+Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+# Compress-Archive on Windows PowerShell 5.1 writes backslash entry names, which some extractors misread.
+$zip = [IO.Compression.ZipFile]::Open($archive, 'Create')
+try {
+    foreach ($entryName in $files.Values) {
+        [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, (Join-Path $packageRoot $entryName), $entryName, 'Optimal') | Out-Null
+    }
+}
+finally { $zip.Dispose() }
 
-Add-Type -AssemblyName System.IO.Compression.FileSystem
 $zip = [IO.Compression.ZipFile]::OpenRead($archive)
 try {
     $entries = @($zip.Entries | Where-Object { $_.Name.Length -gt 0 })
