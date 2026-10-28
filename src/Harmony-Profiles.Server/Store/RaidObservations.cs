@@ -85,7 +85,7 @@ public sealed partial class PopulationStore
                 var career = population.Careers[id];
                 previousAchievements.Add(id, career.Achievements);
                 previousLife.Add(id, (career.NeedsRegear, career.CurrentSurvivalStreak, career.StoryDeaths));
-                if (newDeaths.Contains(id)) { career.NeedsRegear = true; career.CurrentSurvivalStreak = 0; }
+                if (newDeaths.Contains(id)) { career.NeedsRegear = true; career.GearPending = true; career.CurrentSurvivalStreak = 0; }
                 career.Observed = totals;
             }
             population.AppliedStories = new Dictionary<int, string>(previousStories);
