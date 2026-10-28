@@ -279,19 +279,18 @@ public sealed partial class PopulationStore(
     {
         var personality = PickPersonality();
         string archetype = personality.Id;
-        int hours = Random.Shared.Next(personality.MinimumHours, personality.MaximumHours + 1);
         int level = Random.Shared.Next(personality.MinimumLevel, personality.MaximumLevel + 1);
+        int floor = profileHelper.GetExperience(level) ?? 0;
+        int ceiling = profileHelper.GetExperience(level + 1) ?? floor;
         long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var c = new Career
         {
             Id = NewId(), AccountId = AllocateAccount(), Name = AllocateNickname(name), SourceName = name, Side = side, Archetype = archetype,
-            RegisteredUtc = now - (long)Math.Min(3650d * 86400, hours * 3600d * (12 + Random.Shared.NextDouble() * 60)),
             DailyRaidHours = Random.Shared.NextDouble() < .15 ? 0 : personality.MinimumDailyHours
                 + Random.Shared.NextDouble() * (personality.MaximumDailyHours - personality.MinimumDailyHours),
-            SurvivalChance = personality.MinimumSurvival + Random.Shared.NextDouble()
-                * (personality.MaximumSurvival - personality.MinimumSurvival),
-            Experience = profileHelper.GetExperience(level) ?? 0
+            Experience = floor + (int)((ceiling - floor) * Random.Shared.NextDouble() * .9)
         };
+        c.SurvivalChance = SurvivalFor(c);
         var a = type.BotAppearance;
         var body = Pick(a.Body);
         var bodyTemplate = templates.Customization[body];
@@ -305,7 +304,9 @@ public sealed partial class PopulationStore(
         EnsureAccountIdentity(c);
         c.LifeVersion = 2;
         c.FeatureVersion = 1;
-        AddRaids(c, hours * 3600d);
+        // History follows from the level: the raids this account needed to earn its experience.
+        AddRaids(c, RaidsToReach(c, c.Experience) * (.85 + Random.Shared.NextDouble() * .35) * RaidDuration(c, false));
+        c.RegisteredUtc = now - AccountAge(c, now);
         EnsureLife(c, now);
         return c;
     }
@@ -343,10 +344,10 @@ public sealed partial class PopulationStore(
         dirty = true;
     }
 
-    private void AddRaids(Career c, double seconds)
+    private void AddRaids(Career c, double seconds, bool earnExperience = false)
     {
         c.RaidSeconds += seconds;
-        c.OnlineSeconds += seconds;
+        c.OnlineSeconds += seconds * OnlineFactor(c);
         c.PendingRaidSeconds += seconds;
         if (c.TargetRaidSeconds <= 0) c.TargetRaidSeconds = RaidDuration(c, true);
         while (c.PendingRaidSeconds >= c.TargetRaidSeconds)
@@ -371,6 +372,9 @@ public sealed partial class PopulationStore(
                 if (!survived) c.NeedsRegear = true;
             }
             AddRaidKills(c);
+            if (earnExperience)
+                c.Experience = (int)Math.Min(int.MaxValue, c.Experience
+                    + RaidExperience(Level(c.Experience), survived && outcome >= .015) * (.75 + Random.Shared.NextDouble() * .5));
             c.TargetRaidSeconds = RaidDuration(c, true);
         }
     }
@@ -510,7 +514,7 @@ public sealed partial class PopulationStore(
                 ["customization"] = customization, ["skills"] = CareerSkills(career),
                 ["equipment"] = equipment.DeepClone(),
                 ["achievements"] = PublicAchievements(career), ["favoriteItems"] = PublicShowcase(career),
-                ["pmcStats"] = new JsonObject { ["eft"] = new JsonObject { ["totalInGameTime"] = Lifetime(career, "TimeInRaid", (long)career.RaidSeconds + career.Observed.ActiveSeconds),
+                ["pmcStats"] = new JsonObject { ["eft"] = new JsonObject { ["totalInGameTime"] = Lifetime(career, "OnlineTime", (long)OnlineSeconds(career)),
                     ["overAllCounters"] = new JsonObject { ["Items"] = counters } } },
                 ["scavStats"] = new JsonObject { ["eft"] = new JsonObject { ["totalInGameTime"] = 0,
                     ["overAllCounters"] = new JsonObject { ["Items"] = new JsonArray() } } },

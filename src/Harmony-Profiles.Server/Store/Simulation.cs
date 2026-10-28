@@ -14,7 +14,7 @@ public sealed partial class PopulationStore
         {
             personalities =
             [
-                new() { Id = "Timmy", Weight = 30, MinimumHours = 5, MaximumHours = 100, MinimumLevel = 1,
+                new() { Id = "Timmy", Weight = 30, MinimumLevel = 1,
                     MaximumLevel = 15, MinimumSurvival = .12, MaximumSurvival = .3,
                     MinimumRaidMinutes = 4, MaximumRaidMinutes = 28, ProgressTo = "Casual" },
                 new(),
@@ -32,8 +32,7 @@ public sealed partial class PopulationStore
     private static void ValidatePersonalities(List<PersonalityTemplate> candidates)
     {
         if (candidates.Count is < 1 or > 100 || candidates.Any(p => p is null || string.IsNullOrWhiteSpace(p.Id)
-            || p.Id.Length > 64 || p.Weight is < 1 or > 1000 || p.MinimumHours < 1 || p.MaximumHours < p.MinimumHours
-            || p.MaximumHours > 50000 || p.MinimumLevel < 1 || p.MaximumLevel < p.MinimumLevel || p.MaximumLevel > 79
+            || p.Id.Length > 64 || p.Weight is < 1 or > 1000 || p.MinimumLevel < 1 || p.MaximumLevel < p.MinimumLevel || p.MaximumLevel > 79
             || !double.IsFinite(p.MinimumDailyHours) || !double.IsFinite(p.MaximumDailyHours)
             || p.MinimumDailyHours < 0 || p.MaximumDailyHours < p.MinimumDailyHours || p.MaximumDailyHours > 24
             || !double.IsFinite(p.MinimumSurvival) || !double.IsFinite(p.MaximumSurvival)
@@ -59,12 +58,14 @@ public sealed partial class PopulationStore
     private double RaidDuration(Career c, bool random)
     {
         var p = Personality(c);
-        double lower = Math.Clamp(p.MinimumRaidMinutes, 5, 45);
-        double upper = Math.Max(lower, Math.Clamp(p.MaximumRaidMinutes, 5, 45));
-        double personality = c.Archetype == "Aggressive" ? .8 : c.Archetype == "Survivor" ? 1.15 : 1;
-        double mean = Cohort(c).Minutes * (.65 + Stable(c.Id + ":raid-duration") * .7)
-            * (.7 + c.SurvivalChance * .6) * personality;
-        double minutes = mean * (random ? .35 + Random.Shared.NextDouble() * 1.3 : 1);
+        double lower = Math.Clamp(p.MinimumRaidMinutes, 3, 60);
+        double upper = Math.Max(lower, Math.Clamp(p.MaximumRaidMinutes, 3, 60));
+        var prior = Cohort(c);
+        double pace = c.Archetype == "Aggressive" ? .85 : c.Archetype == "Survivor" ? 1.15 : 1;
+        // Survived raids run long and deaths end early, so the average follows the survival rate.
+        double mean = (c.SurvivalChance * prior.SurvivedMinutes + (1 - c.SurvivalChance) * prior.DeathMinutes)
+            * pace * (.85 + Stable(c.Id + ":raid-duration") * .3);
+        double minutes = mean * (random ? .5 + Random.Shared.NextDouble() : 1);
         return Math.Clamp(minutes, lower, upper) * 60;
     }
 
@@ -86,21 +87,14 @@ public sealed partial class PopulationStore
             c.NextActivityUtc = now + Random.Shared.Next(600, 1801);
         }
         if (migrating || c.RegisteredUtc <= 0)
-        {
-            double age = Math.Min(3650d * 86400, (c.RaidSeconds + c.Observed.ActiveSeconds)
-                * (12 + Stable(c.Id + ":account-age") * 60));
-            c.RegisteredUtc = Math.Max(1, Math.Min(c.RegisteredUtc > 0 ? c.RegisteredUtc : now, now - (long)age));
-            if (c.PrestigeLevel > 0)
-                c.RegisteredUtc = Math.Min(c.RegisteredUtc, now - Math.Min(3650L, c.PrestigeLevel * 180L) * 86400);
-        }
+            c.RegisteredUtc = Math.Max(1, Math.Min(c.RegisteredUtc > 0 ? c.RegisteredUtc : now, now - AccountAge(c, now)));
     }
 
     private void ApplySimulation(Career c, double seconds)
     {
         int previousRaids = c.Raids, previousSurvived = c.Survived;
-        AddRaids(c, seconds);
+        AddRaids(c, seconds, earnExperience: true);
         int completed = c.Raids - previousRaids, survived = c.Survived - previousSurvived;
-        c.Experience = (int)Math.Min(int.MaxValue, (long)c.Experience + completed * (c.Archetype == "Timmy" ? 700 : 1800));
         c.WealthRubles = Math.Clamp(c.WealthRubles + survived * (c.Archetype == "Timmy" ? 60000d : 150000d)
             - (completed - survived) * (c.Archetype == "Timmy" ? 30000d : 80000d), 0, 100_000_000);
         var personality = Personality(c);
@@ -108,8 +102,7 @@ public sealed partial class PopulationStore
         {
             c.Archetype = personality.ProgressTo;
             personality = Personality(c);
-            c.SurvivalChance = personality.MinimumSurvival + (personality.MaximumSurvival - personality.MinimumSurvival)
-                * Stable(c.Id + ":transition:" + c.Archetype);
+            c.SurvivalChance = SurvivalFor(c);
         }
         if (completed > 0)
         {

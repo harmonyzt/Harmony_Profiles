@@ -15,10 +15,18 @@ public sealed partial class PopulationStore
     private void LoadFeatures()
     {
         string path = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(directory)!, "simulation.json");
-        if (File.Exists(path)) policy = JsonSerializer.Deserialize<SimulationPolicy>(File.ReadAllText(path))
+        bool write = !File.Exists(path);
+        if (!write) policy = JsonSerializer.Deserialize<SimulationPolicy>(File.ReadAllText(path))
             ?? throw new InvalidDataException("Simulation policy is empty.");
+        // Files from before the stats rework have single raid lengths and inflated kill rates.
+        if (policy.ProgressionPriors?.Any(p => p is not null && p.SurvivedMinutes == 0 && p.DeathMinutes == 0) == true)
+        {
+            policy.ProgressionPriors = new SimulationPolicy().ProgressionPriors;
+            write = true;
+            logger.Info("[Harmony-Profiles] Replaced pre-rework raid history priors in simulation.json with the new defaults.");
+        }
         policy.Validate();
-        if (!File.Exists(path)) AtomicFile.Write(path, JsonSerializer.Serialize(policy, new JsonSerializerOptions { WriteIndented = true }));
+        if (write) AtomicFile.Write(path, JsonSerializer.Serialize(policy, new JsonSerializerOptions { WriteIndented = true }));
         prestigeDefinitions = JsonNode.Parse(json.Serialize(templates.Prestige)!)?["elements"]?.DeepClone().AsArray() ?? new();
         foreach (var c in population.Careers.Values)
         {

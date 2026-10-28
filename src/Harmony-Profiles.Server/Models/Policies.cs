@@ -11,8 +11,6 @@ public sealed class PersonalityTemplate
 {
     public string Id { get; set; } = "Casual";
     public int Weight { get; set; } = 40;
-    public int MinimumHours { get; set; } = 100;
-    public int MaximumHours { get; set; } = 2500;
     public int MinimumLevel { get; set; } = 15;
     public int MaximumLevel { get; set; } = 50;
     public double MinimumDailyHours { get; set; } = .15;
@@ -28,20 +26,35 @@ public sealed class PersonalityTemplate
 public sealed class ProgressionPrior
 {
     public int MaximumLevel { get; set; }
-    public double RaidMinutes { get; set; }
+    public double SurvivedMinutes { get; set; }
+    public double DeathMinutes { get; set; }
+    // Kills per raid for an average-skill account. Skill and personality scale these.
     public double PmcKills { get; set; }
     public double ScavKills { get; set; }
+}
+
+// Survived raid XP is Base + PerLevel * level + PerLevelSquared * level^2. Deaths earn DeathShare of that.
+public sealed class RaidExperienceSettings
+{
+    public double SurvivedBase { get; set; } = 2000;
+    public double SurvivedPerLevel { get; set; } = 150;
+    public double SurvivedPerLevelSquared { get; set; } = 5;
+    public double DeathShare { get; set; } = .3;
 }
 
 public sealed class SimulationPolicy
 {
     public List<ProgressionPrior> ProgressionPriors { get; set; } =
     [
-        new() { MaximumLevel = 14, RaidMinutes = 11.44, PmcKills = 1.17, ScavKills = 2.17 },
-        new() { MaximumLevel = 29, RaidMinutes = 14.45, PmcKills = 1.61, ScavKills = 2.78 },
-        new() { MaximumLevel = 44, RaidMinutes = 16.28, PmcKills = 1.98, ScavKills = 2.56 },
-        new() { MaximumLevel = 79, RaidMinutes = 17.18, PmcKills = 2.28, ScavKills = 3.68 }
+        new() { MaximumLevel = 14, SurvivedMinutes = 22, DeathMinutes = 9, PmcKills = .35, ScavKills = .9 },
+        new() { MaximumLevel = 29, SurvivedMinutes = 25, DeathMinutes = 11, PmcKills = .55, ScavKills = 1.1 },
+        new() { MaximumLevel = 44, SurvivedMinutes = 28, DeathMinutes = 12, PmcKills = .7, ScavKills = 1.2 },
+        new() { MaximumLevel = 79, SurvivedMinutes = 30, DeathMinutes = 13, PmcKills = .85, ScavKills = 1.3 }
     ];
+    public RaidExperienceSettings RaidExperience { get; set; } = new();
+    // Online time is raid time times a per-account factor in this range, for menus, hideout and flea.
+    public double OnlineTimeMinimum { get; set; } = 1.15;
+    public double OnlineTimeMaximum { get; set; } = 1.5;
     public bool EnableApbsCareerIntegration { get; set; } = true;
     public HideoutProgressionSettings Hideout { get; set; } = new();
     public bool EnablePrestige { get; set; } = true;
@@ -60,12 +73,21 @@ public sealed class SimulationPolicy
         Hideout.Validate();
         if (ProgressionPriors is null || ProgressionPriors.Count is < 1 or > 79
             || ProgressionPriors.Any(p => p is null || p.MaximumLevel is < 1 or > 79
-                || !double.IsFinite(p.RaidMinutes) || p.RaidMinutes is < 5 or > 45
+                || !double.IsFinite(p.SurvivedMinutes) || p.SurvivedMinutes is < 3 or > 60
+                || !double.IsFinite(p.DeathMinutes) || p.DeathMinutes is < 3 or > 60
                 || !double.IsFinite(p.PmcKills) || p.PmcKills is < 0 or > 20
                 || !double.IsFinite(p.ScavKills) || p.ScavKills is < 0 or > 20)
             || !ProgressionPriors.Select(p => p.MaximumLevel).SequenceEqual(ProgressionPriors.Select(p => p.MaximumLevel).Distinct().Order())
             || ProgressionPriors[^1].MaximumLevel != 79)
-            throw new InvalidDataException("Progression priors require increasing level bands ending at 79, 5-45 minute raids, and 0-20 kills per raid.");
+            throw new InvalidDataException("Progression priors require increasing level bands ending at 79, 3-60 minute raids, and 0-20 kills per raid.");
+        var xp = RaidExperience;
+        if (xp is null || !double.IsFinite(xp.SurvivedBase) || xp.SurvivedBase is < 100 or > 100000
+            || !double.IsFinite(xp.SurvivedPerLevel) || xp.SurvivedPerLevel is < 0 or > 10000
+            || !double.IsFinite(xp.SurvivedPerLevelSquared) || xp.SurvivedPerLevelSquared is < 0 or > 1000
+            || !double.IsFinite(xp.DeathShare) || xp.DeathShare is < 0 or > 1
+            || !double.IsFinite(OnlineTimeMinimum) || !double.IsFinite(OnlineTimeMaximum)
+            || OnlineTimeMinimum < 1 || OnlineTimeMaximum < OnlineTimeMinimum || OnlineTimeMaximum > 5)
+            throw new InvalidDataException("Raid experience needs a 100-100000 base and a 0-1 death share; online time factors must be 1-5.");
         if (!double.IsFinite(MinimumPrestigeCycleHours) || MinimumPrestigeCycleHours is < 10 or > 10000
             || !double.IsFinite(PostRaidDeathChance) || !double.IsFinite(PostRaidRegearChance)
             || PostRaidDeathChance < 0 || PostRaidRegearChance < 0 || PostRaidDeathChance + PostRaidRegearChance > 1

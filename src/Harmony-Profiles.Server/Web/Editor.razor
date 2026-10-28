@@ -68,18 +68,16 @@
                         <fieldset class="hp-fieldset"><legend>Identity &amp; distribution</legend><div class="hp-grid">
                             <label title="Personality ID. Careers store this name, so renaming it moves existing careers to the first personality.">Name<input @bind="p.Id" /></label>
                             <label title="How often new accounts roll this personality, relative to the other weights.">Population weight<input type="number" min="1" max="1000" @bind="p.Weight" /></label>
-                        </div></fieldset><fieldset class="hp-fieldset"><legend>Starting experience</legend><p>Ranges used when a new account is created.</p><div class="hp-grid">
-                            <label title="Fewest raid hours a new account of this personality starts with.">Starting hours, minimum<input type="number" @bind="p.MinimumHours" /></label>
-                            <label title="Most raid hours a new account of this personality starts with.">Starting hours, maximum<input type="number" @bind="p.MaximumHours" /></label>
+                        </div></fieldset><fieldset class="hp-fieldset"><legend>Starting experience</legend><p>Ranges used when a new account is created. Raids, hours and kills are worked out from the level, so they always fit it.</p><div class="hp-grid">
                             <label title="Lowest level a new account of this personality starts at.">Starting level, minimum<input type="number" min="1" max="79" @bind="p.MinimumLevel" /></label>
                             <label title="Highest level a new account of this personality starts at.">Starting level, maximum<input type="number" min="1" max="79" @bind="p.MaximumLevel" /></label>
                         </div></fieldset><fieldset class="hp-fieldset"><legend>Raid behavior</legend><p>Hours are daily totals. Survival chances use 0 to 1 (0.5 = 50%).</p><div class="hp-grid">
                             <label title="Least time per day this account plays. It also sets how often the account shows as online.">Daily raid hours, minimum<input type="number" step="0.05" @bind="p.MinimumDailyHours" /></label>
                             <label title="Most time per day this account plays. It also sets how often the account shows as online.">Daily raid hours, maximum<input type="number" step="0.05" @bind="p.MaximumDailyHours" /></label>
-                            <label title="Lowest chance (0 to 1) to survive a simulated raid.">Survival chance, minimum<input type="number" min="0" max="1" step="0.01" @bind="p.MinimumSurvival" /></label>
-                            <label title="Highest chance (0 to 1) to survive a simulated raid.">Survival chance, maximum<input type="number" min="0" max="1" step="0.01" @bind="p.MaximumSurvival" /></label>
-                            <label title="Shortest simulated raid. Clamped to 5-45 minutes.">Raid minutes, minimum<input type="number" @bind="p.MinimumRaidMinutes" /></label>
-                            <label title="Longest simulated raid. Clamped to 5-45 minutes.">Raid minutes, maximum<input type="number" @bind="p.MaximumRaidMinutes" /></label>
+                            <label title="Survival chance (0 to 1) of the least skilled accounts. Skill also sets kills, so low survival means fewer kills.">Survival chance, minimum<input type="number" min="0" max="1" step="0.01" @bind="p.MinimumSurvival" /></label>
+                            <label title="Survival chance (0 to 1) of the most skilled accounts.">Survival chance, maximum<input type="number" min="0" max="1" step="0.01" @bind="p.MaximumSurvival" /></label>
+                            <label title="Shortest simulated raid. Clamped to 3-60 minutes.">Raid minutes, minimum<input type="number" @bind="p.MinimumRaidMinutes" /></label>
+                            <label title="Longest simulated raid. Clamped to 3-60 minutes.">Raid minutes, maximum<input type="number" @bind="p.MaximumRaidMinutes" /></label>
                         </div></fieldset><fieldset class="hp-fieldset"><legend>Personality progression</legend><div class="hp-grid">
                             <label title="Personality this account turns into after enough raid hours, e.g. Timmy into Casual.">Progress to<select @bind="p.ProgressTo"><option value="">Stay this personality</option>
                                 @foreach (var target in people.Where(t => t != p)) { <option value="@target.Id">@target.Id</option> }
@@ -95,16 +93,25 @@
             {
                 <section class="hp-card"><div class="hp-section-heading"><div><h2>Progression</h2><p>Level cohorts guide varied account histories. Native requirements remain in force.</p></div><span class="hp-badge">@Draft("simulation")</span></div>
                     <label class="hp-check" title="When APBS spawns a PMC, reuse an existing career whose level fits APBS's level range, so you meet the same players again."><input type="checkbox" @bind="simulation.EnableApbsCareerIntegration" /> Select persistent careers within APBS level ranges</label>
-                    <div class="hp-table-scroll"><table><caption>Raid history priors</caption><thead><tr><th>Maximum level</th><th>Raid minutes</th><th>PMC kills / raid</th><th>Scav kills / raid</th></tr></thead><tbody>
+                    <div class="hp-table-scroll"><table><caption>Raid history priors</caption><thead><tr><th>Maximum level</th><th title="Average length of a raid the account survives.">Survived raid minutes</th><th title="Average length of a raid that ends in death.">Death raid minutes</th><th title="For an average-skill account. Skill and personality scale it.">PMC kills / raid</th><th title="For an average-skill account. Skill and personality scale it.">Scav kills / raid</th></tr></thead><tbody>
                         @foreach (var prior in simulation.ProgressionPriors)
                         {
                             var row = simulation.ProgressionPriors.IndexOf(prior) + 1;
                             <tr @key="prior"><td><input aria-label="Maximum level, band @row" type="number" min="1" max="79" @bind="prior.MaximumLevel" /></td>
-                                <td><input aria-label="Raid minutes, band @row" type="number" min="5" max="45" step="0.01" @bind="prior.RaidMinutes" /></td>
+                                <td><input aria-label="Survived raid minutes, band @row" type="number" min="3" max="60" step="0.5" @bind="prior.SurvivedMinutes" /></td>
+                                <td><input aria-label="Death raid minutes, band @row" type="number" min="3" max="60" step="0.5" @bind="prior.DeathMinutes" /></td>
                                 <td><input aria-label="PMC kills per raid, band @row" type="number" min="0" max="20" step="0.01" @bind="prior.PmcKills" /></td>
                                 <td><input aria-label="Scav kills per raid, band @row" type="number" min="0" max="20" step="0.01" @bind="prior.ScavKills" /></td></tr>
                         }
                     </tbody></table></div><p class="hp-hint">Bands must increase and end at level 79. These averages are priors, not identical targets for every account.</p>
+                    <div class="hp-grid">
+                        <label title="XP for a survived raid at level 0. Raid XP decides how many raids an account needed to reach its level.">Survived raid XP, base<input type="number" min="100" max="100000" step="100" @bind="simulation.RaidExperience.SurvivedBase" /></label>
+                        <label title="Extra survived raid XP per level.">Survived raid XP, per level<input type="number" min="0" max="10000" step="10" @bind="simulation.RaidExperience.SurvivedPerLevel" /></label>
+                        <label title="Extra survived raid XP per level squared, so high levels earn much more per raid.">Survived raid XP, per level squared<input type="number" min="0" max="1000" step="0.5" @bind="simulation.RaidExperience.SurvivedPerLevelSquared" /></label>
+                        <label title="Share (0 to 1) of the survived XP a death still earns.">Death XP share<input type="number" min="0" max="1" step="0.05" @bind="simulation.RaidExperience.DeathShare" /></label>
+                        <label title="Online time is raid time times a factor between these two, for menus, hideout and flea.">Online time factor, minimum<input type="number" min="1" max="5" step="0.05" @bind="simulation.OnlineTimeMinimum" /></label>
+                        <label title="Upper end of the online time factor.">Online time factor, maximum<input type="number" min="1" max="5" step="0.05" @bind="simulation.OnlineTimeMaximum" /></label>
+                    </div><p class="hp-hint">With the defaults an average account needs about 60 raids for level 15, 440 for level 40 and 3,800 for level 79.</p>
                 </section>
                 <section class="hp-card"><h2>Hideout construction</h2><p>Season cohort observations guide module preferences. Time, wealth, personality, and native prerequisites still decide upgrades. Existing construction is never downgraded.</p>
                     <div class="hp-grid">

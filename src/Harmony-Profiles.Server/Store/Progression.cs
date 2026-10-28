@@ -7,12 +7,64 @@ public sealed partial class PopulationStore
 {
     private readonly HashSet<string> reportedRegressions = new();
 
-    // Season 11 unflagged, established-player medians. Personalities deliberately overlap these priors.
-    private (double Minutes, double PmcKills, double ScavKills) Cohort(Career career)
+    // Closed beta opened in July 2017, so no account is older than that.
+    private const long FirstAccountUtc = 1501200000;
+
+    private ProgressionPrior Cohort(Career career) => Cohort(Level(career.Experience));
+    private ProgressionPrior Cohort(int level) => policy.ProgressionPriors.First(p => level <= p.MaximumLevel);
+
+    // One stable roll per account drives survival, kills and pace together, so the stats agree with each other.
+    private static double Skill(Career c) => Stable(c.Id + ":skill");
+
+    private static double Aggression(Career c) => c.Archetype switch
     {
-        int level = Level(career.Experience);
-        var prior = policy.ProgressionPriors.First(p => level <= p.MaximumLevel);
-        return (prior.RaidMinutes, prior.PmcKills, prior.ScavKills);
+        "Timmy" => .6, "Aggressive" => 1.35, "Survivor" => .75, _ => 1
+    };
+
+    private double SurvivalFor(Career c)
+    {
+        var p = Personality(c);
+        return p.MinimumSurvival + (p.MaximumSurvival - p.MinimumSurvival) * Skill(c);
+    }
+
+    private double OnlineFactor(Career c) => policy.OnlineTimeMinimum
+        + (policy.OnlineTimeMaximum - policy.OnlineTimeMinimum) * Stable(c.Id + ":online-overhead");
+
+    private double OnlineSeconds(Career c) => c.OnlineSeconds + c.Observed.ActiveSeconds * OnlineFactor(c);
+
+    private double RaidExperience(int level, bool survived)
+    {
+        var x = policy.RaidExperience;
+        double earned = x.SurvivedBase + x.SurvivedPerLevel * level + x.SurvivedPerLevelSquared * level * level;
+        return survived ? earned : earned * x.DeathShare;
+    }
+
+    // Expected raids for this account's survival rate to earn the given experience, level by level.
+    private double RaidsToReach(Career c, int experience)
+    {
+        double raids = 0, p = c.SurvivalChance;
+        for (int level = 1; level < 80; level++)
+        {
+            int start = profileHelper.GetExperience(level) ?? 0;
+            if (start >= experience) break;
+            int end = Math.Min(experience, profileHelper.GetExperience(level + 1) ?? experience);
+            double average = p * RaidExperience(level, true) + (1 - p) * RaidExperience(level, false);
+            raids += Math.Max(0, end - start) / Math.Max(1, average);
+        }
+        return raids;
+    }
+
+    // Accounts are at least as old as their playtime needs at a steady pace, and many are older.
+    private long AccountAge(Career c, long now)
+    {
+        long limit = Math.Max(86400, now - FirstAccountUtc);
+        double pace = .5 + 2.5 * Stable(c.Id + ":pace");
+        double needed = OnlineSeconds(c) / 3600 / pace * 86400;
+        double roll = Stable(c.Id + ":account-age");
+        double veteran = c.Archetype == "Timmy" ? roll * 120 * 86400 : Math.Pow(roll, 1.5) * limit;
+        double age = Math.Max(needed, veteran);
+        if (c.PrestigeLevel > 0) age = Math.Max(age, c.PrestigeLevel * 180d * 86400);
+        return (long)Math.Clamp(age, 3 * 86400, limit);
     }
 
     private static int SampleKills(double mean)
@@ -26,11 +78,10 @@ public sealed partial class PopulationStore
     private void AddRaidKills(Career career)
     {
         var cohort = Cohort(career);
-        double skill = .45 + Stable(career.Id + ":kill-rate") * 1.1;
-        double aggression = career.Archetype == "Timmy" ? .35 : career.Archetype == "Aggressive" ? 1.3
-            : career.Archetype == "Survivor" ? .8 : 1;
-        career.PmcKills = (int)Math.Min(int.MaxValue, (long)career.PmcKills + SampleKills(cohort.PmcKills * skill * aggression));
-        career.ScavKills = (int)Math.Min(int.MaxValue, (long)career.ScavKills + SampleKills(cohort.ScavKills * (.6 + skill * .5)));
+        double skill = Skill(career), aggression = Aggression(career);
+        career.PmcKills = (int)Math.Min(int.MaxValue, (long)career.PmcKills + SampleKills(cohort.PmcKills * (.3 + 1.4 * skill) * aggression));
+        career.ScavKills = (int)Math.Min(int.MaxValue, (long)career.ScavKills
+            + SampleKills(cohort.ScavKills * (.6 + .8 * skill) * Math.Sqrt(aggression)));
     }
 
     private long Lifetime(Career career, string key, long computed)
@@ -49,7 +100,7 @@ public sealed partial class PopulationStore
         Lifetime(career, "Kills", (long)career.PmcKills + career.ScavKills + career.Observed.PmcKills + career.Observed.ScavKills);
         Lifetime(career, "KilledPmc", career.PmcKills + career.Observed.PmcKills);
         Lifetime(career, "KilledSavage", career.ScavKills + career.Observed.ScavKills);
-        Lifetime(career, "TimeInRaid", (long)career.RaidSeconds + career.Observed.ActiveSeconds);
+        Lifetime(career, "OnlineTime", (long)OnlineSeconds(career));
     }
 
     private void EnsureCareerCoverage()
@@ -75,10 +126,10 @@ public sealed partial class PopulationStore
                     if (candidate is null) break;
                     int previous = Level(candidate.Experience);
                     candidate.Experience = xp.Value;
-                    double minimumHours = target * target * .12;
-                    if (candidate.RaidSeconds < minimumHours * 3600) AddRaids(candidate, minimumHours * 3600 - candidate.RaidSeconds);
-                    candidate.RegisteredUtc = Math.Min(candidate.RegisteredUtc,
-                        DateTimeOffset.UtcNow.ToUnixTimeSeconds() - (long)Math.Min(3650d * 86400, candidate.RaidSeconds * (12 + Stable(candidate.Id + ":account-age") * 60)));
+                    double raids = RaidsToReach(candidate, xp.Value) * (.9 + Stable(candidate.Id + ":coverage") * .3);
+                    if (candidate.Raids < raids) AddRaids(candidate, (raids - candidate.Raids) * RaidDuration(candidate, false));
+                    long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                    candidate.RegisteredUtc = Math.Min(candidate.RegisteredUtc, now - AccountAge(candidate, now));
                     candidate.GearPending = true;
                     counts[previous]--;
                     counts[target] = counts.GetValueOrDefault(target) + 1;
