@@ -116,7 +116,10 @@ public sealed partial class PopulationStore
             .ToDictionary(s => s["Id"]!.ToString(), s => s["Progress"]?.GetValue<double>() ?? 0);
         next.WealthRubles = 100000;
         next.HideoutInvestment = 0;
+        // A fresh start, not a death, so the new kit is due right away.
         next.NeedsRegear = true;
+        next.DiedUtc = 0;
+        next.NextGearAttemptUtc = 0;
         next.EquipmentIsSimulated = true;
         next.LastEquipmentAccount = 0;
         string stashRoot = stash["stash"]!.ToString();

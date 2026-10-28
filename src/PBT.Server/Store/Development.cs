@@ -33,8 +33,10 @@ public sealed partial class PopulationStore
         {
             c.AreaLevels = new();
             c.CustomizationStashId = StableId(c.Id + ":customization-stash");
-            double hours = CycleHours(c);
-            c.WealthRubles = Math.Clamp(100000 + hours * (c.Archetype == "Timmy" ? 5000 : 20000), 100000, 40_000_000);
+            // Raid history runs at roughly half the current level on average.
+            int level = Math.Max(1, Level(c.Experience) / 2);
+            int deaths = Math.Max(0, c.Raids - c.Survived);
+            c.WealthRubles = Math.Clamp(100000 + c.Survived * RaidIncome(c, level, true) - deaths * RaidIncome(c, level, false), 100000, MaximumWealth);
         }
         // Edition migration raises native starting privileges without resetting existing construction.
         foreach (var baseline in native["Hideout"]!["Areas"]!.AsArray().OfType<JsonObject>())
@@ -187,7 +189,7 @@ public sealed partial class PopulationStore
                 double focus = .65 + Stable(c.Id + ":focus:" + type);
                 int maximum = area.Stages.Keys.Select(k => int.TryParse(k, out int n) ? n : 0).Max();
                 if (type is 21 or 22 || next > DesiredHideoutLevel(c, type, hours, maximum)) continue;
-                double firstStageHours = type is 0 or 1 or 2 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 15 ? 4 : 25;
+                double firstStageHours = type is 0 or 1 or 2 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 15 ? 2 : 10;
                 double threshold = firstStageHours * next * next / (focus * policy.Hideout.ConstructionSpeed);
                 if (hours < threshold || !AreaRequirements(area.Requirements, levels)) continue;
                 double cost = StageCost(c, stage, levels) * policy.Hideout.MaterialCostMultiplier;
@@ -263,7 +265,9 @@ public sealed partial class PopulationStore
                     break;
                 case "Item":
                     if (!templates.Items.ContainsKey(r.TemplateId) || r.Count is not int count || count < 0) return double.PositiveInfinity;
-                    double price = templates.Prices.GetValueOrDefault(r.TemplateId, 10000);
+                    // Money has no flea price. The old 10k fallback made every rouble cost 10k.
+                    double price = templates.Prices.TryGetValue(r.TemplateId, out double flea) ? flea
+                        : HandbookPrices().GetValueOrDefault(r.TemplateId.ToString(), 10000);
                     cost += Math.Max(1, price) * count;
                     if (r.IsSpawnedInSession == true && c.Raids < count) return double.PositiveInfinity;
                     break;

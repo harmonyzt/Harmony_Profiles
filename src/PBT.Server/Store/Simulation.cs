@@ -95,8 +95,9 @@ public sealed partial class PopulationStore
         int previousRaids = c.Raids, previousSurvived = c.Survived;
         AddRaids(c, seconds, earnExperience: true);
         int completed = c.Raids - previousRaids, survived = c.Survived - previousSurvived;
-        c.WealthRubles = Math.Clamp(c.WealthRubles + survived * (c.Archetype == "Timmy" ? 60000d : 150000d)
-            - (completed - survived) * (c.Archetype == "Timmy" ? 30000d : 80000d), 0, 100_000_000);
+        int level = Level(c.Experience);
+        c.WealthRubles = Math.Clamp(c.WealthRubles + survived * RaidIncome(c, level, true)
+            - (completed - survived) * RaidIncome(c, level, false), 0, MaximumWealth);
         var personality = Personality(c);
         if (personality.ProgressTo is not null && (c.RaidSeconds + c.Observed.ActiveSeconds) / 3600 >= personality.TransitionHours)
         {
@@ -110,6 +111,15 @@ public sealed partial class PopulationStore
             TryPrestige(c, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             c.GearPending = true;
         }
+    }
+
+    private const double MaximumWealth = 150_000_000;
+
+    // Loot value grows with level. A death costs the kit, about a third of a good raid.
+    private static double RaidIncome(Career c, int level, bool survived)
+    {
+        double earned = (40000 + 6000 * level) * (c.Archetype == "Timmy" ? .5 : 1);
+        return survived ? earned : earned * .3;
     }
 
     private bool IsObservedActive(Career c, long now) => population.RaidObservations.Values.Any(o => !o.Finished

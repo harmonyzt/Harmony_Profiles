@@ -38,14 +38,37 @@ public sealed partial class PopulationStore
         }
     }
 
-    private void RefreshSimulatedLoadout(Career career, MongoId session)
+    // The refresh timer from the last kit must not hold back the regear after a death.
+    private static void MarkDead(Career c, long now)
     {
-        gearSession = session;
-        bool initial = career.GearVersion == 0 && career.LastEquipmentAccount == 0 && !career.NeedsRegear;
-        if (!initial && !(career.IsOnline && career.GearPending)) return;
-        // Generating here would hold the gate through APBS and stall bot spawns, so the viewer gets it on the next look.
-        gearRequests[career.Id] = session;
-        _ = Task.Run(DrainGearRequests);
+        c.NeedsRegear = true;
+        c.GearPending = true;
+        c.DiedUtc = now;
+        c.NextGearAttemptUtc = 0;
+    }
+
+    // A dead account stays naked for a while, then turns up in a new kit.
+    private static long RegearDelay(Career c) => 1200 + (long)(Stable(c.Id + ":regear:" + c.DiedUtc) * 2400);
+
+    private static bool WantsGear(Career c, long now) => !c.Retired
+        && (c.GearVersion == 0 && c.LastEquipmentAccount == 0 || c.NeedsRegear && now - c.DiedUtc >= RegearDelay(c));
+
+    // Gear used to be queued on the first look, so every never-viewed or long-dead profile opened naked.
+    // APBS runs outside the gate so a profile view never stalls bot spawns.
+    private void GearForView(int accountId, MongoId session)
+    {
+        GearRequest request;
+        lock (gate)
+        {
+            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            if (!Ready || gearFactory is null) return;
+            gearSession = session;
+            if (!byAccount.TryGetValue(accountId, out var career) || !WantsGear(career, now)
+                || now < career.NextGearAttemptUtc || GearBlocked(career, now, false)) return;
+            career.NextGearAttemptUtc = now + 60;
+            request = new(career, session, career.LastEquipmentOrder, career.LastGearUpdateUtc);
+        }
+        GenerateRequestedGear(request);
     }
 
     private bool GearBlocked(Career career, long now, bool story) => career.Retired || IsObservedActive(career, now)
@@ -103,17 +126,6 @@ public sealed partial class PopulationStore
         return result;
     }
 
-    private void DrainGearRequests()
-    {
-        try
-        {
-            List<GearRequest> work;
-            lock (gate) work = TakeGearRequests(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            foreach (var request in work) GenerateRequestedGear(request);
-        }
-        catch (Exception ex) { Report(ex); }
-    }
-
     // Runs without the gate. APBS serializes itself through ApbsGearFactory's own lock.
     private void GenerateRequestedGear(GearRequest request)
     {
@@ -141,7 +153,7 @@ public sealed partial class PopulationStore
             throw new InvalidOperationException("APBS PMC equipment services are unavailable.");
         var isolated = json.Deserialize<BotType>(json.Serialize(source)!)
             ?? throw new InvalidDataException("Cannot clone PMC inventory template.");
-        var inventory = gearFactory.Generate(inventoryGenerator, inventoryContainers, session, isolated, career, Level(career.Experience));
+        var inventory = gearFactory.Generate(inventoryGenerator, inventoryContainers, session, isolated, career, Level(career.Experience), TierBoost(career));
         var equipment = EquipmentTree(JsonNode.Parse(json.Serialize(inventory)!)!.AsObject());
         if (!ValidEquipment(equipment)) throw new InvalidDataException("APBS returned an invalid equipment tree.");
         return equipment;
@@ -154,6 +166,7 @@ public sealed partial class PopulationStore
     {
         if (gearSession is not MongoId session) return;
         foreach (var career in population.Careers.Values.Where(c => !c.Retired && c.IsOnline && c.GearPending
+                && (!c.NeedsRegear || WantsGear(c, now))
                 && now >= c.NextGearAttemptUtc && now >= c.StoryHoldUntilUtc && now - c.LastEquipmentGeneratedUtc >= 900
                 && !IsObservedActive(c, now)).OrderByDescending(c => c.NeedsRegear).ThenBy(c => c.LastGearUpdateUtc)
                 .ThenBy(c => c.AccountId).Take(GearBatch))

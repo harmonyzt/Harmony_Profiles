@@ -217,7 +217,7 @@ public sealed partial class PopulationStore(
                 || c.StoryDeaths < 0
                 || c.Achievements is null || c.Achievements.Any(a => !IsId(a.Key) || a.Value <= 0)
                 || (c.LastEquipmentAccount != 0 && c.LastEquipmentAccount is < 1_500_000_000 or >= 2_000_000_000)
-                || c.LastEquipmentOrder is < 0 or >= 1_000_000_000_000 || c.SimulatedLoadoutOrder is < 0 or >= 1_000_000_000_000 || c.LastEquipmentGeneratedUtc < 0
+                || c.DiedUtc < 0 || c.LastEquipmentOrder is < 0 or >= 1_000_000_000_000 || c.SimulatedLoadoutOrder is < 0 or >= 1_000_000_000_000 || c.LastEquipmentGeneratedUtc < 0
                 || c.Observed.UsecKills < 0 || c.Observed.BearKills < 0
                 || c.Observed.UsecKills + c.Observed.BearKills > c.Observed.PmcKills
                 || c.Observed.PmcKills < 0 || c.Observed.ScavKills < 0 || c.Observed.ActiveSeconds < 0
@@ -306,6 +306,8 @@ public sealed partial class PopulationStore(
         c.FeatureVersion = 1;
         // History follows from the level: the raids this account needed to earn its experience.
         AddRaids(c, RaidsToReach(c, c.Experience) * (.85 + Random.Shared.NextDouble() * .35) * RaidDuration(c, false));
+        // A death in the backstory is long over. Leaving the flag kept these accounts naked until they came online.
+        c.NeedsRegear = false;
         c.RegisteredUtc = now - AccountAge(c, now);
         EnsureLife(c, now);
         return c;
@@ -338,7 +340,10 @@ public sealed partial class PopulationStore(
             c.PendingLiveSeconds = 0;
             c.Observed.PendingSimulationSeconds = 0;
             if (IsObservedActive(c, now) || now < c.StoryHoldUntilUtc || Random.Shared.NextDouble() < (friend ? .15 : .25)) continue;
+            long died = c.DiedUtc;
             ApplySimulation(c, seconds);
+            // Catch-up deaths happened somewhere in the simulated gap, not all just now.
+            if (c.DiedUtc != died) c.DiedUtc = now - (long)(Random.Shared.NextDouble() * Math.Min(elapsed, settings.MaximumOfflineDays * 86400L));
         }
         population.LastSimulationUtc = now;
         dirty = true;
@@ -369,7 +374,7 @@ public sealed partial class PopulationStore(
                 else if (outcome < .012) c.MissingRaids++;
                 else if (outcome < .016) c.AwolRaids++;
                 // Only fresh gear clears this. Surviving a later simulated raid must not bring the dead loadout back.
-                if (!survived) c.NeedsRegear = true;
+                if (!survived) MarkDead(c, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             }
             AddRaidKills(c);
             if (earnExperience)
@@ -465,6 +470,7 @@ public sealed partial class PopulationStore(
 
     public GetOtherProfileResponse? View(int accountId, MongoId session)
     {
+        GearForView(accountId, session);
         lock (gate)
         {
             if (!Ready) return null;
@@ -474,7 +480,6 @@ public sealed partial class PopulationStore(
                 if (!encounters.TryGetValue(accountId, out encounter) || !CanAccess(encounter, session)
                     || !population.Careers.TryGetValue(encounter.CareerId, out career)) return null;
             }
-            if (encounter is null) RefreshSimulatedLoadout(career, session);
             EnsureShowcase(career);
             // Drops rack guns the current loadout now carries.
             RepairShowcase(career);

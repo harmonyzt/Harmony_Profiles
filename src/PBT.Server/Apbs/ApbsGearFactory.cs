@@ -55,22 +55,39 @@ internal sealed class ApbsGearFactory
             || equipment.ReturnType != typeof(void) || weapons.ReturnType != typeof(void) || tier.ReturnType != typeof(int))
             throw new NotSupportedException("APBS gear service contract differs from the supported version.");
         ApbsGenerationContext.Install(assembly, harmony);
+        for (int level = 1; level <= 100; level++)
+        {
+            try { topTier = Math.Max(topTier, (int)tier.Invoke(tierHelper, [level])!); }
+            catch (TargetInvocationException) { }
+        }
+        if (topTier < 1) throw new NotSupportedException("APBS has no gear tiers.");
+        harmony.Patch(tier, postfix: new HarmonyMethod(typeof(ApbsGearFactory), nameof(BoostRaidTier)));
         // APBS inventory caches are shared. Serialize our isolated calls with its ordinary gear calls.
         foreach (var method in new[] { equipment, weapons })
             harmony.Patch(method, prefix: new HarmonyMethod(typeof(ApbsGearFactory), nameof(Enter)),
                 finalizer: new HarmonyMethod(typeof(ApbsGearFactory), nameof(Leave)));
     }
 
+    private static int topTier;
+
+    // In-raid spawns: APBS asks for the tier of the level PBT just picked for this career.
+    private static void BoostRaidTier(int level, ref int __result)
+    {
+        if (ApbsIntegration.Current is not { Career: { } career } scope || scope.Level != level) return;
+        int boost = PopulationStore.Active?.TierBoost(career) ?? 0;
+        if (boost > 0) __result = Math.Min(topTier, __result + boost);
+    }
+
     private static void Enter(out bool __state) { Monitor.Enter(generationGate); __state = true; }
     private static void Leave(bool __state) { if (__state) Monitor.Exit(generationGate); }
 
     internal BotBaseInventory Generate(BotInventoryGenerator native, BotInventoryContainerService containers,
-        MongoId session, BotType template, Career career, int level)
+        MongoId session, BotType template, Career career, int level, int tierBoost)
     {
         lock (generationGate)
         {
             using var context = ApbsGenerationContext.Enter(ProfileLocation, level, night: false);
-            int selectedTier = (int)tier.Invoke(tierHelper, [level])!;
+            int selectedTier = Math.Min(topTier, (int)tier.Invoke(tierHelper, [level])! + tierBoost);
             string role = career.Side.Equals("Bear", StringComparison.OrdinalIgnoreCase) ? "pmcbear" : "pmcusec";
             var sourceChances = chances.Invoke(equipmentHelper, [role, selectedTier])
                 ?? throw new InvalidOperationException("APBS returned no equipment chances.");

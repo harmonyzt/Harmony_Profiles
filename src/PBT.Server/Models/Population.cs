@@ -50,6 +50,7 @@ public sealed class Career
     public int CurrentSurvivalStreak { get; set; }
     public int BestSurvivalStreak { get; set; }
     public bool NeedsRegear { get; set; }
+    public long DiedUtc { get; set; }
     public bool EquipmentIsSimulated { get; set; }
     public long SimulatedLoadoutOrder { get; set; }
     public bool IsOnline { get; set; }

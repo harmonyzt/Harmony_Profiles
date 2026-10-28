@@ -10,7 +10,10 @@ public sealed partial class PopulationStore
     private readonly Dictionary<(int Area, int Level), List<DisplaySpace>> displaySpaces = new();
     private readonly Dictionary<string, JsonObject> showcaseProperties = new();
     private readonly Dictionary<string, (long Due, int Attempts)> showcaseQueue = new();
-    private Dictionary<string, double>? showcasePrices;
+    private Dictionary<string, double>? handbookPrices;
+
+    private Dictionary<string, double> HandbookPrices() => handbookPrices ??= templates.Handbook.Items.Where(i => i.Price is > 0)
+        .GroupBy(i => i.Id.ToString()).ToDictionary(g => g.Key, g => g.First().Price!.Value);
     private readonly Dictionary<int, List<KeyValuePair<string, double>>> trophyCatalogs = new();
     private readonly Dictionary<string, HashSet<string>> showcaseAncestors = new();
     private readonly HashSet<string> validatedFavorites = new();
@@ -244,8 +247,7 @@ public sealed partial class PopulationStore
         // The pinned count is checked first so a full collection never loads the career file.
         if (AreaLevel(c, 16) <= 0 || c.ShowcaseAreas.Count(p => p.Value == 16) >= ShowcaseTarget(c, 16)
             || VisibleShowcaseTrees(c, 16).Count >= ShowcaseTarget(c, 16)) return;
-        showcasePrices ??= templates.Handbook.Items.Where(i => i.Price is > 0)
-            .GroupBy(i => i.Id.ToString()).ToDictionary(g => g.Key, g => g.First().Price!.Value);
+        var showcasePrices = HandbookPrices();
         double budget = Math.Clamp(25000 + Math.Pow(Level(c.Experience), 2) * 800 + TotalSeconds(c) / 36, 25000, 10000000);
         var used = c.ShowcaseAreas.Keys.Select(id => Assets(c).ShowcaseItems.OfType<JsonObject>()
             .FirstOrDefault(i => i["_id"]?.ToString() == id)?["_tpl"]?.ToString()).ToHashSet();

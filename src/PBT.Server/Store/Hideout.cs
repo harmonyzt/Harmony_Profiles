@@ -33,8 +33,10 @@ public sealed partial class PopulationStore
         if (!cohort.Modules.TryGetValue(type, out var prior)) return maximum;
         double focus = c.Archetype == "Timmy" ? .8 : c.Archetype == "Survivor" ? 1.1 : 1;
         double readiness = Math.Clamp(hours / 12, 0, 1);
-        double chance = Math.Clamp(prior.BuiltChance * focus * readiness * policy.Hideout.BuiltChanceMultiplier, 0, 1);
+        bool neglected = Stable(c.Id + ":neglect") < policy.Hideout.NeglectedShare;
+        double chance = Math.Clamp(prior.BuiltChance * focus * readiness * policy.Hideout.BuiltChanceMultiplier * (neglected ? .4 : 1), 0, 1);
         if (prior.BuiltChance <= 0 || Stable(c.Id + ":build:" + type) >= chance) return 0;
+        if (neglected) return 1;
         double target = Math.Clamp(prior.MeanLevel / prior.BuiltChance * (.8 + Stable(c.Id + ":stage:" + type) * .4), 1, maximum);
         int whole = (int)target;
         return Math.Clamp(whole + (Stable(c.Id + ":round:" + type) < target - whole ? 1 : 0), 1, maximum);

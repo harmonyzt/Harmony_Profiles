@@ -121,7 +121,16 @@
                         <label title="How fast simulated accounts build hideout modules. 1 is normal, 2 is twice as fast.">Construction speed<input type="number" min="0.25" max="4" step="0.05" @bind="simulation.Hideout.ConstructionSpeed" /></label>
                         <label title="How much simulated hideout upgrades cost the account. Higher means slower upgrades.">Material cost multiplier<input type="number" min="0.25" max="4" step="0.05" @bind="simulation.Hideout.MaterialCostMultiplier" /></label>
                         <label title="Scales how likely each hideout module is to be built at all for an account's level.">Built chance multiplier<input type="number" min="0.25" max="2" step="0.05" @bind="simulation.Hideout.BuiltChanceMultiplier" /></label>
+                        <label title="Share of accounts that mostly ignore the hideout: few modules, none past level 1, whatever their level.">Hideout neglecters<input type="number" min="0" max="0.5" step="0.01" @bind="simulation.Hideout.NeglectedShare" /></label>
                     </div><p class="hp-hint">1 is the default. Edition starting privileges remain. Seasonal events and emergency-wall history are not fabricated.</p>
+                </section>
+                <section class="hp-card"><h2>Chads and streamers</h2><p>Accounts with "chad" in the name or a TTV, YT or TV tag are better players and always wear gear above their level's tier, in raid and on their profile.</p>
+                    <div class="hp-grid">
+                        <label class="hp-check" title="Give chad and streamer names better stats and gear."><input type="checkbox" @bind="simulation.NotableNames.Enabled" /> Boost chads and streamers</label>
+                        <label title="How far their hidden skill roll moves towards the best player. 0.3 closes 30% of the gap, which raises survival, kills and K/D.">Skill bonus<input type="number" min="0" max="1" step="0.05" @bind="simulation.NotableNames.SkillBonus" /></label>
+                        <label title="Fewest APBS gear tiers they skip ahead of their level.">Gear tier boost, minimum<input type="number" min="0" max="6" @bind="simulation.NotableNames.TierBoostMinimum" /></label>
+                        <label title="Most APBS gear tiers they skip ahead of their level. Each account rolls once in this range and keeps it.">Gear tier boost, maximum<input type="number" min="0" max="6" @bind="simulation.NotableNames.TierBoostMaximum" /></label>
+                    </div>
                 </section>
                 <section class="hp-card"><h2>Prestige and showcases</h2><p>Prestige follows installed requirements and fictional quest histories. Lifetime history and account registration persist. Favorites stay pinned until an item becomes unavailable.</p>
                     <div class="hp-grid">

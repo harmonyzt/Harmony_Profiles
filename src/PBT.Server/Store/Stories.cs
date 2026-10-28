@@ -31,8 +31,7 @@ public sealed partial class PopulationStore
             else if (c.LastEquipmentOrder > e.GenerationOrder || c.EquipmentIsSimulated) result = "Superseded";
             else if (e.StoryOutcome == "Died")
             {
-                c.NeedsRegear = true;
-                c.GearPending = true;
+                MarkDead(c, now);
                 if (observation is not null) { c.StoryDeaths++; result = "Died"; }
                 else result = "DiedUncounted";
             }

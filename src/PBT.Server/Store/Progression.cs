@@ -14,7 +14,11 @@ public sealed partial class PopulationStore
     private ProgressionPrior Cohort(int level) => policy.ProgressionPriors.First(p => level <= p.MaximumLevel);
 
     // One stable roll per account drives survival, kills and pace together, so the stats agree with each other.
-    private static double Skill(Career c) => Stable(c.Id + ":skill");
+    private double Skill(Career c)
+    {
+        double roll = Stable(c.Id + ":skill");
+        return Notable(c) ? roll + (1 - roll) * policy.NotableNames.SkillBonus : roll;
+    }
 
     private static double Aggression(Career c) => c.Archetype switch
     {

@@ -66,6 +66,7 @@ public sealed class SimulationPolicy
     public AchievementSettings Achievements { get; set; } = new();
     public bool EnableApbsCareerIntegration { get; set; } = true;
     public HideoutProgressionSettings Hideout { get; set; } = new();
+    public NotableNameSettings NotableNames { get; set; } = new();
     public bool EnablePrestige { get; set; } = true;
     public double MinimumPrestigeCycleHours { get; set; } = 500;
     public bool EnableShowcase { get; set; } = true;
@@ -80,6 +81,8 @@ public sealed class SimulationPolicy
     {
         if (Hideout is null) throw new InvalidDataException("Hideout policy is missing.");
         Hideout.Validate();
+        if (NotableNames is null) throw new InvalidDataException("Notable name policy is missing.");
+        NotableNames.Validate();
         if (ProgressionPriors is null || ProgressionPriors.Count is < 1 or > 79
             || ProgressionPriors.Any(p => p is null || p.MaximumLevel is < 1 or > 79
                 || !double.IsFinite(p.SurvivedMinutes) || p.SurvivedMinutes is < 3 or > 60
@@ -107,18 +110,37 @@ public sealed class SimulationPolicy
     }
 }
 
+public sealed class NotableNameSettings
+{
+    public bool Enabled { get; set; } = true;
+    // Moves the hidden skill roll this share of the way towards the best possible player.
+    public double SkillBonus { get; set; } = .3;
+    public int TierBoostMinimum { get; set; } = 1;
+    public int TierBoostMaximum { get; set; } = 2;
+
+    public void Validate()
+    {
+        if (!double.IsFinite(SkillBonus) || SkillBonus is < 0 or > 1 || TierBoostMinimum is < 0 or > 6
+            || TierBoostMaximum < TierBoostMinimum || TierBoostMaximum > 6)
+            throw new InvalidDataException("Notable names need a 0-1 skill bonus and a 0-6 tier boost range.");
+    }
+}
+
 public sealed class HideoutProgressionSettings
 {
     public double ConstructionSpeed { get; set; } = 1;
     public double MaterialCostMultiplier { get; set; } = 1;
     public double BuiltChanceMultiplier { get; set; } = 1;
+    // Share of accounts that barely touch the hideout, whatever their level.
+    public double NeglectedShare { get; set; } = .1;
 
     public void Validate()
     {
         if (!double.IsFinite(ConstructionSpeed) || ConstructionSpeed is < .25 or > 4
             || !double.IsFinite(MaterialCostMultiplier) || MaterialCostMultiplier is < .25 or > 4
-            || !double.IsFinite(BuiltChanceMultiplier) || BuiltChanceMultiplier is < .25 or > 2)
-            throw new InvalidDataException("Hideout speed/cost must be 0.25-4 and built chance must be 0.25-2.");
+            || !double.IsFinite(BuiltChanceMultiplier) || BuiltChanceMultiplier is < .25 or > 2
+            || !double.IsFinite(NeglectedShare) || NeglectedShare is < 0 or > .5)
+            throw new InvalidDataException("Hideout speed/cost must be 0.25-4, built chance 0.25-2 and neglected share 0-0.5.");
     }
 }
 
