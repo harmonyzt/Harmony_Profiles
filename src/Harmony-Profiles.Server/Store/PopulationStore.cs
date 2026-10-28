@@ -100,8 +100,10 @@ public sealed partial class PopulationStore(
                     population.AppliedStories.Remove(account);
                 string fingerprint = TemplateFingerprint();
                 bool repairAssets = fingerprint != population.TemplateFingerprint;
+                var preparing = new LoadProgress(logger, "Preparing careers", population.Careers.Count);
                 foreach (var career in population.Careers.Values)
                 {
+                    preparing.Step();
                     EnsureAccountIdentity(career);
                     PreserveLifetime(career);
                     EnsureLife(career, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
@@ -117,15 +119,19 @@ public sealed partial class PopulationStore(
                         RepairShowcase(career);
                     }
                 }
+                preparing.Finish();
                 population.TemplateFingerprint = fingerprint;
                 EnsureCareerCoverage();
                 SeedMissingLoadouts();
                 Simulate(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                var developing = new LoadProgress(logger, "Developing careers", population.Careers.Count);
                 foreach (var career in population.Careers.Values)
                 {
+                    developing.Step();
                     Develop(career);
                     TryPrestige(career, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
                 }
+                developing.Finish();
                 Active = this;
                 fikaPresent = AppDomain.CurrentDomain.GetAssemblies()
                     .Any(a => a.GetType("FikaServer.Controllers.FikaDialogueController", throwOnError: false) is not null);
@@ -243,12 +249,19 @@ public sealed partial class PopulationStore(
     {
         foreach (var c in population.Careers.Values) c.Retired = true;
         var known = population.Careers.Values.ToDictionary(c => NameKey(c.Side, c.SourceName));
-        foreach (var side in new[] { "Usec", "Bear" })
+        var pools = new[] { "Usec", "Bear" }.Select(side =>
         {
             if (!bots.Types.TryGetValue(side.ToLowerInvariant(), out var type) || type is null)
                 throw new InvalidDataException($"Missing {side} name pool");
-            foreach (var name in type.FirstNames.Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.OrdinalIgnoreCase))
+            return (Side: side, Type: type, Names: type.FirstNames.Where(n => !string.IsNullOrWhiteSpace(n))
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+        }).ToArray();
+        var progress = new LoadProgress(logger, "Creating careers", pools.Sum(p => p.Names.Length));
+        foreach (var (side, type, names) in pools)
+        {
+            foreach (var name in names)
             {
+                progress.Step();
                 string key = NameKey(side, name);
                 if (!known.TryGetValue(key, out var career))
                 {
@@ -259,6 +272,7 @@ public sealed partial class PopulationStore(
                 career.Retired = false;
             }
         }
+        progress.Finish();
     }
 
     private Career NewCareer(string side, string name, BotType type)
@@ -285,7 +299,7 @@ public sealed partial class PopulationStore(
         var hands = bodyGlobals?.IsNotRandom == true ? bodyGlobals.Hands : Pick(a.Hands);
         c.Customization = new JsonObject
         {
-            ["Head"] = Pick(a.Head).ToString(), ["Body"] = body.ToString(), ["Feet"] = Pick(a.Feet).ToString(),
+            ["Head"] = Pick(PlayableHeads(a.Head)).ToString(), ["Body"] = body.ToString(), ["Feet"] = Pick(a.Feet).ToString(),
             ["Hands"] = hands.ToString(), ["Voice"] = Pick(a.Voice).ToString()
         };
         EnsureAccountIdentity(c);

@@ -39,13 +39,33 @@ public sealed partial class PopulationStore
         }
     }
 
+    // Some setups give the mannequin head a spawn weight. On a profile it looks broken.
+    private bool IsMannequin(string? id) => IsId(id) && templates.Customization.TryGetValue(new MongoId(id!), out var template)
+        && template.Name?.Contains("Mannequin", StringComparison.OrdinalIgnoreCase) == true;
+
+    private Dictionary<MongoId, double> PlayableHeads(Dictionary<MongoId, double> heads)
+    {
+        var playable = heads.Where(h => !IsMannequin(h.Key.ToString())).ToDictionary();
+        return playable.Any(h => double.IsFinite(h.Value) && h.Value > 0) ? playable : heads;
+    }
+
     private void RepairAppearance(Career c)
     {
         var native = NativeCharacter(c.Side, c.Edition);
+        if (IsMannequin(c.Customization["Head"]?.ToString())
+            && bots.Types.TryGetValue(c.Side.ToLowerInvariant(), out var type) && type is not null)
+        {
+            var head = Pick(PlayableHeads(type.BotAppearance.Head));
+            if (!IsMannequin(head.ToString()))
+            {
+                c.Customization["Head"] = head.ToString();
+                dirty = true;
+            }
+        }
         foreach (string part in new[] { "Head", "Body", "Hands", "Feet", "Voice" })
         {
             string? asset = c.Customization[part]?.ToString();
-            if (IsId(asset) && templates.Customization.ContainsKey(new MongoId(asset!))) continue;
+            if (IsId(asset) && templates.Customization.ContainsKey(new MongoId(asset!)) && !(part == "Head" && IsMannequin(asset))) continue;
             if (native["Customization"]?[part] is { } fallback) c.Customization[part] = fallback.DeepClone();
         }
     }
