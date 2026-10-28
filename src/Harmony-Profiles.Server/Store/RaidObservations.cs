@@ -28,7 +28,7 @@ public sealed partial class PopulationStore
             {
                 if (incoming is null || !seen.Add(incoming.AccountId)
                     || !encounters.TryGetValue(incoming.AccountId, out var encounter)
-                    || encounter.SessionId != session.ToString() || encounter.RuntimeProfileId != incoming.RuntimeProfileId
+                    || !CanAccess(encounter, session) || encounter.RuntimeProfileId != incoming.RuntimeProfileId
                     || !population.Careers.TryGetValue(encounter.CareerId, out var career)
                     || incoming.ActiveSeconds < 0 || incoming.ActiveSeconds > 21600
                     || incoming.ActiveSeconds > Math.Max(0, now - encounter.GeneratedUtc) + 60
