@@ -3,24 +3,6 @@ using System.Text.Json.Nodes;
 
 namespace HarmonyProfiles.Server;
 
-public sealed class PersonalityTemplate
-{
-    public string Id { get; set; } = "Casual";
-    public int Weight { get; set; } = 40;
-    public int MinimumHours { get; set; } = 100;
-    public int MaximumHours { get; set; } = 2500;
-    public int MinimumLevel { get; set; } = 15;
-    public int MaximumLevel { get; set; } = 50;
-    public double MinimumDailyHours { get; set; } = .15;
-    public double MaximumDailyHours { get; set; } = 2.65;
-    public double MinimumSurvival { get; set; } = .25;
-    public double MaximumSurvival { get; set; } = .5;
-    public double MinimumRaidMinutes { get; set; } = 8;
-    public double MaximumRaidMinutes { get; set; } = 42;
-    public string? ProgressTo { get; set; }
-    public double TransitionHours { get; set; } = 200;
-}
-
 public sealed partial class PopulationStore
 {
     private List<PersonalityTemplate> personalities = [];
