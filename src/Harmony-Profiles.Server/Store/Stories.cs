@@ -32,6 +32,7 @@ public sealed partial class PopulationStore
             else if (e.StoryOutcome == "Died")
             {
                 c.NeedsRegear = true;
+                c.GearPending = true;
                 if (observation is not null) { c.StoryDeaths++; result = "Died"; }
                 else result = "DiedUncounted";
             }

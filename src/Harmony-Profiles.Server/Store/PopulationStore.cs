@@ -42,6 +42,10 @@ public sealed partial class PopulationStore(
     private FileStream? ownership;
     private string directory = "";
     private bool dirty;
+    private bool fikaPresent;
+    private readonly object saveGate = new();
+    private long saveSequence;
+    private long writtenSequence;
     private HarmonyProfilesSettings settings = new();
     public bool Ready { get; private set; }
     internal static PopulationStore? Active { get; private set; }
@@ -117,6 +121,8 @@ public sealed partial class PopulationStore(
                     TryPrestige(career, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
                 }
                 Active = this;
+                fikaPresent = AppDomain.CurrentDomain.GetAssemblies()
+                    .Any(a => a.GetType("FikaServer.Controllers.FikaDialogueController", throwOnError: false) is not null);
                 harmony = new Harmony("com.local.harmony-profiles.server");
                 ConfigureRequiredApbs(harmony);
                 ServerPatches.Install(harmony);
@@ -333,7 +339,6 @@ public sealed partial class PopulationStore(
                 c.Survived++;
                 c.CurrentSurvivalStreak++;
                 c.BestSurvivalStreak = Math.Max(c.BestSurvivalStreak, c.CurrentSurvivalStreak);
-                c.NeedsRegear = false;
             }
             else
             {
@@ -341,7 +346,8 @@ public sealed partial class PopulationStore(
                 if (survived) c.RunThroughRaids++;
                 else if (outcome < .012) c.MissingRaids++;
                 else if (outcome < .016) c.AwolRaids++;
-                c.NeedsRegear = !survived;
+                // Only fresh gear clears this. Surviving a later simulated raid must not bring the dead loadout back.
+                if (!survived) c.NeedsRegear = true;
             }
             AddRaidKills(c);
             c.TargetRaidSeconds = RaidDuration(c, true);
@@ -439,7 +445,7 @@ public sealed partial class PopulationStore(
             Encounter? encounter = null;
             if (!byAccount.TryGetValue(accountId, out var career))
             {
-                if (!encounters.TryGetValue(accountId, out encounter) || encounter.SessionId != session.ToString()
+                if (!encounters.TryGetValue(accountId, out encounter) || !CanAccess(encounter, session)
                     || !population.Careers.TryGetValue(encounter.CareerId, out career)) return null;
             }
             if (encounter is null) RefreshSimulatedLoadout(career, session);
@@ -474,7 +480,9 @@ public sealed partial class PopulationStore(
                     ["prestigeLevel"] = encounter?.GeneratedPrestige ?? career.PrestigeLevel, ["experience"] = encounter?.GeneratedExperience ?? career.Experience, ["memberCategory"] = career.MemberCategory, ["selectedMemberCategory"] = career.SelectedMemberCategory, ["gameVersion"] = career.GameVersion, ["bannedState"] = false,
                     ["bannedUntil"] = 0, ["registrationDate"] = career.RegisteredUtc },
                 ["customization"] = customization, ["skills"] = career.Skills.DeepClone(),
-                ["equipment"] = (encounter?.Equipment ?? (career.NeedsRegear ? NakedEquipment(career.Equipment) : career.Equipment)).DeepClone(),
+                ["equipment"] = (encounter is not null
+                    ? (EncounterDied(encounter) ? NakedEquipment(encounter.Equipment) : encounter.Equipment)
+                    : career.NeedsRegear ? NakedEquipment(career.Equipment) : career.Equipment).DeepClone(),
                 ["achievements"] = PublicAchievements(career), ["favoriteItems"] = PublicShowcase(career),
                 ["pmcStats"] = new JsonObject { ["eft"] = new JsonObject { ["totalInGameTime"] = Lifetime(career, "TimeInRaid", (long)career.RaidSeconds + career.Observed.ActiveSeconds),
                     ["overAllCounters"] = new JsonObject { ["Items"] = counters } } },
@@ -494,7 +502,7 @@ public sealed partial class PopulationStore(
         lock (gate)
         {
             if (!Ready || report.ProtocolVersion != 1 || report.RaidId.Length is < 1 or > 64
-                || !encounters.TryGetValue(report.AccountId, out var e) || e.SessionId != session.ToString()
+                || !encounters.TryGetValue(report.AccountId, out var e) || !CanAccess(e, session)
                 || e.RuntimeProfileId != report.RuntimeProfileId || e.KillerCaptured) return false;
             if (!ValidEquipment(report.Equipment)) return false;
             // Customization remains the server-generated set. Only live equipment is client-authored.
@@ -624,6 +632,8 @@ public sealed partial class PopulationStore(
 
     private void Checkpoint()
     {
+        (long Sequence, string Text)? snapshot = null;
+        List<GearRequest> gear;
         lock (gate)
         {
             if (!Ready) return;
@@ -634,20 +644,59 @@ public sealed partial class PopulationStore(
                 AdvanceOnline(now);
                 Simulate(now);
                 ProcessProfileEquipment(now);
-                if (dirty) SavePopulation();
+                if (dirty) snapshot = SnapshotPopulation();
             }
             catch (Exception ex) { logger.Error($"[Harmony-Profiles] Checkpoint failed; retaining in-memory changes for retry. {ex.Message}"); }
+            try { gear = TakeGearRequests(DateTimeOffset.UtcNow.ToUnixTimeSeconds()); }
+            catch (Exception ex) { Report(ex); gear = []; }
+        }
+        // Disk and APBS work run outside the gate so bot generation and profile requests never wait on them.
+        if (snapshot is { } pending)
+        {
+            try { WritePopulation(pending); }
+            catch (Exception ex)
+            {
+                lock (gate) dirty = true;
+                logger.Error($"[Harmony-Profiles] Checkpoint save failed; retaining in-memory changes for retry. {ex.Message}");
+            }
+        }
+        foreach (var request in gear) GenerateRequestedGear(request);
+    }
+
+    private (long Sequence, string Text) SnapshotPopulation()
+    {
+        dirty = false;
+        return (++saveSequence, JsonSerializer.Serialize(population));
+    }
+
+    // Snapshots are taken under the gate, so a higher sequence is always newer. Never let an older one land last.
+    private void WritePopulation((long Sequence, string Text) snapshot)
+    {
+        lock (saveGate)
+        {
+            if (snapshot.Sequence <= writtenSequence) return;
+            AtomicFile.Write(Path.Combine(directory, "population.json"), snapshot.Text);
+            writtenSequence = snapshot.Sequence;
         }
     }
 
     private void SavePopulation()
     {
-        AtomicFile.Write(Path.Combine(directory, "population.json"), JsonSerializer.Serialize(population));
-        dirty = false;
+        try { WritePopulation(SnapshotPopulation()); }
+        catch { dirty = true; throw; }
     }
 
+    // Under Fika the headless generates every bot, so its session never matches a player's.
+    // The runtime profile ID checks still prove the reporter saw that bot in raid.
+    private bool EncounterDied(Encounter e) =>
+        population.RaidObservations.TryGetValue(e.AccountId, out var observation) && observation.Died
+        || population.AppliedStories.GetValueOrDefault(e.AccountId) is "Died" or "DiedUncounted" or "ConfirmedDeath";
+
+    private bool CanAccess(Encounter e, MongoId session) => fikaPresent || e.SessionId == session.ToString();
+
+    // Written on every PMC spawn, so skip the fsync. Losing one to a power cut only drops that alias.
     private void WriteEncounter(Encounter e) =>
-        AtomicFile.Write(Path.Combine(directory, "encounters", e.AccountId + ".json"), JsonSerializer.Serialize(e));
+        AtomicFile.Write(Path.Combine(directory, "encounters", e.AccountId + ".json"), JsonSerializer.Serialize(e), durable: false);
     private static string NameKey(string side, string name) => side.ToUpperInvariant() + "\n" + name.Normalize(NormalizationForm.FormC).ToUpperInvariant();
     private static string NewId() => Convert.ToHexString(RandomNumberGenerator.GetBytes(12)).ToLowerInvariant();
     private static bool IsId(string? value) => value is { Length: 24 } && value.All(Uri.IsHexDigit);

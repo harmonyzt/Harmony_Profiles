@@ -28,7 +28,7 @@ public sealed partial class PopulationStore
             {
                 if (incoming is null || !seen.Add(incoming.AccountId)
                     || !encounters.TryGetValue(incoming.AccountId, out var encounter)
-                    || encounter.SessionId != session.ToString() || encounter.RuntimeProfileId != incoming.RuntimeProfileId
+                    || !CanAccess(encounter, session) || encounter.RuntimeProfileId != incoming.RuntimeProfileId
                     || !population.Careers.TryGetValue(encounter.CareerId, out var career)
                     || incoming.ActiveSeconds < 0 || incoming.ActiveSeconds > 21600
                     || incoming.ActiveSeconds > Math.Max(0, now - encounter.GeneratedUtc) + 60
@@ -85,7 +85,7 @@ public sealed partial class PopulationStore
                 var career = population.Careers[id];
                 previousAchievements.Add(id, career.Achievements);
                 previousLife.Add(id, (career.NeedsRegear, career.CurrentSurvivalStreak, career.StoryDeaths));
-                if (newDeaths.Contains(id)) { career.NeedsRegear = true; career.CurrentSurvivalStreak = 0; }
+                if (newDeaths.Contains(id)) { career.NeedsRegear = true; career.GearPending = true; career.CurrentSurvivalStreak = 0; }
                 career.Observed = totals;
             }
             population.AppliedStories = new Dictionary<int, string>(previousStories);
