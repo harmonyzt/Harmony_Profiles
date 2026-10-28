@@ -26,14 +26,28 @@ public sealed partial class PopulationStore
         _ => double.PositiveInfinity
     };
 
-    private void AddCommonStories(Career c, Dictionary<string, long> result, long now)
+    // Chance grows with level towards the rarity's share; skill and a per-achievement difficulty scale it.
+    // The roll per account and achievement is fixed, so levelling up only ever adds achievements.
+    private double StoryChance(Career c, string id, string rarity)
     {
-        double hours = (c.RaidSeconds + c.Observed.ActiveSeconds) / 3600;
+        var (share, scale) = rarity switch
+        {
+            "Common" => (policy.Achievements.Common, 12d),
+            "Rare" => (policy.Achievements.Rare, 30d),
+            "Legendary" => (policy.Achievements.Legendary, 50d),
+            _ => (0d, 1d)
+        };
+        double reach = (1 - Math.Exp(-Level(c.Experience) / scale)) / (1 - Math.Exp(-79 / scale));
+        return Math.Min(.98, share * reach * (.4 + 1.2 * Skill(c)) * (.5 + Stable(id + ":difficulty")));
+    }
+
+    private void AddStories(Career c, Dictionary<string, long> result, long now)
+    {
         foreach (var (id, story) in achievementStories)
         {
-            if (story.Rarity != "Common" || milestones.Any(m => m.Id == id) || result.ContainsKey(id)
+            if (milestones.Any(m => m.Id == id) || result.ContainsKey(id)
                 || story.Side is not ("All" or "Pmc") && story.Side != c.Side
-                || hours < BadgeHours(id, story.Rarity) || Stable(c.Id + ":badge:" + id) < .1) continue;
+                || Stable(c.Id + ":badge:" + id) >= StoryChance(c, id, story.Rarity)) continue;
             // Fictional account history only. Never invoke native reward, quest, or achievement-grant controllers.
             result.Add(id, now);
         }

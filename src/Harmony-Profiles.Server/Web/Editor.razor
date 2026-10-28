@@ -111,6 +111,9 @@
                         <label title="Share (0 to 1) of the survived XP a death still earns.">Death XP share<input type="number" min="0" max="1" step="0.05" @bind="simulation.RaidExperience.DeathShare" /></label>
                         <label title="Online time is raid time times a factor between these two, for menus, hideout and flea.">Online time factor, minimum<input type="number" min="1" max="5" step="0.05" @bind="simulation.OnlineTimeMinimum" /></label>
                         <label title="Upper end of the online time factor.">Online time factor, maximum<input type="number" min="1" max="5" step="0.05" @bind="simulation.OnlineTimeMaximum" /></label>
+                        <label title="Share (0 to 1) of level 79, average-skill accounts that own a given Common achievement. Lower levels own fewer, skill scales it.">Common achievement share<input type="number" min="0" max="1" step="0.01" @bind="simulation.Achievements.Common" /></label>
+                        <label title="Same for Rare achievements, mostly boss kills.">Rare achievement share<input type="number" min="0" max="1" step="0.01" @bind="simulation.Achievements.Rare" /></label>
+                        <label title="Same for Legendary achievements, mostly events and Kappa.">Legendary achievement share<input type="number" min="0" max="1" step="0.01" @bind="simulation.Achievements.Legendary" /></label>
                     </div><p class="hp-hint">With the defaults an average account needs about 60 raids for level 15, 440 for level 40 and 3,800 for level 79.</p>
                 </section>
                 <section class="hp-card"><h2>Hideout construction</h2><p>Season cohort observations guide module preferences. Time, wealth, personality, and native prerequisites still decide upgrades. Existing construction is never downgraded.</p>

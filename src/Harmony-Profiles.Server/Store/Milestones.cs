@@ -99,7 +99,7 @@ public sealed partial class PopulationStore
             if (value >= milestone.Threshold && hours >= BadgeHours(milestone.Id, rarity))
                 result.Add(milestone.Id, Math.Max(career.RegisteredUtc, now));
         }
-        AddCommonStories(career, result, now);
+        AddStories(career, result, now);
         return result;
     }
 

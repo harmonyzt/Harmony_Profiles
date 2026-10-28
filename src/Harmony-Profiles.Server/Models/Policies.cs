@@ -42,6 +42,14 @@ public sealed class RaidExperienceSettings
     public double DeathShare { get; set; } = .3;
 }
 
+// Highest share of max-level, average-skill accounts that own an achievement of each rarity.
+public sealed class AchievementSettings
+{
+    public double Common { get; set; } = .9;
+    public double Rare { get; set; } = .45;
+    public double Legendary { get; set; } = .12;
+}
+
 public sealed class SimulationPolicy
 {
     public List<ProgressionPrior> ProgressionPriors { get; set; } =
@@ -55,6 +63,7 @@ public sealed class SimulationPolicy
     // Online time is raid time times a per-account factor in this range, for menus, hideout and flea.
     public double OnlineTimeMinimum { get; set; } = 1.15;
     public double OnlineTimeMaximum { get; set; } = 1.5;
+    public AchievementSettings Achievements { get; set; } = new();
     public bool EnableApbsCareerIntegration { get; set; } = true;
     public HideoutProgressionSettings Hideout { get; set; } = new();
     public bool EnablePrestige { get; set; } = true;
@@ -88,6 +97,8 @@ public sealed class SimulationPolicy
             || !double.IsFinite(OnlineTimeMinimum) || !double.IsFinite(OnlineTimeMaximum)
             || OnlineTimeMinimum < 1 || OnlineTimeMaximum < OnlineTimeMinimum || OnlineTimeMaximum > 5)
             throw new InvalidDataException("Raid experience needs a 100-100000 base and a 0-1 death share; online time factors must be 1-5.");
+        if (Achievements is null || new[] { Achievements.Common, Achievements.Rare, Achievements.Legendary }.Any(v => !double.IsFinite(v) || v is < 0 or > 1))
+            throw new InvalidDataException("Achievement shares must be between 0 and 1.");
         if (!double.IsFinite(MinimumPrestigeCycleHours) || MinimumPrestigeCycleHours is < 10 or > 10000
             || !double.IsFinite(PostRaidDeathChance) || !double.IsFinite(PostRaidRegearChance)
             || PostRaidDeathChance < 0 || PostRaidRegearChance < 0 || PostRaidDeathChance + PostRaidRegearChance > 1
