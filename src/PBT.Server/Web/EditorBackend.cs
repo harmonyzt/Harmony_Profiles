@@ -24,8 +24,24 @@ public sealed partial class PopulationStore
             return new(people, Revision(people), simulation, Revision(simulation), config, Revision(config),
                 population.Careers.Count, population.Careers.Values.Count(c => c.IsOnline),
                 encounters.Values.Count(e => e.StoryOutcome != "None" && e.KillerCapturedUtc > 0 && !population.AppliedStories.ContainsKey(e.AccountId)),
-                population.Careers.Values.Count(c => c.PrestigeLevel > 0), GenerationMode, ApbsMatched, ApbsFallback);
+                population.Careers.Values.Count(c => c.PrestigeLevel > 0), GenerationMode, ApbsMatched, ApbsFallback, Insights());
         }
+    }
+
+    private EditorInsights Insights()
+    {
+        var active = population.Careers.Values.Where(c => !c.Retired).ToList();
+        var bands = new int[8];
+        foreach (var c in active) bands[Math.Clamp((Level(c.Experience) - 1) / 10, 0, 7)]++;
+        long Deaths(Career c) => Math.Max(1, c.Raids - c.Survived - c.MissingRaids - c.AwolRaids - c.RunThroughRaids + c.Observed.Deaths + c.StoryDeaths);
+        var top = active.OrderByDescending(c => c.PrestigeLevel).ThenByDescending(c => c.Experience).Take(8)
+            .Select(c => new EditorCareerRow(c.Name, c.Side, c.Archetype, Level(c.Experience), c.PrestigeLevel, (int)(c.Raids + c.Observed.Raids),
+                Math.Round((double)(c.PmcKills + c.Observed.PmcKills) / Deaths(c), 2), c.IsOnline)).ToList();
+        var owners = active.Where(c => AreaLevel(c, 24) > 0).ToList();
+        return new(bands, active.Count(c => c.Side.Equals("Bear", StringComparison.OrdinalIgnoreCase)),
+            active.Count(c => c.Side.Equals("Usec", StringComparison.OrdinalIgnoreCase)),
+            active.GroupBy(c => c.Archetype).OrderByDescending(g => g.Count()).ToDictionary(g => g.Key, g => g.Count()),
+            top, owners.Count(c => c.ShowcaseAreas.ContainsValue(24)), owners.Count);
     }
 
     public void SaveEditorSection(string section, string contents, string revision)

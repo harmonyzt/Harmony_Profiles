@@ -71,9 +71,16 @@ public sealed class SimulationPolicy
     public double MinimumPrestigeCycleHours { get; set; } = 150;
     public InitialPrestigeSettings InitialPrestige { get; set; } = new();
     public bool EnableShowcase { get; set; } = true;
+    // Rack guns come from loadouts this many APBS tiers above the account's own, capped at the top tier.
+    public int RackTierBoostMinimum { get; set; } = 1;
+    public int RackTierBoostMaximum { get; set; } = 3;
+    // Share of generated profile loadouts rolled as night raid kits, so some accounts carry NVGs.
+    public double NightGearChance { get; set; } = .3;
+    // In-raid spawns of a selected career wear the loadout its profile shows instead of a fresh APBS roll.
+    public bool RetainProfileGearInRaid { get; set; } = true;
     public bool EnablePostRaidStories { get; set; } = true;
-    public double PostRaidDeathChance { get; set; } = .01;
-    public double PostRaidRegearChance { get; set; } = .02;
+    public double PostRaidDeathChance { get; set; } = .35;
+    public double PostRaidRegearChance { get; set; } = .3;
     public int StoryMinimumDelaySeconds { get; set; } = 120;
     public int StoryMaximumDelaySeconds { get; set; } = 600;
     public int StoryVisibilitySeconds { get; set; } = 900;
@@ -106,6 +113,9 @@ public sealed class SimulationPolicy
             throw new InvalidDataException("Raid experience needs a 100-100000 base and a 0-1 death share; online time factors must be 1-5.");
         if (Achievements is null || new[] { Achievements.Common, Achievements.Rare, Achievements.Legendary }.Any(v => !double.IsFinite(v) || v is < 0 or > 1))
             throw new InvalidDataException("Achievement shares must be between 0 and 1.");
+        if (RackTierBoostMinimum is < 0 or > 6 || RackTierBoostMaximum < RackTierBoostMinimum || RackTierBoostMaximum > 6
+            || !double.IsFinite(NightGearChance) || NightGearChance is < 0 or > 1)
+            throw new InvalidDataException("Rack tier boost must be a 0-6 range and the night gear chance 0-1.");
         if (!double.IsFinite(MinimumPrestigeCycleHours) || MinimumPrestigeCycleHours is < 10 or > 10000
             || !double.IsFinite(PostRaidDeathChance) || !double.IsFinite(PostRaidRegearChance)
             || PostRaidDeathChance < 0 || PostRaidRegearChance < 0 || PostRaidDeathChance + PostRaidRegearChance > 1

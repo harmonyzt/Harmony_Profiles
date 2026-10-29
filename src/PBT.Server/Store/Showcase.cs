@@ -19,6 +19,7 @@ public sealed partial class PopulationStore
     private readonly HashSet<string> validatedFavorites = new();
     private readonly Dictionary<string, (int Width, int Height)> showcaseSizes = new();
     private readonly HashSet<string> showcaseWarnings = new();
+    private readonly Dictionary<string, long> rackViews = new();
 
     private JsonObject ShowcaseProps(string tpl)
     {
@@ -338,6 +339,44 @@ public sealed partial class PopulationStore
         c.ShowcaseAreas = roots;
     }
 
+    private int RackTiers() => Random.Shared.Next(policy.RackTierBoostMinimum, policy.RackTierBoostMaximum + 1);
+
+    private bool RackFull(Career c) => c.ShowcaseAreas.Count(p => p.Value == 24) >= ShowcaseTarget(c, 24);
+
+    // The checkpoint queue handles one career every 30 seconds, so viewed racks used to stay empty. Fill them on view.
+    private void ShowcaseForView(int accountId, MongoId session)
+    {
+        Career? career;
+        lock (gate)
+        {
+            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            if (!Ready || !policy.EnableShowcase || gearFactory is null) return;
+            if (!byAccount.TryGetValue(accountId, out career) && !(encounters.TryGetValue(accountId, out var encounter)
+                && CanAccess(encounter, session) && population.Careers.TryGetValue(encounter.CareerId, out career))) return;
+            if (career is null || career.Retired || AreaLevel(career, 24) <= 0 || IsObservedActive(career, now) || RackFull(career)
+                || rackViews.TryGetValue(career.Id, out long next) && now < next) return;
+            rackViews[career.Id] = now + 300;
+        }
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            JsonObject loadout;
+            try { loadout = GenerateIsolatedEquipment(career, session, RackTiers()); }
+            catch (Exception ex)
+            {
+                lock (gate)
+                    if (showcaseWarnings.Add(career.Id + ":rack"))
+                        logger.Warning($"[PBT] Weapon rack generation deferred for account {career.AccountId}. {ex.GetBaseException().Message}");
+                return;
+            }
+            lock (gate)
+            {
+                if (!Ready) return;
+                PinGeneratedWeapons(career, loadout);
+                if (RackFull(career)) return;
+            }
+        }
+    }
+
     private void QueueShowcase(Career c)
     {
         if (!policy.EnableShowcase || c.Retired || AreaLevel(c, 24) <= 0 || showcaseQueue.Count >= 256
@@ -354,7 +393,7 @@ public sealed partial class PopulationStore
                 || c.ShowcaseAreas.Count(p => p.Value == 24) >= ShowcaseTarget(c, 24))
             { showcaseQueue.Remove(id); continue; }
             if (work.Due > now || IsObservedActive(c, now) || now < c.StoryHoldUntilUtc || now - c.LastEquipmentGeneratedUtc < 900) continue;
-            try { PinGeneratedWeapons(c, GenerateIsolatedEquipment(c, session)); }
+            try { PinGeneratedWeapons(c, GenerateIsolatedEquipment(c, session, RackTiers())); }
             catch (Exception ex)
             {
                 if (work.Attempts == 0) logger.Warning($"[PBT] Showcase APBS generation deferred for account {c.AccountId}; pinned favorites retained. {ex.GetBaseException().Message}");

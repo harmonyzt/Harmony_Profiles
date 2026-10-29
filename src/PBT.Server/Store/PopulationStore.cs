@@ -473,6 +473,7 @@ public sealed partial class PopulationStore(
     public GetOtherProfileResponse? View(int accountId, MongoId session)
     {
         GearForView(accountId, session);
+        ShowcaseForView(accountId, session);
         lock (gate)
         {
             if (!Ready) return null;

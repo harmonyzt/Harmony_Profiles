@@ -25,6 +25,15 @@ public sealed partial class PopulationStore
             write = true;
             logger.Info("[PBT] Replaced pre-rework raid history priors in simulation.json with the new defaults.");
         }
+        // The old 1% and 2% story chances made outcomes almost never show up.
+        if (policy.PostRaidDeathChance == .01 && policy.PostRaidRegearChance == .02)
+        {
+            var defaults = new SimulationPolicy();
+            policy.PostRaidDeathChance = defaults.PostRaidDeathChance;
+            policy.PostRaidRegearChance = defaults.PostRaidRegearChance;
+            write = true;
+            logger.Info("[PBT] Raised the old post-raid story chances in simulation.json to the new defaults.");
+        }
         policy.Validate();
         if (write) AtomicFile.Write(path, JsonSerializer.Serialize(policy, new JsonSerializerOptions { WriteIndented = true }));
         prestigeDefinitions = JsonNode.Parse(json.Serialize(templates.Prestige)!)?["elements"]?.DeepClone().AsArray() ?? new();

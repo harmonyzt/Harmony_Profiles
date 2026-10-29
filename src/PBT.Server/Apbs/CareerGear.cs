@@ -19,6 +19,7 @@ public sealed partial class PopulationStore
             a.GetName().Name?.Contains("progressivebotsystem", StringComparison.OrdinalIgnoreCase) == true)
             ?? throw new InvalidOperationException("PBT requires Acid's Progressive Bot System.");
         gearFactory = new ApbsGearFactory(assembly, owner, json);
+        InstallRaidLoadout(owner);
     }
 
     private static bool HasVisibleLoadout(JsonObject equipment)
@@ -147,13 +148,14 @@ public sealed partial class PopulationStore
         }
     }
 
-    private JsonObject GenerateIsolatedEquipment(Career career, MongoId session)
+    private JsonObject GenerateIsolatedEquipment(Career career, MongoId session, int extraTiers = 0)
     {
         if (gearFactory is null || !bots.Types.TryGetValue(career.Side.ToLowerInvariant(), out var source))
             throw new InvalidOperationException("APBS PMC equipment services are unavailable.");
         var isolated = json.Deserialize<BotType>(json.Serialize(source)!)
             ?? throw new InvalidDataException("Cannot clone PMC inventory template.");
-        var inventory = gearFactory.Generate(inventoryGenerator, inventoryContainers, session, isolated, career, Level(career.Experience), TierBoost(career));
+        var inventory = gearFactory.Generate(inventoryGenerator, inventoryContainers, session, isolated, career, Level(career.Experience),
+            TierBoost(career) + extraTiers, Random.Shared.NextDouble() < policy.NightGearChance);
         var equipment = EquipmentTree(JsonNode.Parse(json.Serialize(inventory)!)!.AsObject());
         if (!ValidEquipment(equipment)) throw new InvalidDataException("APBS returned an invalid equipment tree.");
         return equipment;

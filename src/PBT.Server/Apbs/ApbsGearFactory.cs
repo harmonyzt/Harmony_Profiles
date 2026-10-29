@@ -21,6 +21,8 @@ internal sealed class ApbsGearFactory
     private readonly MethodInfo weapons;
     private readonly MethodInfo chances;
     private readonly MethodInfo tier;
+    private readonly object lootGenerator;
+    private readonly MethodInfo loot;
 
     internal ApbsGearFactory(Assembly assembly, Harmony harmony, JsonUtil serializer)
     {
@@ -31,6 +33,10 @@ internal sealed class ApbsGearFactory
             ?? throw new InvalidOperationException("APBS service is not initialized: " + name);
         generator = Service(patch, "_customBotInventoryGenerator");
         equipmentHelper = Service(patch, "_botEquipmentHelper");
+        lootGenerator = Service(patch, "_customBotLootGenerator");
+        loot = lootGenerator.GetType().GetMethod("GenerateLoot", [typeof(MongoId), typeof(MongoId), typeof(BotType),
+            typeof(BotGenerationDetails), typeof(BotBaseInventory), typeof(int), typeof(int)])
+            ?? throw new MissingMethodException("APBS loot service unavailable.");
         tierHelper = Service(assembly.GetType("ProgressiveBotSystem.Patches.GenerateBotLevel")
             ?? throw new MissingMethodException("APBS level service unavailable."), "_tierHelper");
         equipment = generator.GetType().GetMethods().Single(m => m.Name == "GenerateAndAddEquipmentToBot" && m.GetParameters().Length == 8);
@@ -82,11 +88,11 @@ internal sealed class ApbsGearFactory
     private static void Leave(bool __state) { if (__state) Monitor.Exit(generationGate); }
 
     internal BotBaseInventory Generate(BotInventoryGenerator native, BotInventoryContainerService containers,
-        MongoId session, BotType template, Career career, int level, int tierBoost)
+        MongoId session, BotType template, Career career, int level, int tierBoost, bool night)
     {
         lock (generationGate)
         {
-            using var context = ApbsGenerationContext.Enter(ProfileLocation, level, night: false);
+            using var context = ApbsGenerationContext.Enter(ProfileLocation, level, night);
             int selectedTier = Math.Min(topTier, (int)tier.Invoke(tierHelper, [level])! + tierBoost);
             string role = career.Side.Equals("Bear", StringComparison.OrdinalIgnoreCase) ? "pmcbear" : "pmcusec";
             var sourceChances = chances.Invoke(equipmentHelper, [role, selectedTier])
@@ -113,5 +119,13 @@ internal sealed class ApbsGearFactory
             }
             finally { containers.ClearCache(id); }
         }
+    }
+
+    // Called during a real raid spawn, so APBS's raid context is the live one.
+    internal void AddLoot(MongoId botId, MongoId session, BotType template, BotGenerationDetails details, BotBaseInventory inventory)
+    {
+        int selectedTier = details.ExtensionData?.TryGetValue("Tier", out var value) == true && value is int t ? t : 1;
+        lock (generationGate)
+            loot.Invoke(lootGenerator, [botId, session, template, details, inventory, details.BotLevel, selectedTier]);
     }
 }

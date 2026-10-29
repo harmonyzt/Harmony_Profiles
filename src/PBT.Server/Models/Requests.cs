@@ -30,4 +30,11 @@ public sealed class HideoutAccessRequest : IRequestData
 public sealed record HideoutAccessDecision(int ProtocolVersion, bool Managed, bool CanEnter, string Reason);
 
 public sealed record EditorSnapshot(string PersonalitiesJson, string PersonalitiesRevision, string PolicyJson,
-    string PolicyRevision, string SettingsJson, string SettingsRevision, int Careers, int Online, int PendingStories, int Prestiged, string GenerationMode, long ApbsMatched, long ApbsFallback);
+    string PolicyRevision, string SettingsJson, string SettingsRevision, int Careers, int Online, int PendingStories, int Prestiged, string GenerationMode, long ApbsMatched, long ApbsFallback,
+    EditorInsights Insights);
+
+// Dashboard figures. Level bands are 1-10, 11-20 ... 71-79.
+public sealed record EditorInsights(int[] LevelBands, int Bear, int Usec, Dictionary<string, int> Personalities,
+    List<EditorCareerRow> TopCareers, int RacksFilled, int RackOwners);
+
+public sealed record EditorCareerRow(string Name, string Side, string Personality, int Level, int Prestige, int Raids, double KillDeath, bool Online);
