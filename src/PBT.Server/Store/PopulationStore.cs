@@ -304,11 +304,13 @@ public sealed partial class PopulationStore(
         EnsureAccountIdentity(c);
         c.LifeVersion = 2;
         c.FeatureVersion = 1;
+        AddPrestigeBackstory(c);
         // History follows from the level: the raids this account needed to earn its experience.
         AddRaids(c, RaidsToReach(c, c.Experience) * (.85 + Random.Shared.NextDouble() * .35) * RaidDuration(c, false));
         // A death in the backstory is long over. Leaving the flag kept these accounts naked until they came online.
         c.NeedsRegear = false;
         c.RegisteredUtc = now - AccountAge(c, now);
+        DatePrestigeBackstory(c, now);
         EnsureLife(c, now);
         return c;
     }

@@ -136,6 +136,8 @@
                     <div class="hp-grid">
                         <label class="hp-check" title="Let simulated accounts prestige when they meet the installed prestige requirements."><input type="checkbox" @bind="simulation.EnablePrestige" /> Prestige progression</label>
                         <label title="Raid hours an account needs since its last prestige before it can prestige again.">Minimum raid hours per prestige cycle<input type="number" min="10" max="10000" @bind="simulation.MinimumPrestigeCycleHours" /></label>
+                        <label title="Share of new accounts (not Timmies) that start with at least one prestige behind them, at any current level.">Starting prestige share<input type="number" min="0" max="1" step="0.01" @bind="simulation.InitialPrestige.Share" /></label>
+                        <label title="Chance of each further starting prestige. 0.45 means about 45% of prestiged accounts have 2 or more, and 20% have 3 or more.">Further prestige chance<input type="number" min="0" max="0.95" step="0.05" @bind="simulation.InitialPrestige.Repeat" /></label>
                         <label class="hp-check" title="Fill weapon racks and trophy stands, only for accounts that have built those hideout modules."><input type="checkbox" @bind="simulation.EnableShowcase" /> Hideout-gated showcases</label>
                     </div>
                 </section>

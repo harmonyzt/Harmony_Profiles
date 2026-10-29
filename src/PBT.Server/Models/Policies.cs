@@ -68,7 +68,8 @@ public sealed class SimulationPolicy
     public HideoutProgressionSettings Hideout { get; set; } = new();
     public NotableNameSettings NotableNames { get; set; } = new();
     public bool EnablePrestige { get; set; } = true;
-    public double MinimumPrestigeCycleHours { get; set; } = 500;
+    public double MinimumPrestigeCycleHours { get; set; } = 150;
+    public InitialPrestigeSettings InitialPrestige { get; set; } = new();
     public bool EnableShowcase { get; set; } = true;
     public bool EnablePostRaidStories { get; set; } = true;
     public double PostRaidDeathChance { get; set; } = .01;
@@ -83,6 +84,9 @@ public sealed class SimulationPolicy
         Hideout.Validate();
         if (NotableNames is null) throw new InvalidDataException("Notable name policy is missing.");
         NotableNames.Validate();
+        if (InitialPrestige is null || !double.IsFinite(InitialPrestige.Share) || InitialPrestige.Share is < 0 or > 1
+            || !double.IsFinite(InitialPrestige.Repeat) || InitialPrestige.Repeat is < 0 or > .95)
+            throw new InvalidDataException("Starting prestige share must be 0-1 and the repeat chance 0-0.95.");
         if (ProgressionPriors is null || ProgressionPriors.Count is < 1 or > 79
             || ProgressionPriors.Any(p => p is null || p.MaximumLevel is < 1 or > 79
                 || !double.IsFinite(p.SurvivedMinutes) || p.SurvivedMinutes is < 3 or > 60
@@ -108,6 +112,14 @@ public sealed class SimulationPolicy
             || StoryMinimumDelaySeconds < 30 || StoryMaximumDelaySeconds < StoryMinimumDelaySeconds || StoryMaximumDelaySeconds > 86400 || StoryVisibilitySeconds is < 60 or > 86400)
             throw new InvalidDataException("Simulation policy is outside the supported ranges.");
     }
+}
+
+public sealed class InitialPrestigeSettings
+{
+    // Share of new non-Timmy accounts that have prestiged at least once.
+    public double Share { get; set; } = .15;
+    // Chance of each further prestige after the first.
+    public double Repeat { get; set; } = .45;
 }
 
 public sealed class NotableNameSettings

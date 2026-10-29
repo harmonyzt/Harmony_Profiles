@@ -43,7 +43,9 @@ public sealed partial class PopulationStore
         {
             string[] allowed = ["id", "index", "dynamicLocale", "visibilityConditions", "globalQuestCounterId", "parentId", "value",
                 "compareMethod", "target", "status", "availableAfter", "dispersion", "areaType", "conditionType",
-                "minDurability", "maxDurability", "dogtagLevel", "onlyFoundInRaid", "isEncoded"];
+                "minDurability", "maxDurability", "dogtagLevel", "onlyFoundInRaid", "isEncoded",
+                // Content Backport - Prestiges keeps a metadata copy in "props" and a false "isFinisher" on its conditions.
+                "props", "isFinisher"];
             if (condition.Any(p => p.Value is not null && !allowed.Contains(p.Key))
                 || condition["visibilityConditions"] is JsonArray { Count: > 0 }
                 || !string.IsNullOrEmpty(condition["globalQuestCounterId"]?.ToString())
@@ -83,6 +85,58 @@ public sealed partial class PopulationStore
         return conditions.Count > 0 && conditions.All(c => c is JsonObject);
     }
 
+    // Common skills kept through a prestige, at the definition's transfer rate. Null if the rates are unusable.
+    private Dictionary<string, double>? PrestigeSkillCarry(Career c, JsonObject definition)
+    {
+        var transfer = definition["transferConfigs"]?.AsObject();
+        if (transfer?["skillConfig"]?["transferMultiplier"] is not JsonValue skillRate
+            || transfer["masteringConfig"]?["transferMultiplier"] is not JsonValue masteryRate
+            || skillRate.GetValue<double>() is < 0 or > 1 || masteryRate.GetValue<double>() is < 0 or > 1) return null;
+        return CareerSkills(c)["Common"]!.AsArray().OfType<JsonObject>()
+            .ToDictionary(s => s["Id"]!.ToString(), s => (s["Progress"]?.GetValue<double>() ?? 0) * skillRate.GetValue<double>());
+    }
+
+    private static int PrestigeLevelRequirement(JsonObject definition) => (int)(definition["conditions"]?.AsArray().OfType<JsonObject>()
+        .FirstOrDefault(c => c["conditionType"]?.ToString() == "Level")?["value"]?.GetValue<double>() ?? 55);
+
+    // Some accounts start with earlier prestige cycles behind them, each played up to that prestige's level requirement.
+    private void AddPrestigeBackstory(Career c)
+    {
+        var start = policy.InitialPrestige;
+        if (!policy.EnablePrestige || c.Archetype == "Timmy" || Random.Shared.NextDouble() >= start.Share) return;
+        int cycles = 1;
+        while (cycles < prestigeDefinitions.Count && Random.Shared.NextDouble() < start.Repeat) cycles++;
+        for (int i = 0; i < cycles && i < prestigeDefinitions.Count; i++)
+        {
+            if (prestigeDefinitions[i] is not JsonObject definition) return;
+            int required = PrestigeLevelRequirement(definition);
+            int floor = profileHelper.GetExperience(required) ?? 0;
+            int ceiling = profileHelper.GetExperience(required + 1) ?? floor;
+            int experience = floor + (int)((ceiling - floor) * Random.Shared.NextDouble() * .9);
+            AddRaids(c, RaidsToReach(c, experience) * (.85 + Random.Shared.NextDouble() * .35) * RaidDuration(c, false));
+            if (PrestigeSkillCarry(c, definition) is not { } carry) return;
+            c.SkillCarry = carry;
+            c.PrestigeLevel = i + 1;
+            c.PrestigeCycleStartSeconds = TotalSeconds(c);
+            // Dated once the account's registration is known.
+            c.PrestigeHistory.Add(new(c.PrestigeLevel, definition["id"]!.ToString(), 0, TotalSeconds(c) / 3600, experience, 0));
+        }
+    }
+
+    private void DatePrestigeBackstory(Career c, long now)
+    {
+        double lifetime = Math.Max(1, TotalSeconds(c) / 3600);
+        for (int i = 0; i < c.PrestigeHistory.Count; i++)
+        {
+            var record = c.PrestigeHistory[i];
+            long utc = c.RegisteredUtc + (long)((now - c.RegisteredUtc) * Math.Clamp(record.LifetimeHours / lifetime, 0, 1));
+            c.PrestigeHistory[i] = record with { Utc = utc };
+            c.LastPrestigeUtc = utc;
+            if (IsId(record.DefinitionId) && PrestigeHelper.PrestigeAchievements.TryGetValue(new MongoId(record.DefinitionId), out var achievement))
+                c.Achievements[achievement.ToString()] = utc;
+        }
+    }
+
     private void TryPrestige(Career c, long now)
     {
         if (!policy.EnablePrestige || c.PrestigeLevel >= prestigeDefinitions.Count || IsObservedActive(c, now) || now < c.StoryHoldUntilUtc
@@ -92,15 +146,7 @@ public sealed partial class PopulationStore
         var next = JsonSerializer.Deserialize<Career>(JsonSerializer.Serialize(c))!;
         string definitionId = definition["id"]!.ToString();
         var transfer = definition["transferConfigs"]?.AsObject();
-        if (transfer?["skillConfig"]?["transferMultiplier"] is not JsonValue skillRate
-            || transfer["masteringConfig"]?["transferMultiplier"] is not JsonValue masteryRate
-            || skillRate.GetValue<double>() is < 0 or > 1 || masteryRate.GetValue<double>() is < 0 or > 1) return;
-        var skills = CareerSkills(c);
-        foreach (string group in new[] { "Common", "Mastering" })
-            if (skills[group] is JsonArray entries)
-                foreach (var entry in entries.OfType<JsonObject>())
-                    entry["Progress"] = (entry["Progress"]?.GetValue<double>() ?? 0)
-                        * (group == "Common" ? skillRate.GetValue<double>() : masteryRate.GetValue<double>());
+        if (PrestigeSkillCarry(c, definition) is not { } skillCarry) return;
         var stash = CareerStash(c);
         var carried = PrestigeCarry(stash, transfer["stashConfig"] as JsonObject);
         int oldXp = next.Experience;
@@ -112,8 +158,7 @@ public sealed partial class PopulationStore
         next.CurrentSurvivalStreak = 0;
         next.DevelopmentVersion = 0;
         EnsureDevelopment(next);
-        next.SkillCarry = skills["Common"]!.AsArray().OfType<JsonObject>()
-            .ToDictionary(s => s["Id"]!.ToString(), s => s["Progress"]?.GetValue<double>() ?? 0);
+        next.SkillCarry = skillCarry;
         next.WealthRubles = 100000;
         next.HideoutInvestment = 0;
         // A fresh start, not a death, so the new kit is due right away.
