@@ -16,6 +16,7 @@ internal static class RaidActivity
     {
         public int AccountId;
         public string RuntimeProfileId = "";
+        public Player? Player;
         public float Started;
         public float? Stopped;
         public bool Died;
@@ -75,14 +76,29 @@ internal static class RaidActivity
             || !int.TryParse(player.Profile.AccountId, out int account) || account < 1500000000 || account >= 2000000000) return;
         bots.Add(player.ProfileId, new Observation
         {
-            AccountId = account, RuntimeProfileId = player.ProfileId, Started = Time.realtimeSinceStartup
+            AccountId = account, RuntimeProfileId = player.ProfileId, Player = player, Started = Time.realtimeSinceStartup
         });
     }
 
     private static void Unregistered(IPlayer __0)
     {
         if (observing && bots.TryGetValue(__0.ProfileId, out var bot))
+        {
+            CheckDead(bot);
             bot.Stopped ??= Time.realtimeSinceStartup;
+        }
+    }
+
+    // The kill hook only fires when the game credits an aggressor, and Fika skips that for most observed bots.
+    private static void CheckDead(Observation bot)
+    {
+        try
+        {
+            if (bot.Died || bot.Player == null || bot.Player.HealthController is not { IsAlive: false }) return;
+            bot.Died = true;
+            bot.Stopped ??= Time.realtimeSinceStartup;
+        }
+        catch { }
     }
 
     internal static void Killed(Player victim, IPlayer aggressor, bool alreadyFound)
@@ -133,6 +149,7 @@ internal static class RaidActivity
     private static void Flush()
     {
         if (bots.Count == 0) return;
+        foreach (var bot in bots.Values) CheckDead(bot);
         var entries = new JArray();
         foreach (var bot in bots.Values)
             entries.Add(new JObject
