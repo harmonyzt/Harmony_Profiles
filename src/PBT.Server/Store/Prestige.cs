@@ -34,6 +34,13 @@ public sealed partial class PopulationStore
             write = true;
             logger.Info("[PBT] Raised the old post-raid story chances in simulation.json to the new defaults.");
         }
+        // At the old default of 1 most accounts never got past the gym wall.
+        if (policy.Hideout is { BuiltChanceMultiplier: 1 } hideout)
+        {
+            hideout.BuiltChanceMultiplier = new HideoutProgressionSettings().BuiltChanceMultiplier;
+            write = true;
+            logger.Info("[PBT] Raised the old hideout built chance multiplier in simulation.json to the new default.");
+        }
         policy.Validate();
         if (write) AtomicFile.Write(path, JsonSerializer.Serialize(policy, new JsonSerializerOptions { WriteIndented = true }));
         prestigeDefinitions = JsonNode.Parse(json.Serialize(templates.Prestige)!)?["elements"]?.DeepClone().AsArray() ?? new();
