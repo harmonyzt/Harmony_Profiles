@@ -152,7 +152,8 @@ public sealed class HideoutProgressionSettings
 {
     public double ConstructionSpeed { get; set; } = 1;
     public double MaterialCostMultiplier { get; set; } = 1;
-    public double BuiltChanceMultiplier { get; set; } = 1;
+    // 2 because most accounts otherwise stall behind the gym's broken wall.
+    public double BuiltChanceMultiplier { get; set; } = 2;
     // Share of accounts that barely touch the hideout, whatever their level.
     public double NeglectedShare { get; set; } = .1;
 
@@ -160,9 +161,9 @@ public sealed class HideoutProgressionSettings
     {
         if (!double.IsFinite(ConstructionSpeed) || ConstructionSpeed is < .25 or > 4
             || !double.IsFinite(MaterialCostMultiplier) || MaterialCostMultiplier is < .25 or > 4
-            || !double.IsFinite(BuiltChanceMultiplier) || BuiltChanceMultiplier is < .25 or > 2
+            || !double.IsFinite(BuiltChanceMultiplier) || BuiltChanceMultiplier is < .25 or > 4
             || !double.IsFinite(NeglectedShare) || NeglectedShare is < 0 or > .5)
-            throw new InvalidDataException("Hideout speed/cost must be 0.25-4, built chance 0.25-2 and neglected share 0-0.5.");
+            throw new InvalidDataException("Hideout speed/cost/built chance must be 0.25-4 and neglected share 0-0.5.");
     }
 }
 

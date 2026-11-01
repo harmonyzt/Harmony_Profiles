@@ -3,7 +3,7 @@
  --fb-bg:#f9fafb; --fb-surface:#fff; --fb-surface-2:#f3f4f6; --fb-border:#e5e7eb; --fb-input:#f9fafb; --fb-input-border:#d1d5db;
  --fb-text:#111827; --fb-body:#374151; --fb-muted:#6b7280; --fb-primary:#1a56db; --fb-primary-hover:#1e429f; --fb-primary-soft:#e1effe;
  --fb-link:#1c64f2; --fb-green:#0e9f6e; --fb-green-soft:#def7ec; --fb-green-text:#03543f; --fb-red:#e02424; --fb-red-soft:#fde8e8; --fb-red-text:#9b1c1c;
- --fb-yellow-soft:#fdf6b2; --fb-yellow-text:#723b13; --fb-secondary:#16bdca; --fb-shadow:0 1px 2px #0000000d;
+ --fb-yellow-soft:#fdf6b2; --fb-yellow-text:#723b13; --fb-secondary:#16bdca; --fb-shadow:0 1px 2px #0000000d; --fb-tip-bg:#111827;
  color-scheme:light; background:var(--fb-bg); color:var(--fb-body);
  font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
  display:grid; grid-template-columns:256px minmax(0,1fr); grid-template-rows:auto 1fr; min-height:100vh; position:relative;
@@ -12,7 +12,7 @@
  --fb-bg:#111827; --fb-surface:#1f2937; --fb-surface-2:#374151; --fb-border:#374151; --fb-input:#374151; --fb-input-border:#4b5563;
  --fb-text:#fff; --fb-body:#d1d5db; --fb-muted:#9ca3af; --fb-primary:#1c64f2; --fb-primary-hover:#1a56db; --fb-primary-soft:#1e3a8a;
  --fb-link:#3f83f8; --fb-green:#31c48d; --fb-green-soft:#014737; --fb-green-text:#84e1bc; --fb-red:#f05252; --fb-red-soft:#771d1d; --fb-red-text:#fbd5d5;
- --fb-yellow-soft:#633112; --fb-yellow-text:#faca15; --fb-shadow:none;
+ --fb-yellow-soft:#633112; --fb-yellow-text:#faca15; --fb-shadow:none; --fb-tip-bg:#4b5563;
  color-scheme:dark;
 }
 .pbt-editor * {box-sizing:border-box}
@@ -48,7 +48,7 @@
 .pbt-editor .fb-nav-label {flex:1}
 .pbt-editor .fb-active {background:var(--fb-surface-2);font-weight:500}
 .pbt-editor .fb-subnav {list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:2px}
-.pbt-editor .fb-subnav .fb-nav-item {padding-left:44px;font-size:15px}
+.pbt-editor .fb-subnav .fb-nav-item {justify-content:flex-end;padding-right:36px;font-size:15px;text-align:right}
 .pbt-editor .fb-chevron {width:20px;height:20px;color:var(--fb-muted);transition:transform .15s}
 .pbt-editor .fb-rotated {transform:rotate(180deg)}
 .pbt-editor .fb-dot {width:8px;height:8px;border-radius:50%;background:#e3a008;flex:none}
@@ -136,6 +136,12 @@
 .pbt-editor .fb-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 24px;margin-top:20px}
 .pbt-editor .fb-grid-3 {grid-template-columns:repeat(3,minmax(0,1fr))}
 .pbt-editor .fb-field {display:flex;flex-direction:column;gap:8px;font-size:14px;font-weight:500;color:var(--fb-text)}
+.pbt-editor .fb-label,.pbt-editor .fb-stat-label {display:inline-flex;align-items:center;gap:6px}
+.pbt-editor .fb-tip {position:relative;display:inline-grid;place-items:center;width:16px;height:16px;flex:none;border:1.5px solid currentColor;border-radius:50%;color:var(--fb-muted);font-size:10px;font-weight:700;line-height:1;cursor:help}
+.pbt-editor .fb-switch .fb-tip {margin-left:-6px}
+.pbt-editor .fb-tip:hover,.pbt-editor .fb-tip:focus-visible {color:var(--fb-text);outline:none}
+.pbt-editor .fb-tip-text {position:absolute;bottom:calc(100% + 8px);left:-12px;z-index:40;width:max-content;max-width:min(280px,80vw);padding:8px 12px;border-radius:8px;background:var(--fb-tip-bg);color:#fff;box-shadow:0 10px 15px -3px #0000002a;font-size:13px;font-weight:400;line-height:1.45;text-align:left;white-space:normal;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .15s,visibility .15s}
+.pbt-editor .fb-tip:hover .fb-tip-text,.pbt-editor .fb-tip:focus .fb-tip-text {opacity:1;visibility:visible}
 .pbt-editor input:not([type=checkbox]),.pbt-editor select {width:100%;min-width:0;font:inherit;font-size:14px;font-weight:400;padding:10px;border:1px solid var(--fb-input-border);border-radius:8px;background:var(--fb-input);color:var(--fb-text)}
 .pbt-editor input:not([type=checkbox]):focus,.pbt-editor select:focus {outline:none;border-color:var(--fb-link);box-shadow:0 0 0 1px var(--fb-link)}
 .pbt-editor .fb-toolbar {display:flex;align-items:flex-end;gap:16px}

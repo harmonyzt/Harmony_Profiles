@@ -12,7 +12,7 @@
 
 <PageTitle>PBT - Progressive Bot Profiles</PageTitle>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-<link href="/pbt-assets/pbt.css?v=20261029-fb" rel="stylesheet" />
+<link href="/pbt-assets/pbt.css?v=20261101-tips" rel="stylesheet" />
 <div class="pbt-editor" data-theme="@(dark ? "dark" : "light")">
     <nav class="fb-topbar">
         <button type="button" class="fb-icon-button fb-menu" aria-label="Toggle navigation" aria-expanded="@(menuOpen ? "true" : "false")" @onclick="() => menuOpen = !menuOpen">
@@ -20,7 +20,7 @@
         </button>
         <span class="fb-brand"><span class="fb-logo" aria-hidden="true">P</span><span>PBT</span><small>Progressive Bot Profiles</small></span>
         <span class="fb-spacer"></span>
-        <span class="fb-pill @(snapshot is null ? "fb-pill-red" : "fb-pill-green")"><span class="fb-pill-dot" aria-hidden="true"></span>@(snapshot is null ? "Settings unavailable" : "Server ready")</span>
+        @if (snapshot is null) { <span class="fb-pill fb-pill-red"><span class="fb-pill-dot" aria-hidden="true"></span>Settings unavailable</span> }
         <button type="button" class="fb-icon-button" title="@(dark ? "Switch to light mode" : "Switch to dark mode")" aria-label="Toggle dark mode" @onclick="() => dark = !dark">
             @if (dark)
             {
@@ -113,20 +113,20 @@
             var insights = snapshot.Insights;
             int total = Math.Max(1, snapshot.Careers);
             <div class="fb-stats">
-                <article class="fb-card fb-stat" title="Persistent PMC careers, one per bot name.">
-                    <span class="fb-stat-label">Accounts</span><strong>@snapshot.Careers.ToString("N0")</strong>
+                <article class="fb-card fb-stat">
+                    <span class="fb-stat-label">Accounts@Tip("Persistent PMC careers, one per bot name.")</span><strong>@snapshot.Careers.ToString("N0")</strong>
                     <span class="fb-stat-foot">@Icon("Users") Persistent identities</span>
                 </article>
-                <article class="fb-card fb-stat" title="Accounts currently marked online. Re-rolled for each account every 10-30 minutes from its daily raid hours.">
-                    <span class="fb-stat-label">Simulated online</span><strong>@snapshot.Online.ToString("N0")</strong>
+                <article class="fb-card fb-stat">
+                    <span class="fb-stat-label">Simulated online@Tip("Accounts currently marked online. Re-rolled for each account every 10-30 minutes from its daily raid hours.")</span><strong>@snapshot.Online.ToString("N0")</strong>
                     <span class="fb-stat-foot"><span class="fb-up">@Percent(snapshot.Online, total)</span> of accounts</span>
                 </article>
-                <article class="fb-card fb-stat" title="Accounts that have prestiged at least once.">
-                    <span class="fb-stat-label">Prestiged</span><strong>@snapshot.Prestiged.ToString("N0")</strong>
+                <article class="fb-card fb-stat">
+                    <span class="fb-stat-label">Prestiged@Tip("Accounts that have prestiged at least once.")</span><strong>@snapshot.Prestiged.ToString("N0")</strong>
                     <span class="fb-stat-foot"><span class="fb-up">@Percent(snapshot.Prestiged, total)</span> of accounts</span>
                 </article>
-                <article class="fb-card fb-stat" title="Killer stories waiting to resolve (a later death or regear).">
-                    <span class="fb-stat-label">Pending stories</span><strong>@snapshot.PendingStories.ToString("N0")</strong>
+                <article class="fb-card fb-stat">
+                    <span class="fb-stat-label">Pending stories@Tip("Killer stories waiting to resolve (a later death or regear).")</span><strong>@snapshot.PendingStories.ToString("N0")</strong>
                     <span class="fb-stat-foot">@Icon("Clock") Outcomes awaiting resolution</span>
                 </article>
             </div>
@@ -214,26 +214,26 @@
             @if (Current is { } p)
             {
                 <section class="fb-card"><h2>Identity &amp; distribution</h2><div class="fb-grid">
-                    <label class="fb-field" title="Personality ID. Careers store this name, so renaming it moves existing careers to the first personality.">Name<input @bind="p.Id" /></label>
-                    <label class="fb-field" title="How often new accounts roll this personality, relative to the other weights.">Population weight<input type="number" min="1" max="1000" @bind="p.Weight" /></label>
+                    <label class="fb-field"><span class="fb-label">Name@Tip("Personality ID. Careers store this name, so renaming it moves existing careers to the first personality.")</span><input @bind="p.Id" /></label>
+                    <label class="fb-field"><span class="fb-label">Population weight@Tip("How often new accounts roll this personality, relative to the other weights.")</span><input type="number" min="1" max="1000" @bind="p.Weight" /></label>
                 </div></section>
                 <section class="fb-card"><h2>Starting experience</h2><p class="fb-muted">Ranges used when a new account is created. Raids, hours and kills are worked out from the level, so they always fit it.</p><div class="fb-grid">
-                    <label class="fb-field" title="Lowest level a new account of this personality starts at.">Starting level, minimum<input type="number" min="1" max="79" @bind="p.MinimumLevel" /></label>
-                    <label class="fb-field" title="Highest level a new account of this personality starts at.">Starting level, maximum<input type="number" min="1" max="79" @bind="p.MaximumLevel" /></label>
+                    <label class="fb-field"><span class="fb-label">Starting level, minimum@Tip("Lowest level a new account of this personality starts at.")</span><input type="number" min="1" max="79" @bind="p.MinimumLevel" /></label>
+                    <label class="fb-field"><span class="fb-label">Starting level, maximum@Tip("Highest level a new account of this personality starts at.")</span><input type="number" min="1" max="79" @bind="p.MaximumLevel" /></label>
                 </div></section>
                 <section class="fb-card"><h2>Raid behavior</h2><p class="fb-muted">Hours are daily totals. Survival chances use 0 to 1 (0.5 = 50%).</p><div class="fb-grid">
-                    <label class="fb-field" title="Least time per day this account plays. It also sets how often the account shows as online.">Daily raid hours, minimum<input type="number" step="0.05" @bind="p.MinimumDailyHours" /></label>
-                    <label class="fb-field" title="Most time per day this account plays. It also sets how often the account shows as online.">Daily raid hours, maximum<input type="number" step="0.05" @bind="p.MaximumDailyHours" /></label>
-                    <label class="fb-field" title="Survival chance (0 to 1) of the least skilled accounts. Skill also sets kills, so low survival means fewer kills.">Survival chance, minimum<input type="number" min="0" max="1" step="0.01" @bind="p.MinimumSurvival" /></label>
-                    <label class="fb-field" title="Survival chance (0 to 1) of the most skilled accounts.">Survival chance, maximum<input type="number" min="0" max="1" step="0.01" @bind="p.MaximumSurvival" /></label>
-                    <label class="fb-field" title="Shortest simulated raid. Clamped to 3-60 minutes.">Raid minutes, minimum<input type="number" @bind="p.MinimumRaidMinutes" /></label>
-                    <label class="fb-field" title="Longest simulated raid. Clamped to 3-60 minutes.">Raid minutes, maximum<input type="number" @bind="p.MaximumRaidMinutes" /></label>
+                    <label class="fb-field"><span class="fb-label">Daily raid hours, minimum@Tip("Least time per day this account plays. It also sets how often the account shows as online.")</span><input type="number" step="0.05" @bind="p.MinimumDailyHours" /></label>
+                    <label class="fb-field"><span class="fb-label">Daily raid hours, maximum@Tip("Most time per day this account plays. It also sets how often the account shows as online.")</span><input type="number" step="0.05" @bind="p.MaximumDailyHours" /></label>
+                    <label class="fb-field"><span class="fb-label">Survival chance, minimum@Tip("Survival chance (0 to 1) of the least skilled accounts. Skill also sets kills, so low survival means fewer kills.")</span><input type="number" min="0" max="1" step="0.01" @bind="p.MinimumSurvival" /></label>
+                    <label class="fb-field"><span class="fb-label">Survival chance, maximum@Tip("Survival chance (0 to 1) of the most skilled accounts.")</span><input type="number" min="0" max="1" step="0.01" @bind="p.MaximumSurvival" /></label>
+                    <label class="fb-field"><span class="fb-label">Raid minutes, minimum@Tip("Shortest simulated raid. Clamped to 3-60 minutes.")</span><input type="number" @bind="p.MinimumRaidMinutes" /></label>
+                    <label class="fb-field"><span class="fb-label">Raid minutes, maximum@Tip("Longest simulated raid. Clamped to 3-60 minutes.")</span><input type="number" @bind="p.MaximumRaidMinutes" /></label>
                 </div></section>
                 <section class="fb-card"><h2>Personality progression</h2><div class="fb-grid">
-                    <label class="fb-field" title="Personality this account turns into after enough raid hours, e.g. Timmy into Casual.">Progress to<select @bind="p.ProgressTo"><option value="">Stay this personality</option>
+                    <label class="fb-field"><span class="fb-label">Progress to@Tip("Personality this account turns into after enough raid hours, e.g. Timmy into Casual.")</span><select @bind="p.ProgressTo"><option value="">Stay this personality</option>
                         @foreach (var target in people.Where(t => t != p)) { <option value="@target.Id">@target.Id</option> }
                     </select></label>
-                    <label class="fb-field" title="Total raid hours before the account switches to the Progress to personality.">Progress after account raid hours<input type="number" @bind="p.TransitionHours" /></label>
+                    <label class="fb-field"><span class="fb-label">Progress after account raid hours@Tip("Total raid hours before the account switches to the Progress to personality.")</span><input type="number" @bind="p.TransitionHours" /></label>
                 </div></section>
                 <section class="fb-card fb-danger-zone"><h2>Remove personality</h2><p class="fb-muted">Removes @p.Id from this draft. Save personalities to apply the removal.</p><button type="button" class="fb-button fb-button-red" @onclick="Remove">Remove @p.Id</button></section>
             }
@@ -242,7 +242,7 @@
         else if (page == "Progression")
         {
             <section class="fb-card">
-                <div class="fb-switch-row"><label class="fb-switch" title="When APBS spawns a PMC, reuse an existing career whose level fits APBS's level range, so you meet the same players again."><input type="checkbox" role="switch" @bind="simulation.EnableApbsCareerIntegration" /><span class="fb-switch-track"></span>Select persistent careers within APBS level ranges</label></div>
+                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.EnableApbsCareerIntegration" /><span class="fb-switch-track"></span>Select persistent careers within APBS level ranges@Tip("When APBS spawns a PMC, reuse an existing career whose level fits APBS's level range, so you meet the same players again.")</label></div>
             </section>
             <section class="fb-card fb-flush"><div class="fb-card-head fb-padded"><div><h2>Raid history priors</h2><p>Bands must increase and end at level 79. These averages are priors, not identical targets for every account.</p></div></div>
                 <div class="fb-table-scroll"><table class="fb-table"><thead><tr><th>Maximum level</th><th title="Average length of a raid the account survives.">Survived raid min</th><th title="Average length of a raid that ends in death.">Death raid min</th><th title="For an average-skill account. Skill and personality scale it.">PMC kills / raid</th><th title="For an average-skill account. Skill and personality scale it.">Scav kills / raid</th></tr></thead><tbody>
@@ -258,43 +258,43 @@
                 </tbody></table></div>
             </section>
             <section class="fb-card"><h2>Raid experience &amp; time</h2><p class="fb-muted">With the defaults an average account needs about 60 raids for level 15, 440 for level 40 and 3,800 for level 79.</p><div class="fb-grid">
-                <label class="fb-field" title="XP for a survived raid at level 0. Raid XP decides how many raids an account needed to reach its level.">Survived raid XP, base<input type="number" min="100" max="100000" step="100" @bind="simulation.RaidExperience.SurvivedBase" /></label>
-                <label class="fb-field" title="Extra survived raid XP per level.">Survived raid XP, per level<input type="number" min="0" max="10000" step="10" @bind="simulation.RaidExperience.SurvivedPerLevel" /></label>
-                <label class="fb-field" title="Extra survived raid XP per level squared, so high levels earn much more per raid.">Survived raid XP, per level squared<input type="number" min="0" max="1000" step="0.5" @bind="simulation.RaidExperience.SurvivedPerLevelSquared" /></label>
-                <label class="fb-field" title="Share (0 to 1) of the survived XP a death still earns.">Death XP share<input type="number" min="0" max="1" step="0.05" @bind="simulation.RaidExperience.DeathShare" /></label>
-                <label class="fb-field" title="Online time is raid time times a factor between these two, for menus, hideout and flea.">Online time factor, minimum<input type="number" min="1" max="5" step="0.05" @bind="simulation.OnlineTimeMinimum" /></label>
-                <label class="fb-field" title="Upper end of the online time factor.">Online time factor, maximum<input type="number" min="1" max="5" step="0.05" @bind="simulation.OnlineTimeMaximum" /></label>
+                <label class="fb-field"><span class="fb-label">Survived raid XP, base@Tip("XP for a survived raid at level 0. Raid XP decides how many raids an account needed to reach its level.")</span><input type="number" min="100" max="100000" step="100" @bind="simulation.RaidExperience.SurvivedBase" /></label>
+                <label class="fb-field"><span class="fb-label">Survived raid XP, per level@Tip("Extra survived raid XP per level.")</span><input type="number" min="0" max="10000" step="10" @bind="simulation.RaidExperience.SurvivedPerLevel" /></label>
+                <label class="fb-field"><span class="fb-label">Survived raid XP, per level squared@Tip("Extra survived raid XP per level squared, so high levels earn much more per raid.")</span><input type="number" min="0" max="1000" step="0.5" @bind="simulation.RaidExperience.SurvivedPerLevelSquared" /></label>
+                <label class="fb-field"><span class="fb-label">Death XP share@Tip("Share (0 to 1) of the survived XP a death still earns.")</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.RaidExperience.DeathShare" /></label>
+                <label class="fb-field"><span class="fb-label">Online time factor, minimum@Tip("Online time is raid time times a factor between these two, for menus, hideout and flea.")</span><input type="number" min="1" max="5" step="0.05" @bind="simulation.OnlineTimeMinimum" /></label>
+                <label class="fb-field"><span class="fb-label">Online time factor, maximum@Tip("Upper end of the online time factor.")</span><input type="number" min="1" max="5" step="0.05" @bind="simulation.OnlineTimeMaximum" /></label>
             </div></section>
             <section class="fb-card"><h2>Achievements</h2><p class="fb-muted">Share of level 79, average-skill accounts that own a given achievement. Lower levels own fewer, skill scales it.</p><div class="fb-grid fb-grid-3">
-                <label class="fb-field" title="Share (0 to 1) of level 79, average-skill accounts that own a given Common achievement.">Common<input type="number" min="0" max="1" step="0.01" @bind="simulation.Achievements.Common" /></label>
-                <label class="fb-field" title="Same for Rare achievements, mostly boss kills.">Rare<input type="number" min="0" max="1" step="0.01" @bind="simulation.Achievements.Rare" /></label>
-                <label class="fb-field" title="Same for Legendary achievements, mostly events and Kappa.">Legendary<input type="number" min="0" max="1" step="0.01" @bind="simulation.Achievements.Legendary" /></label>
+                <label class="fb-field"><span class="fb-label">Common@Tip("Share (0 to 1) of level 79, average-skill accounts that own a given Common achievement.")</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.Achievements.Common" /></label>
+                <label class="fb-field"><span class="fb-label">Rare@Tip("Same for Rare achievements, mostly boss kills.")</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.Achievements.Rare" /></label>
+                <label class="fb-field"><span class="fb-label">Legendary@Tip("Same for Legendary achievements, mostly events and Kappa.")</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.Achievements.Legendary" /></label>
             </div></section>
             @SimulationSave
         }
         else if (page == "Hideout")
         {
             <section class="fb-card"><h2>Construction</h2><p class="fb-muted">Season cohort observations guide module preferences. Time, wealth, personality and native prerequisites still decide upgrades. Existing construction is never downgraded.</p><div class="fb-grid">
-                <label class="fb-field" title="How fast simulated accounts build hideout modules. 1 is normal, 2 is twice as fast.">Construction speed<input type="number" min="0.25" max="4" step="0.05" @bind="simulation.Hideout.ConstructionSpeed" /></label>
-                <label class="fb-field" title="How much simulated hideout upgrades cost the account. Higher means slower upgrades.">Material cost multiplier<input type="number" min="0.25" max="4" step="0.05" @bind="simulation.Hideout.MaterialCostMultiplier" /></label>
-                <label class="fb-field" title="Scales how likely each hideout module is to be built at all for an account's level.">Built chance multiplier<input type="number" min="0.25" max="2" step="0.05" @bind="simulation.Hideout.BuiltChanceMultiplier" /></label>
-                <label class="fb-field" title="Share of accounts that mostly ignore the hideout: few modules, none past level 1, whatever their level.">Hideout neglecters<input type="number" min="0" max="0.5" step="0.01" @bind="simulation.Hideout.NeglectedShare" /></label>
-            </div><p class="fb-hint">1 is the default. Edition starting privileges remain. Seasonal events and emergency-wall history are not fabricated.</p></section>
+                <label class="fb-field"><span class="fb-label">Construction speed@Tip("How fast simulated accounts build hideout modules. 1 is normal, 2 is twice as fast.")</span><input type="number" min="0.25" max="4" step="0.05" @bind="simulation.Hideout.ConstructionSpeed" /></label>
+                <label class="fb-field"><span class="fb-label">Material cost multiplier@Tip("How much simulated hideout upgrades cost the account. Higher means slower upgrades.")</span><input type="number" min="0.25" max="4" step="0.05" @bind="simulation.Hideout.MaterialCostMultiplier" /></label>
+                <label class="fb-field"><span class="fb-label">Built chance multiplier@Tip("Scales how likely each hideout module is to be built at all for an account's level.")</span><input type="number" min="0.25" max="4" step="0.05" @bind="simulation.Hideout.BuiltChanceMultiplier" /></label>
+                <label class="fb-field"><span class="fb-label">Hideout neglecters@Tip("Share of accounts that mostly ignore the hideout: few modules, none past level 1, whatever their level.")</span><input type="number" min="0" max="0.5" step="0.01" @bind="simulation.Hideout.NeglectedShare" /></label>
+            </div><p class="fb-hint">Speed and cost default to 1, built chance to 2. Edition starting privileges remain. Seasonal events and emergency-wall history are not fabricated.</p></section>
             @SimulationSave
         }
         else if (page == "Gear")
         {
             <section class="fb-card"><h2>Loadouts</h2><p class="fb-muted">APBS builds every loadout. These control which kit it builds and where it is used.</p>
-                <div class="fb-switch-row"><label class="fb-switch" title="When a career spawns in raid, it wears the loadout its profile shows, plus fresh APBS loot. Off means APBS rolls a new kit for each spawn."><input type="checkbox" role="switch" @bind="simulation.RetainProfileGearInRaid" /><span class="fb-switch-track"></span>Careers wear their profile loadout in raid</label></div>
+                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.RetainProfileGearInRaid" /><span class="fb-switch-track"></span>Careers wear their profile loadout in raid@Tip("When a career spawns in raid, it wears the loadout its profile shows, plus fresh APBS loot. Off means APBS rolls a new kit for each spawn.")</label></div>
                 <div class="fb-grid">
-                    <label class="fb-field" title="Share (0 to 1) of generated profile loadouts built as night raid kits, which can carry NVGs.">Night kit chance<input type="number" min="0" max="1" step="0.05" @bind="simulation.NightGearChance" /></label>
+                    <label class="fb-field"><span class="fb-label">Night kit chance@Tip("Share (0 to 1) of generated profile loadouts built as night raid kits, which can carry NVGs.")</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.NightGearChance" /></label>
                 </div>
             </section>
             <section class="fb-card"><h2>Showcases</h2><p class="fb-muted">Only accounts that built the weapon rack or trophy stand get a showcase. Favorites stay pinned until an item becomes unavailable.</p>
-                <div class="fb-switch-row"><label class="fb-switch" title="Fill weapon racks and trophy stands, only for accounts that have built those hideout modules."><input type="checkbox" role="switch" @bind="simulation.EnableShowcase" /><span class="fb-switch-track"></span>Hideout-gated showcases</label></div>
+                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.EnableShowcase" /><span class="fb-switch-track"></span>Hideout-gated showcases@Tip("Fill weapon racks and trophy stands, only for accounts that have built those hideout modules.")</label></div>
                 <div class="fb-grid">
-                    <label class="fb-field" title="Fewest APBS gear tiers above the account's own that rack guns are built at. Capped at APBS's top tier.">Rack gun tier boost, minimum<input type="number" min="0" max="6" @bind="simulation.RackTierBoostMinimum" /></label>
-                    <label class="fb-field" title="Most APBS gear tiers above the account's own that rack guns are built at. Each rack loadout rolls in this range.">Rack gun tier boost, maximum<input type="number" min="0" max="6" @bind="simulation.RackTierBoostMaximum" /></label>
+                    <label class="fb-field"><span class="fb-label">Rack gun tier boost, minimum@Tip("Fewest APBS gear tiers above the account's own that rack guns are built at. Capped at APBS's top tier.")</span><input type="number" min="0" max="6" @bind="simulation.RackTierBoostMinimum" /></label>
+                    <label class="fb-field"><span class="fb-label">Rack gun tier boost, maximum@Tip("Most APBS gear tiers above the account's own that rack guns are built at. Each rack loadout rolls in this range.")</span><input type="number" min="0" max="6" @bind="simulation.RackTierBoostMaximum" /></label>
                 </div>
             </section>
             @SimulationSave
@@ -302,11 +302,11 @@
         else if (page == "Notable")
         {
             <section class="fb-card"><h2>Chads and streamers</h2><p class="fb-muted">Accounts with "chad" in the name or a TTV, YT or TV tag are better players and always wear gear above their level's tier, in raid and on their profile.</p>
-                <div class="fb-switch-row"><label class="fb-switch" title="Give chad and streamer names better stats and gear."><input type="checkbox" role="switch" @bind="simulation.NotableNames.Enabled" /><span class="fb-switch-track"></span>Boost chads and streamers</label></div>
+                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.NotableNames.Enabled" /><span class="fb-switch-track"></span>Boost chads and streamers@Tip("Give chad and streamer names better stats and gear.")</label></div>
                 <div class="fb-grid fb-grid-3">
-                    <label class="fb-field" title="How far their hidden skill roll moves towards the best player. 0.3 closes 30% of the gap, which raises survival, kills and K/D.">Skill bonus<input type="number" min="0" max="1" step="0.05" @bind="simulation.NotableNames.SkillBonus" /></label>
-                    <label class="fb-field" title="Fewest APBS gear tiers they skip ahead of their level.">Gear tier boost, minimum<input type="number" min="0" max="6" @bind="simulation.NotableNames.TierBoostMinimum" /></label>
-                    <label class="fb-field" title="Most APBS gear tiers they skip ahead of their level. Each account rolls once in this range and keeps it.">Gear tier boost, maximum<input type="number" min="0" max="6" @bind="simulation.NotableNames.TierBoostMaximum" /></label>
+                    <label class="fb-field"><span class="fb-label">Skill bonus@Tip("How far their hidden skill roll moves towards the best player. 0.3 closes 30% of the gap, which raises survival, kills and K/D.")</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.NotableNames.SkillBonus" /></label>
+                    <label class="fb-field"><span class="fb-label">Gear tier boost, minimum@Tip("Fewest APBS gear tiers they skip ahead of their level.")</span><input type="number" min="0" max="6" @bind="simulation.NotableNames.TierBoostMinimum" /></label>
+                    <label class="fb-field"><span class="fb-label">Gear tier boost, maximum@Tip("Most APBS gear tiers they skip ahead of their level. Each account rolls once in this range and keeps it.")</span><input type="number" min="0" max="6" @bind="simulation.NotableNames.TierBoostMaximum" /></label>
                 </div>
             </section>
             @SimulationSave
@@ -314,11 +314,11 @@
         else if (page == "Prestige")
         {
             <section class="fb-card"><h2>Prestige</h2><p class="fb-muted">Prestige follows the installed requirements and fictional quest histories. Lifetime history and account registration persist.</p>
-                <div class="fb-switch-row"><label class="fb-switch" title="Let simulated accounts prestige when they meet the installed prestige requirements."><input type="checkbox" role="switch" @bind="simulation.EnablePrestige" /><span class="fb-switch-track"></span>Prestige progression</label></div>
+                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.EnablePrestige" /><span class="fb-switch-track"></span>Prestige progression@Tip("Let simulated accounts prestige when they meet the installed prestige requirements.")</label></div>
                 <div class="fb-grid fb-grid-3">
-                    <label class="fb-field" title="Raid hours an account needs since its last prestige before it can prestige again.">Minimum raid hours per cycle<input type="number" min="10" max="10000" @bind="simulation.MinimumPrestigeCycleHours" /></label>
-                    <label class="fb-field" title="Share of new accounts (not Timmies) that start with at least one prestige behind them, at any current level.">Starting prestige share<input type="number" min="0" max="1" step="0.01" @bind="simulation.InitialPrestige.Share" /></label>
-                    <label class="fb-field" title="Chance of each further starting prestige. 0.45 means about 45% of prestiged accounts have 2 or more, and 20% have 3 or more.">Further prestige chance<input type="number" min="0" max="0.95" step="0.05" @bind="simulation.InitialPrestige.Repeat" /></label>
+                    <label class="fb-field"><span class="fb-label">Minimum raid hours per cycle@Tip("Raid hours an account needs since its last prestige before it can prestige again.")</span><input type="number" min="10" max="10000" @bind="simulation.MinimumPrestigeCycleHours" /></label>
+                    <label class="fb-field"><span class="fb-label">Starting prestige share@Tip("Share of new accounts (not Timmies) that start with at least one prestige behind them, at any current level.")</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.InitialPrestige.Share" /></label>
+                    <label class="fb-field"><span class="fb-label">Further prestige chance@Tip("Chance of each further starting prestige. 0.45 means about 45% of prestiged accounts have 2 or more, and 20% have 3 or more.")</span><input type="number" min="0" max="0.95" step="0.05" @bind="simulation.InitialPrestige.Repeat" /></label>
                 </div>
             </section>
             @SimulationSave
@@ -326,13 +326,13 @@
         else if (page == "Stories")
         {
             <section class="fb-card"><h2>Post-raid stories</h2><p class="fb-muted">A PMC that killed you can later die or regear. Outcomes are mutually exclusive, delayed, and never rewrite the killer's historical equipment.</p>
-                <div class="fb-switch-row"><label class="fb-switch" title="After a PMC kills you, it may later die or regear, so its profile changes between raids."><input type="checkbox" role="switch" @bind="simulation.EnablePostRaidStories" /><span class="fb-switch-track"></span>Enable post-raid stories</label></div>
+                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.EnablePostRaidStories" /><span class="fb-switch-track"></span>Enable post-raid stories@Tip("After a PMC kills you, it may later die or regear, so its profile changes between raids.")</label></div>
                 <div class="fb-grid">
-                    <label class="fb-field" title="Chance (0 to 1) that a PMC who killed you dies later.">Later death chance<input type="number" min="0" max="1" step="0.01" @bind="simulation.PostRaidDeathChance" /></label>
-                    <label class="fb-field" title="Chance (0 to 1) that a PMC who killed you swaps to new gear later.">Survivor regear chance<input type="number" min="0" max="1" step="0.01" @bind="simulation.PostRaidRegearChance" /></label>
-                    <label class="fb-field" title="Earliest time after your death that a story outcome can happen.">Delay, minimum seconds<input type="number" min="30" max="86400" @bind="simulation.StoryMinimumDelaySeconds" /></label>
-                    <label class="fb-field" title="Latest time after your death that a story outcome can happen.">Delay, maximum seconds<input type="number" min="30" max="86400" @bind="simulation.StoryMaximumDelaySeconds" /></label>
-                    <label class="fb-field" title="How long a story outcome stays visible before the account carries on normally.">Outcome visibility, seconds<input type="number" min="60" max="86400" @bind="simulation.StoryVisibilitySeconds" /></label>
+                    <label class="fb-field"><span class="fb-label">Later death chance@Tip("Chance (0 to 1) that a PMC who killed you dies later.")</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.PostRaidDeathChance" /></label>
+                    <label class="fb-field"><span class="fb-label">Survivor regear chance@Tip("Chance (0 to 1) that a PMC who killed you swaps to new gear later.")</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.PostRaidRegearChance" /></label>
+                    <label class="fb-field"><span class="fb-label">Delay, minimum seconds@Tip("Earliest time after your death that a story outcome can happen.")</span><input type="number" min="30" max="86400" @bind="simulation.StoryMinimumDelaySeconds" /></label>
+                    <label class="fb-field"><span class="fb-label">Delay, maximum seconds@Tip("Latest time after your death that a story outcome can happen.")</span><input type="number" min="30" max="86400" @bind="simulation.StoryMaximumDelaySeconds" /></label>
+                    <label class="fb-field"><span class="fb-label">Outcome visibility, seconds@Tip("How long a story outcome stays visible before the account carries on normally.")</span><input type="number" min="60" max="86400" @bind="simulation.StoryVisibilitySeconds" /></label>
                 </div><p class="fb-hint">Death and regear chances together cannot exceed 1. Otherwise the killer keeps its kit.</p>
             </section>
             @SimulationSave
@@ -340,16 +340,16 @@
         else
         {
             <section class="fb-card"><h2>Friendships</h2>
-                <div class="fb-switch-row"><label class="fb-switch" title="Allow sending friend requests to simulated accounts."><input type="checkbox" role="switch" @bind="config.EnableFriendRequests" /><span class="fb-switch-track"></span>Bot friend requests</label></div>
+                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="config.EnableFriendRequests" /><span class="fb-switch-track"></span>Bot friend requests@Tip("Allow sending friend requests to simulated accounts.")</label></div>
                 <div class="fb-grid">
-                    <label class="fb-field" title="Chance (0 to 1) that a simulated account accepts your friend request.">Friend acceptance chance<input type="number" min="0" max="1" step="0.01" @bind="config.FriendAcceptanceChance" /></label>
-                    <label class="fb-field" title="Accepted friends play and show online this many times as often as other accounts.">Friend activity multiplier<input type="number" min="0" max="5" step="0.1" @bind="config.FriendActivityMultiplier" /></label>
+                    <label class="fb-field"><span class="fb-label">Friend acceptance chance@Tip("Chance (0 to 1) that a simulated account accepts your friend request.")</span><input type="number" min="0" max="1" step="0.01" @bind="config.FriendAcceptanceChance" /></label>
+                    <label class="fb-field"><span class="fb-label">Friend activity multiplier@Tip("Accepted friends play and show online this many times as often as other accounts.")</span><input type="number" min="0" max="5" step="0.1" @bind="config.FriendActivityMultiplier" /></label>
                 </div><p class="fb-hint">Disabling new friend requests keeps existing accepted friendships.</p>
             </section>
             <section class="fb-card"><h2>Activity</h2><div class="fb-grid fb-grid-3">
-                <label class="fb-field" title="Scales how often every account is online. 1 is the default, 2 doubles it.">Online rate multiplier<input type="number" min="0" max="10" step="0.1" @bind="config.OnlineRateMultiplier" /></label>
-                <label class="fb-field" title="Minimum server downtime before accounts get simulated progress for the time you were away.">Offline progression threshold, seconds<input type="number" min="60" max="86400" @bind="config.ProgressionThresholdSeconds" /></label>
-                <label class="fb-field" title="Cap on how many offline days of progress are simulated at server start.">Maximum offline days<input type="number" min="1" max="365" @bind="config.MaximumOfflineDays" /></label>
+                <label class="fb-field"><span class="fb-label">Online rate multiplier@Tip("Scales how often every account is online. 1 is the default, 2 doubles it.")</span><input type="number" min="0" max="10" step="0.1" @bind="config.OnlineRateMultiplier" /></label>
+                <label class="fb-field"><span class="fb-label">Offline progression threshold, seconds@Tip("Minimum server downtime before accounts get simulated progress for the time you were away.")</span><input type="number" min="60" max="86400" @bind="config.ProgressionThresholdSeconds" /></label>
+                <label class="fb-field"><span class="fb-label">Maximum offline days@Tip("Cap on how many offline days of progress are simulated at server start.")</span><input type="number" min="1" max="365" @bind="config.MaximumOfflineDays" /></label>
             </div></section>
             <div class="fb-savebar"><span>Existing identities and accepted friends remain.</span><button type="button" class="fb-button" disabled="@(!Dirty("settings"))" @onclick="SaveConfig">Save population settings</button></div>
         }
@@ -386,6 +386,8 @@
         _ => "Friendships and activity between server sessions." };
     private static string? Section(string page) => page switch {
         "Personalities" => "personalities", "Population" => "settings", "Dashboard" => null, _ => "simulation" };
+    // preventDefault keeps a click on the icon from toggling or focusing the label's control.
+    private static RenderFragment Tip(string text) => @<span class="fb-tip" tabindex="0" @onclick:preventDefault="true"><span aria-hidden="true">?</span><span class="fb-tip-text" role="tooltip">@text</span></span>;
     private static string Percent(int part, int whole) => (part * 100.0 / whole).ToString("0.0") + "%";
     private static RenderFragment Icon(string name) => name switch {
         "Dashboard" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v7h7A7 7 0 1 1 10 3Z" /><path d="M13 2.5A5 5 0 0 1 17.5 7H13Z" /></svg>,
