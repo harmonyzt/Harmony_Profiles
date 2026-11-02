@@ -54,13 +54,13 @@ public sealed class Plugin : BaseUnityPlugin
             catch (Exception ex) { Logger.LogWarning("Hideout visit guard disabled. " + ex.Message); }
             try { MapIndicators.Install(harmony); }
             catch (Exception ex) { Logger.LogWarning("Map online indicators disabled. " + ex.Message); }
-            // Fika runs its own matching and game creation.
-            if (BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey("com.fika.core")) Logger.LogInfo("Fika detected; matching simulation left to Fika.");
-            else
+            try
             {
-                try { Matching.Install(harmony); }
-                catch (Exception ex) { Logger.LogWarning("Matching simulation disabled. " + ex.Message); }
+                // Fika replaces game creation, so hook its version instead.
+                if (BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey("com.fika.core")) { Matching.InstallFika(harmony); Logger.LogInfo("Matching simulation hooked into Fika (host only)."); }
+                else Matching.Install(harmony);
             }
+            catch (Exception ex) { Logger.LogWarning("Matching simulation disabled. " + ex.Message); }
             activityHarmony = new Harmony("com.local.pbt.activity");
             try { RaidActivity.Install(activityHarmony); }
             catch (Exception ex)
