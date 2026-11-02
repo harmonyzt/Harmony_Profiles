@@ -81,6 +81,9 @@ public sealed class SimulationPolicy
     public bool EnablePostRaidStories { get; set; } = true;
     public double PostRaidDeathChance { get; set; } = .35;
     public double PostRaidRegearChance { get; set; } = .3;
+    // The rest of your raid's PMCs. Lower, since a raid can hold a dozen of them.
+    public double RaidDeathChance { get; set; } = .12;
+    public double RaidRegearChance { get; set; } = .15;
     public int StoryMinimumDelaySeconds { get; set; } = 120;
     public int StoryMaximumDelaySeconds { get; set; } = 600;
     public int StoryVisibilitySeconds { get; set; } = 900;
@@ -125,6 +128,8 @@ public sealed class SimulationPolicy
         if (!double.IsFinite(MinimumPrestigeCycleHours) || MinimumPrestigeCycleHours is < 10 or > 10000
             || !double.IsFinite(PostRaidDeathChance) || !double.IsFinite(PostRaidRegearChance)
             || PostRaidDeathChance < 0 || PostRaidRegearChance < 0 || PostRaidDeathChance + PostRaidRegearChance > 1
+            || !double.IsFinite(RaidDeathChance) || !double.IsFinite(RaidRegearChance)
+            || RaidDeathChance < 0 || RaidRegearChance < 0 || RaidDeathChance + RaidRegearChance > 1
             || StoryMinimumDelaySeconds < 30 || StoryMaximumDelaySeconds < StoryMinimumDelaySeconds || StoryMaximumDelaySeconds > 86400 || StoryVisibilitySeconds is < 60 or > 86400)
             throw new InvalidDataException("Simulation policy is outside the supported ranges.");
     }

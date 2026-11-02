@@ -439,15 +439,17 @@
         }
         else if (page == "Stories")
         {
-            <section class="fb-card"><h2>Post-raid stories</h2><p class="fb-muted">Every career from your raid that did not die in front of you gets a delayed outcome: it dies, regears, transits or survives. A PMC that killed you uses the chances below. Outcomes never rewrite the equipment you saw.</p>
+            <section class="fb-card"><h2>Post-raid stories</h2><p class="fb-muted">Every career from your raid that did not die in front of you gets a delayed outcome: it dies, regears, transits or survives. Your killer and the rest of the raid have their own chances, and personality shifts both. Outcomes never rewrite the equipment you saw.</p>
                 <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.EnablePostRaidStories" /><span class="fb-switch-track"></span>Enable post-raid stories@(Tip("PMCs from your raid may later die, regear or transit, so their profiles change between raids."))</label></div>
                 <div class="fb-grid">
-                    <label class="fb-field"><span class="fb-label">Later death chance@(Tip("Chance (0 to 1) that a PMC who killed you dies later."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.PostRaidDeathChance" /></label>
-                    <label class="fb-field"><span class="fb-label">Survivor regear chance@(Tip("Chance (0 to 1) that a PMC who killed you swaps to new gear later."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.PostRaidRegearChance" /></label>
+                    <label class="fb-field"><span class="fb-label">Your killer, death chance@(Tip("Chance (0 to 1) that a PMC who killed you dies later."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.PostRaidDeathChance" /></label>
+                    <label class="fb-field"><span class="fb-label">Your killer, regear chance@(Tip("Chance (0 to 1) that a PMC who killed you swaps to new gear later."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.PostRaidRegearChance" /></label>
+                    <label class="fb-field"><span class="fb-label">Other PMCs, death chance@(Tip("Chance (0 to 1) that any other PMC from your raid dies later. Keep it low, a raid can hold a dozen."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.RaidDeathChance" /></label>
+                    <label class="fb-field"><span class="fb-label">Other PMCs, regear chance@(Tip("Chance (0 to 1) that any other PMC from your raid swaps to new gear later."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.RaidRegearChance" /></label>
                     <label class="fb-field"><span class="fb-label">Delay, minimum seconds@(Tip("Earliest time after your death that a story outcome can happen."))</span><input type="number" min="30" max="86400" @bind="simulation.StoryMinimumDelaySeconds" /></label>
                     <label class="fb-field"><span class="fb-label">Delay, maximum seconds@(Tip("Latest time after your death that a story outcome can happen."))</span><input type="number" min="30" max="86400" @bind="simulation.StoryMaximumDelaySeconds" /></label>
                     <label class="fb-field"><span class="fb-label">Outcome visibility, seconds@(Tip("How long a story outcome stays visible before the account carries on normally."))</span><input type="number" min="60" max="86400" @bind="simulation.StoryVisibilitySeconds" /></label>
-                </div><p class="fb-hint">Death and regear chances together cannot exceed 1. Otherwise the killer keeps its kit.</p>
+                </div><p class="fb-hint">Each death and regear pair cannot exceed 1. Otherwise the PMC keeps its kit.</p>
             </section>
             @SimulationSave
         }
@@ -650,7 +652,7 @@
     {
         if (points.Length < 2) return @<span class="fb-muted">-</span>;
         int top = Math.Max(1, points.Max());
-        string line = string.Join(" ", points.Select((v, i) => $"{i * 100.0 / (points.Length - 1):0.#},{22 - v * 20.0 / top:0.#}"));
+        string line = string.Join(" ", points.Select((v, i) => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{i * 100.0 / (points.Length - 1):0.#},{22 - v * 20.0 / top:0.#}")));
         return @<svg class="fb-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline points="@line" /></svg>;
     }
     private string Contents(string section) => section switch {

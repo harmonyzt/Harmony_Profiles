@@ -15,6 +15,8 @@ namespace PBT.Client;
 [BepInPlugin("com.local.pbt.client", "PBT", "0.14.0")]
 [BepInIncompatibility("com.local.profiles.client")]
 [BepInDependency("com.SPT.core", BepInDependency.DependencyFlags.HardDependency)]
+// Loads Fika first so the Fika check in Awake can see it.
+[BepInDependency("com.fika.core", BepInDependency.DependencyFlags.SoftDependency)]
 public sealed class Plugin : BaseUnityPlugin
 {
     private Harmony? harmony;

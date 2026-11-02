@@ -13,12 +13,12 @@ public sealed partial class PopulationStore
             reservedCareers.Remove(session.ToString());
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             population.SessionEndedUtc[session.ToString()] = now;
-            // Generated for this raid but never seen in it, so there is no story to wait for.
+            // Not seen in this raid yet. The client's last report can still arrive, so the world tick releases them in a minute and a half.
             foreach (var e in encounters.Values.Where(e => e.SessionId == session.ToString() && now - e.GeneratedUtc < 10800
                 && !population.RaidObservations.ContainsKey(e.AccountId) && !population.PendingStories.ContainsKey(e.AccountId)))
             {
-                if (population.Careers.TryGetValue(e.CareerId, out var c) && activities.TryGetValue(c.Id, out var a) && a.Held && !IsObservedActive(c, now))
-                    ToMenu(c, a, now);
+                if (population.Careers.TryGetValue(e.CareerId, out var c) && activities.TryGetValue(c.Id, out var a) && a.Held)
+                    a.Until = Math.Min(a.Until, now + 90);
             }
             dirty = true;
         }

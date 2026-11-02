@@ -28,17 +28,18 @@ public sealed partial class PopulationStore
             if (!population.PendingStories.ContainsKey(e.AccountId) && a.Held) ToMenu(c, a, now);
             return;
         }
-        double death = Math.Min(.95, policy.PostRaidDeathChance * DeathFactor(c));
+        double death = Math.Min(.95, (killer ? policy.PostRaidDeathChance : policy.RaidDeathChance) * DeathFactor(c));
+        double regear = killer ? policy.PostRaidRegearChance : policy.RaidRegearChance;
         double roll = Stable(e.AccountId + ":post-raid");
         var story = new PendingStory
         {
             CareerId = c.Id, Map = map, Killer = killer, GenerationOrder = e.GenerationOrder, ScheduledUtc = now,
             Outcome = roll < death ? "Died" : "Survived",
-            Regear = roll >= death && roll < death + policy.PostRaidRegearChance,
+            Regear = roll >= death && roll < death + regear,
             DueUtc = now + policy.StoryMinimumDelaySeconds
                 + (long)(Stable(e.AccountId + ":story-delay") * (policy.StoryMaximumDelaySeconds - policy.StoryMinimumDelaySeconds))
         };
-        var transits = FindMap(map)?.Transits.Where(t => FindMap(t) is not null).ToArray() ?? [];
+        var transits = TransitTargets(c, map).Select(m => m.Id).ToArray();
         if (story.Outcome == "Survived" && transits.Length > 0 && Stable(e.AccountId + ":transit") < policy.World.TransitChance)
         {
             story.Outcome = "Transit";
