@@ -16,7 +16,8 @@ public sealed partial class PopulationStore
         public bool WantsOffline;
     }
 
-    private sealed record WorldMap(string Id, string Name, double Weight, string[] Transits, int MinimumLevel, int MaximumLevel, bool WeeklyBoss);
+    // Solo maps run a private instance for you and your team, with no random PMCs.
+    private sealed record WorldMap(string Id, string Name, double Weight, string[] Transits, int MinimumLevel, int MaximumLevel, bool WeeklyBoss, bool Solo);
 
     private static readonly Dictionary<string, double> MapPopularity = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -24,6 +25,7 @@ public sealed partial class PopulationStore
         ["factory4_day"] = 8, ["lighthouse"] = 7, ["sandbox"] = 7, ["sandbox_high"] = 6, ["laboratory"] = 5, ["factory4_night"] = 3, ["labyrinth"] = 2
     };
     private static readonly HashSet<string> HiddenMaps = new(StringComparer.OrdinalIgnoreCase) { "hideout", "develop", "privatearea", "suburbs", "terminal", "town" };
+    private static readonly HashSet<string> SoloMaps = new(StringComparer.OrdinalIgnoreCase) { "icebreaker" };
     private static readonly HashSet<string> StreamerMaps = new(StringComparer.OrdinalIgnoreCase) { "laboratory", "tarkovstreets", "bigmap" };
     // Bosses that are normally a gamble. One of them at 100% is a weekly boss.
     private static readonly HashSet<string> HeadlineBosses = new(StringComparer.OrdinalIgnoreCase)
@@ -67,12 +69,13 @@ public sealed partial class PopulationStore
             if (b is null || string.IsNullOrEmpty(b.Id) || !b.Enabled || b.Locked == true || HiddenMaps.Contains(b.Id)) continue;
             string id = MapKey(b.Id);
             if (next.Any(m => m.Id == id)) continue;
-            bool weekly = b.BossLocationSpawn?.Any(s => s.BossChance >= 100 && s.BossName is { } boss && HeadlineBosses.Contains(boss)) == true;
+            bool solo = SoloMaps.Contains(id) || (b.BotMax == 0 && (b.Waves is null || b.Waves.Count == 0));
+            bool weekly = !solo && b.BossLocationSpawn?.Any(s => s.BossChance >= 100 && s.BossName is { } boss && HeadlineBosses.Contains(boss)) == true;
             string name = names.GetValueOrDefault(b.Id) ?? names.GetValueOrDefault(b.IdField + " Name") ?? b.Name ?? b.Id;
             var transits = (b.Transits ?? []).Where(t => t.IsActive != false && !string.IsNullOrEmpty(t.Location))
                 .Select(t => MapKey(t.Location)).Where(t => t != id).Distinct().ToArray();
-            next.Add(new(id, name, MapPopularity.GetValueOrDefault(id, 5), transits, b.RequiredPlayerLevelMin ?? 0,
-                b.RequiredPlayerLevelMax is > 0 ? b.RequiredPlayerLevelMax.Value : 100, weekly));
+            next.Add(new(id, name, MapPopularity.GetValueOrDefault(id, solo ? 3 : 5), transits, b.RequiredPlayerLevelMin ?? 0,
+                b.RequiredPlayerLevelMax is > 0 ? b.RequiredPlayerLevelMax.Value : 100, weekly, solo));
         }
         if (next.Count > 0) worldMaps = next;
     }
@@ -124,6 +127,8 @@ public sealed partial class PopulationStore
     // Busy maps fill a lobby fast. Quiet ones keep you waiting.
     private int QueueSeconds(string map, Dictionary<string, int>? counts = null)
     {
+        // No lobby to fill on a solo map, so the match is found almost at once.
+        if (FindMap(map)?.Solo == true) return (int)Math.Clamp(5 * policy.World.QueueTimeMultiplier, 3, 600);
         var playing = counts ?? PlayingCounts();
         double average = worldMaps.Count == 0 ? 1 : (double)playing.Where(p => worldMaps.Any(m => m.Id == p.Key)).Sum(p => p.Value) / worldMaps.Count;
         double ratio = (playing.GetValueOrDefault(MapKey(map)) + 1) / (average + 1);
@@ -293,6 +298,7 @@ public sealed partial class PopulationStore
     // Half the deaths name another career on the same map. The log only, no stats change.
     private string Killed(Career c, string mapId, string map)
     {
+        if (FindMap(mapId)?.Solo == true) return $"{c.Name} died on {map}";
         var others = population.Careers.Values.Where(o => o.Id != c.Id && activities.TryGetValue(o.Id, out var oa)
             && oa.State == "Raid" && oa.Map == mapId).Take(50).ToArray();
         if (others.Length > 0 && Random.Shared.NextDouble() < .5)
@@ -379,7 +385,7 @@ public sealed partial class PopulationStore
             var maps = worldMaps.Select(m =>
             {
                 int raid = raids.GetValueOrDefault(m.Id), queue = queues.GetValueOrDefault(m.Id);
-                return new WorldMapStatus(m.Id, m.Name, raid, queue, QueueSeconds(m.Id, counts), (raid + queue) / (double)playing, m.WeeklyBoss,
+                return new WorldMapStatus(m.Id, m.Name, raid, queue, QueueSeconds(m.Id, counts), (raid + queue) / (double)playing, m.WeeklyBoss, m.Solo,
                     mapHistory.TryGetValue(m.Id, out var points) ? points.ToArray() : []);
             }).OrderByDescending(m => m.InRaid + m.Queueing).ThenBy(m => m.Name).ToList();
             return new(live.Count(a => a.State != "Offline"), live.Count(a => a.State == "Raid"), live.Count(a => a.State == "Queue"),
@@ -419,6 +425,6 @@ public sealed partial class PopulationStore
     public Dictionary<string, object> MapIndicators()
     {
         var world = GetWorld(0);
-        return world.Maps.ToDictionary(m => m.Id, m => (object)new { m.InRaid, m.Queueing, m.Share, m.QueueSeconds, m.WeeklyBoss });
+        return world.Maps.ToDictionary(m => m.Id, m => (object)new { m.InRaid, m.Queueing, m.Share, m.QueueSeconds, m.WeeklyBoss, m.Solo });
     }
 }

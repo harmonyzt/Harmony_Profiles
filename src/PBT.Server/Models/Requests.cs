@@ -22,7 +22,7 @@ public sealed class MatchingRequest : IRequestData
 
 public sealed record WorldEvent(long Id, long Utc, string Kind, string Text, string Map);
 
-public sealed record WorldMapStatus(string Id, string Name, int InRaid, int Queueing, int QueueSeconds, double Share, bool WeeklyBoss, int[] History);
+public sealed record WorldMapStatus(string Id, string Name, int InRaid, int Queueing, int QueueSeconds, double Share, bool WeeklyBoss, bool Solo, int[] History);
 
 public sealed record WorldPlayerRow(string Name, string Side, string Personality, int Level, int Prestige, string State, string Status,
     string Map, long Since, int Raids, double KillDeath, bool Notable);

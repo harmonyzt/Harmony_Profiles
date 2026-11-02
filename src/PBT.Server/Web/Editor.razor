@@ -120,6 +120,7 @@
                             <div class="fb-slide-shade"></div>
                             <div class="fb-slide-body">
                                 @if (map.WeeklyBoss) { <span class="fb-badge fb-badge-yellow">Weekly boss</span> }
+                                @if (map.Solo) { <span class="fb-badge fb-badge-green">Solo instance</span> }
                                 <h2 class="fb-slide-name">@map.Name</h2>
                                 <ul class="fb-slide-stats">
                                     <li><strong>@Num("slide-raid-" + map.Id, map.InRaid)</strong><span>in raid</span></li>
@@ -162,7 +163,7 @@
                                 @foreach (var map in maps)
                                 {
                                     <tr @key="map.Id">
-                                        <td><strong>@map.Name</strong>@if (map.WeeklyBoss) { <span class="fb-badge fb-badge-yellow fb-inline-badge">Weekly boss</span> }</td>
+                                        <td><strong>@map.Name</strong>@if (map.WeeklyBoss) { <span class="fb-badge fb-badge-yellow fb-inline-badge">Weekly boss</span> }@if (map.Solo) { <span class="fb-badge fb-badge-green fb-inline-badge" title="Private instance, no random PMCs">Solo</span> }</td>
                                         <td>@Num("raid-" + map.Id, map.InRaid)</td><td>@Num("queue-" + map.Id, map.Queueing)</td><td>@Clock(map.QueueSeconds)</td>
                                         <td><span class="fb-signal" title="@((map.Share * 100).ToString("0.0"))% of players">@for (int bar = 0; bar < 4; bar++) { <span class="@(bar < Bars(map.Share) ? "fb-lit" : "")"></span> }</span></td>
                                         <td>@Sparkline(map.History)</td>
