@@ -12,7 +12,7 @@ using SPT.Common.Http;
 
 namespace PBT.Client;
 
-[BepInPlugin("com.local.pbt.client", "PBT", "0.14.0")]
+[BepInPlugin("com.local.pbt.client", "PBT", "1.0.0")]
 [BepInIncompatibility("com.local.profiles.client")]
 [BepInDependency("com.SPT.core", BepInDependency.DependencyFlags.HardDependency)]
 // Loads Fika first so the Fika check in Awake can see it.
