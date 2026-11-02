@@ -12,17 +12,20 @@ public sealed partial class PopulationStore
     private readonly Dictionary<string, string[]> squads = new();
 
     // About a third of careers have a steady squad. Membership comes from stable rolls on career ids, so restarts keep it.
+    // Squads keep to one side so they can spawn as one group in your raid.
     private void FormSquads()
     {
         squads.Clear();
-        var pool = population.Careers.Values.Where(c => !c.Retired && Stable(c.Id + ":squad") < .3)
-            .OrderBy(c => Stable(c.Id + ":squad-order")).ToList();
-        for (int i = 0; pool.Count - i >= 2;)
+        foreach (var side in population.Careers.Values.Where(c => !c.Retired && Stable(c.Id + ":squad") < .3).GroupBy(c => c.Side.ToLowerInvariant()))
         {
-            int size = Math.Min(pool.Count - i, 2 + (int)(Stable(pool[i].Id + ":squad-size") * 3));
-            var members = pool.GetRange(i, size).Select(c => c.Id).ToArray();
-            foreach (string id in members) squads[id] = members;
-            i += size;
+            var pool = side.OrderBy(c => Stable(c.Id + ":squad-order")).ToList();
+            for (int i = 0; pool.Count - i >= 2;)
+            {
+                int size = Math.Min(pool.Count - i, 2 + (int)(Stable(pool[i].Id + ":squad-size") * 3));
+                var members = pool.GetRange(i, size).Select(c => c.Id).ToArray();
+                foreach (string id in members) squads[id] = members;
+                i += size;
+            }
         }
     }
 

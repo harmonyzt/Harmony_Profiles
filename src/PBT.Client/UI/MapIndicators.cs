@@ -90,7 +90,7 @@ internal static class MapIndicators
         var label = button._spawnableToggle != null ? button._spawnableToggle.GetComponentInChildren<TextMeshProUGUI>(true) : null;
         if (label == null) return;
         var root = label.transform.Find(Name) as RectTransform ?? Create(label);
-        if (!stats.TryGetValue(id, out var stat))
+        if (!TryStat(id, out var stat))
         {
             root.gameObject.SetActive(false);
             return;
@@ -103,6 +103,15 @@ internal static class MapIndicators
             root.GetChild(i).GetComponent<Image>().color = i < bars ? lit : new Color(1, 1, 1, .2f);
         var time = root.GetChild(4).GetComponent<TextMeshProUGUI>();
         time.text = $"{stat.QueueSeconds / 60}:{stat.QueueSeconds % 60:D2}";
+    }
+
+    // Map select has one Factory button for both times of day, so it shows them combined.
+    private static bool TryStat(string id, out Stat stat)
+    {
+        if (!id.StartsWith("factory4", StringComparison.OrdinalIgnoreCase)) return stats.TryGetValue(id, out stat!);
+        bool day = stats.TryGetValue("factory4_day", out var d), night = stats.TryGetValue("factory4_night", out var n);
+        stat = !day ? n! : !night ? d : new Stat { Share = d.Share + n.Share, QueueSeconds = Math.Min(d.QueueSeconds, n.QueueSeconds), WeeklyBoss = d.WeeklyBoss || n.WeeklyBoss };
+        return day || night;
     }
 
     private static RectTransform Create(TextMeshProUGUI label)

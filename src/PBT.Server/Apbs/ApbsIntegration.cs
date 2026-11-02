@@ -231,20 +231,28 @@ public sealed partial class PopulationStore
         lock (gate)
         {
             if (!Ready) return false;
-            if (!reservedCareers.TryGetValue(scope.Session.ToString(), out var used))
-                reservedCareers.Add(scope.Session.ToString(), used = new());
+            string session = scope.Session.ToString();
+            if (!reservedCareers.TryGetValue(session, out var used)) reservedCareers.Add(session, used = new());
             string map = MapKey(scope.Details.Location);
             // Careers still playing out a story from your last raid are busy elsewhere.
             var storied = population.PendingStories.Values.Select(s => s.CareerId).ToHashSet();
             var candidates = population.Careers.Values.Where(c => !c.Retired && c.Side.Equals(scope.Details.Side, StringComparison.OrdinalIgnoreCase)
-                && !used.Contains(c.Id) && !storied.Contains(c.Id)).Select(c => new { Career = c, Level = Level(c.Experience), Weight = RaidWeight(c, map) })
+                && !used.Contains(c.Id) && !storied.Contains(c.Id))
+                .Select(c => new { Career = c, Level = Level(c.Experience), Weight = RaidWeight(c, map) * MatchBoost(session, map, c.Id) })
                 .Where(c => c.Level >= minimum && c.Level <= maximum && c.Weight > 0).ToArray();
             if (candidates.Length == 0) { ApbsFallback++; return false; }
-            int rolled = sampler(minimum, maximum, 1, 1.15);
-            int distance = candidates.Min(c => Math.Abs(c.Level - rolled));
-            // A couple of levels of slack lets queueing and transiting careers win over an exact level match.
-            var nearest = candidates.Where(c => Math.Abs(c.Level - rolled) <= distance + 2)
-                .Select(c => (c.Career, c.Level, Weight: c.Weight / (1 + Math.Abs(c.Level - rolled) - distance))).ToArray();
+            (Career Career, int Level, double Weight)[] nearest;
+            var mates = squadNext.TryGetValue(session, out var next) ? candidates.Where(c => next.Contains(c.Career.Id)).ToArray() : [];
+            if (mates.Length > 0 && Random.Shared.NextDouble() < .85)
+                nearest = mates.Select(c => (c.Career, c.Level, c.Weight)).ToArray();
+            else
+            {
+                int rolled = sampler(minimum, maximum, 1, 1.15);
+                int distance = candidates.Min(c => Math.Abs(c.Level - rolled));
+                // A couple of levels of slack lets queueing and transiting careers win over an exact level match. Your match ignores the roll.
+                nearest = candidates.Where(c => Math.Abs(c.Level - rolled) <= distance + 2 || MatchBoost(session, map, c.Career.Id) > 1)
+                    .Select(c => (c.Career, c.Level, Weight: c.Weight / (1 + Math.Max(0, Math.Abs(c.Level - rolled) - distance)))).ToArray();
+            }
             double roll = Random.Shared.NextDouble() * nearest.Sum(c => c.Weight);
             var selected = nearest[^1];
             foreach (var candidate in nearest) { roll -= candidate.Weight; if (roll <= 0) { selected = candidate; break; } }
@@ -252,6 +260,7 @@ public sealed partial class PopulationStore
             scope.Level = selected.Level;
             scope.Experience = selected.Career.Experience;
             used.Add(selected.Career.Id);
+            QueueSquadmates(session, selected.Career, used);
             ApbsMatched++;
             return true;
         }

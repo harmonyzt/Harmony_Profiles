@@ -17,6 +17,8 @@ internal static class Matching
     private static Func<bool>? fikaHost;
     private static AccessTools.FieldRef<TarkovApplication, RaidSettings>? raidSettings;
     private static bool passing;
+    // Set when this game ran the matching, so raid start can say how many careers actually loaded in.
+    private static bool matched;
 
     internal static void Install(Harmony harmony)
     {
@@ -65,8 +67,9 @@ internal static class Matching
         if (passing) { passing = false; return true; }
         try
         {
-            if (__args[0] is not TarkovApplication app || __args[2] is not RaidSettings settings || settings.isInTransition || !fikaHost!()) return true;
-            __result = Queue(app, settings.LocationId ?? "", () => (Task)__originalMethod.Invoke(null, __args));
+            if (__args[0] is not TarkovApplication app || __args[2] is not RaidSettings settings || settings.isInTransition) return true;
+            Func<Task> start = () => (Task)__originalMethod.Invoke(null, __args);
+            __result = fikaHost!() ? Queue(app, settings.LocationId ?? "", start) : FollowHost(app, settings.LocationId ?? "", start);
             return false;
         }
         catch (Exception ex) { Plugin.Report("Fika matching skipped: " + ex.Message); return true; }
@@ -80,10 +83,11 @@ internal static class Matching
                 new JObject { ["Map"] = map }.ToString(Newtonsoft.Json.Formatting.None)));
             bool known = response.Value<int>("ProtocolVersion") == 1;
             int seconds = known ? response.Value<int>("Seconds") : 0;
+            matched = known;
             if (seconds > 0)
             {
                 var random = new Random();
-                int looking = random.Next(5000, 15001);
+                int looking = response.Value<int?>("Looking") is int served and > 0 ? served * 1000 : random.Next(5000, 15001);
                 Plugin.Trace($"Matching on {map}: {seconds}s, then {looking / 1000}s looking for a server.");
                 Status(app, "Matching...");
                 await Task.Delay(seconds * 1000);
@@ -100,6 +104,54 @@ internal static class Matching
         catch (Exception ex) { Plugin.Report("Matching simulation skipped: " + ex.Message); }
         passing = true;
         await start();
+    }
+
+    // Fika clients wait for the host anyway. Show the host's matching stages meanwhile instead of a blank wait.
+    private static async Task FollowHost(TarkovApplication app, string map, Func<Task> start)
+    {
+        passing = true;
+        var game = start();
+        try
+        {
+            // The host may still be loading, so keep asking until its matching starts.
+            for (int tries = 0; !game.IsCompleted && tries < 60; tries++)
+            {
+                var response = JObject.Parse(await RequestHandler.PostJsonAsync("/pbt/world/matching/host",
+                    new JObject { ["Map"] = map }.ToString(Newtonsoft.Json.Formatting.None)));
+                int seconds = response.Value<int>("ProtocolVersion") == 1 ? response.Value<int>("Seconds") : 0;
+                if (seconds <= 0) { await Task.WhenAny(game, Task.Delay(2000)); continue; }
+                long matching = seconds * 1000L, looking = matching + response.Value<int>("Looking") * 1000L, offset = response.Value<long>("ElapsedMs");
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                for (long elapsed = offset; !game.IsCompleted && elapsed < looking; elapsed = offset + clock.ElapsedMilliseconds)
+                {
+                    Status(app, elapsed < matching ? "Matching..." : "Looking for server...");
+                    await Task.WhenAny(game, Task.Delay(500));
+                }
+                if (!game.IsCompleted) Status(app, "Awaiting server response...");
+                break;
+            }
+        }
+        catch (Exception ex) { Plugin.Report("Host matching status unavailable: " + ex.Message); }
+        await game;
+    }
+
+    // Bots are generated while the raid loads, so the real count is only known once it starts.
+    internal static void RaidStarted()
+    {
+        if (!matched) return;
+        matched = false;
+        _ = LogRaid();
+    }
+
+    private static async Task LogRaid()
+    {
+        try
+        {
+            var response = JObject.Parse(await RequestHandler.GetJsonAsync("/pbt/world/raid"));
+            if (response.Value<int>("ProtocolVersion") != 1) return;
+            Plugin.Trace($"Raid started with {response.Value<int>("Loaded")} PBT profile(s).");
+        }
+        catch (Exception ex) { Plugin.Report("Raid profile count unavailable: " + ex.Message); }
     }
 
     // A headless host has no matchmaker screen.

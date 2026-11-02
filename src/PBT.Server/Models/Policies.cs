@@ -154,6 +154,8 @@ public sealed class WorldSettings
     // Streamers and chads crowd Labs, Streets and Customs and turn up in your raids there more.
     public double StreamerMapBoost { get; set; } = 2.5;
     public double QueueTimeMultiplier { get; set; } = 1;
+    // Fewer careers online late at night (your local time), more on evenings and weekends.
+    public bool PeakHours { get; set; } = true;
     // The client shows Matching / Looking for server before a raid, capped at this many seconds.
     public bool SimulateMatching { get; set; } = true;
     public int MaximumMatchingSeconds { get; set; } = 45;

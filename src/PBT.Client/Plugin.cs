@@ -97,6 +97,8 @@ public sealed class Plugin : BaseUnityPlugin
         if (__instance.MainPlayer?.IsYourPlayer != true) return;
         raidId = Guid.NewGuid().ToString("N");
         captured = false;
+        try { Matching.RaidStarted(); }
+        catch (Exception ex) { Report("Raid profile count failed: " + ex.Message); }
         try { RaidActivity.Start(__instance, raidId); }
         catch (Exception ex) { Report("Raid observation startup failed: " + ex.Message); }
         pendingAccount = "";

@@ -130,7 +130,21 @@ public sealed partial class PopulationStore
         if (c.Retired || c.DailyRaidHours <= 0) return false;
         bool friend = population.Friendships.Values.Any(links => links.TryGetValue(c.Id, out var f) && f.Accepted && !f.Removed);
         return Random.Shared.NextDouble() < Math.Min(.85,
-            c.DailyRaidHours / 24 * settings.OnlineRateMultiplier * (friend ? settings.FriendActivityMultiplier : 1));
+            c.DailyRaidHours / 24 * settings.OnlineRateMultiplier * (friend ? settings.FriendActivityMultiplier : 1) * (policy.World.PeakHours ? PeakFactor(DateTime.Now) : 1));
+    }
+
+    private static readonly (double Hour, double Factor)[] PeakCurve =
+        [(0, .9), (3, .5), (6, .35), (9, .55), (13, .85), (17, 1.15), (21, 1.4), (24, .9)];
+
+    private static double PeakFactor(DateTime local)
+    {
+        double hour = local.TimeOfDay.TotalHours;
+        int i = 1;
+        while (PeakCurve[i].Hour < hour) i++;
+        var (h0, f0) = PeakCurve[i - 1];
+        var (h1, f1) = PeakCurve[i];
+        double factor = f0 + (f1 - f0) * (hour - h0) / (h1 - h0);
+        return local.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? factor * 1.15 : factor;
     }
 
     private void AdvanceOnline(long now)
