@@ -214,7 +214,7 @@
                                 <tr @key="row.Name + row.Side">
                                     <td><span class="fb-person"><span class="fb-avatar @(row.Side.Equals("Bear", StringComparison.OrdinalIgnoreCase) ? "fb-avatar-bear" : "fb-avatar-usec")">@row.Name[..1].ToUpperInvariant()</span><span><strong>@row.Name</strong><small>@row.Side.ToUpperInvariant()@(row.Notable ? " · streamer" : "")@if (row.Squad.Length > 0) { <span class="fb-squad" title="Squad with @string.Join(", ", row.Squad)">@Icon("Users") @(row.Squad.Length + 1)</span> }</small></span></span></td>
                                     <td>@row.Personality</td><td>@row.Level</td><td>@row.Prestige</td><td>@row.Raids.ToString("N0")</td><td>@row.KillDeath.ToString("0.00")</td>
-                                    <td><span class="fb-status"><span class="fb-status-dot fb-state-@row.State.ToLowerInvariant()"></span><span class="fb-status-text fb-text-@row.State.ToLowerInvariant()">@row.Status</span></span></td>
+                                    <td><span class="fb-state fb-state-@row.State.ToLowerInvariant()"><span class="fb-state-label">@StateLabel(row.State)</span>@if (row.Status.Length > 0) { <span class="fb-state-detail">@row.Status</span> }</span></td>
                                     <td class="fb-muted">@(row.Since > 0 ? Duration(row.Since) : "")</td>
                                 </tr>
                             }
@@ -640,6 +640,8 @@
         var sorted = sortDescending ? rows.OrderByDescending(key) : rows.OrderBy(key);
         return sorted.ThenByDescending(p => p.Level).ThenBy(p => p.Name);
     }
+    private static string StateLabel(string state) => state switch {
+        "Raid" => "In raid", "Queue" => "Queueing", "Transit" => "Transit", "Menu" => "Online", "Afk" => "AFK", "Died" => "Dead", _ => "Offline" };
     private static int StateOrder(string state) => state switch { "Raid" => 0, "Queue" => 1, "Transit" => 2, "Menu" => 3, "Afk" => 4, "Died" => 5, _ => 6 };
     private static int Hue(string id) => (int)((uint)id.Aggregate(17, (h, c) => h * 31 + c) % 360);
     private static int Bars(double share) => share >= .15 ? 4 : share >= .09 ? 3 : share >= .04 ? 2 : share > 0 ? 1 : 0;

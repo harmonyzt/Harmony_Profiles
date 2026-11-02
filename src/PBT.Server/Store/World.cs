@@ -379,17 +379,18 @@ public sealed partial class PopulationStore
     {
         var a = activities.GetValueOrDefault(c.Id);
         if (a is null || c.Retired || a.State == "Offline")
-            return now - c.DiedUtc < 1800 && c.NeedsRegear ? ("Died", "Died", "", c.DiedUtc) : ("Offline", "Offline", "", a?.Since ?? 0);
+            return now - c.DiedUtc < 1800 && c.NeedsRegear ? ("Died", "", "", c.DiedUtc) : ("Offline", "", "", a?.Since ?? 0);
+        // Status is the detail next to the state label in the editor.
         string map = MapLabel(a.Map), squad = a.Party.Length > 1 ? $" · squad of {a.Party.Length}" : "";
         return a.State switch
         {
-            "Queue" => ("Queue", $"Queueing for {map}{squad}", a.Map, a.Since),
-            "Raid" when a.Held && observed.Contains(c.Id) => ("Raid", $"In your raid on {map}", a.Map, a.Since),
-            "Raid" => ("Raid", $"In raid on {map}{squad}", a.Map, a.Since),
-            "Transit" => ("Transit", $"Transiting to {MapLabel(a.Target)}", a.Target, a.Since),
-            _ when c.NeedsRegear => ("Died", "Died, gearing up again", "", c.DiedUtc),
-            _ when a.Doing == "AFK" => ("Afk", "AFK", "", a.Since),
-            _ => ("Menu", a.Doing.Length > 0 ? a.Doing : "In the main menu", "", a.Since)
+            "Queue" => ("Queue", map + squad, a.Map, a.Since),
+            "Raid" when a.Held && observed.Contains(c.Id) => ("Raid", map + " · your raid", a.Map, a.Since),
+            "Raid" => ("Raid", map + squad, a.Map, a.Since),
+            "Transit" => ("Transit", "to " + MapLabel(a.Target), a.Target, a.Since),
+            _ when c.NeedsRegear => ("Died", "Gearing up again", "", c.DiedUtc),
+            _ when a.Doing == "AFK" => ("Afk", "", "", a.Since),
+            _ => ("Menu", a.Doing.Length > 0 ? a.Doing : "Main menu", "", a.Since)
         };
     }
 
