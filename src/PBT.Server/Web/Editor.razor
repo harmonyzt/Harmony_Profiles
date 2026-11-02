@@ -503,7 +503,8 @@
                 </div>
             }
             <section class="fb-card fb-flush">
-                <div class="fb-card-head fb-padded"><div><h2>Presets</h2><p>A preset holds personalities, simulation and population settings. Share one by dropping its .json file in the mod's Presets folder.</p></div></div>
+                <div class="fb-card-head fb-padded"><div><h2>Presets</h2><p>A preset holds personalities, simulation and population settings. Share one by dropping its .json file in the mod's Presets folder.</p></div>
+                    <div class="fb-actions"><button type="button" class="fb-button fb-button-light" title="@presetFolder" @onclick="OpenPresetFolder">Open presets folder</button><button type="button" class="fb-button fb-button-light" @onclick="LoadPresets">@Icon("Reload") Refresh</button></div></div>
                 <div class="fb-table-scroll">
                     <table class="fb-table">
                         <thead><tr><th>Name</th><th>Status</th><th></th></tr></thead>
@@ -808,10 +809,20 @@
         }
         catch when (!rethrow) { }
     }
+    private string presetFolder = "";
     private void LoadPresets()
     {
-        try { presets = Store.GetPresets(); }
+        try { presets = Store.GetPresets(); presetFolder = Store.PresetFolderPath; }
         catch (Exception ex) { Notify(true, ex.Message); }
+    }
+    private void OpenPresetFolder()
+    {
+        try
+        {
+            Store.OpenPresetFolder();
+            Notify(false, "Opened " + presetFolder + " on the server's PC. Press Refresh after adding presets.");
+        }
+        catch (Exception ex) { Notify(true, $"Could not open the folder ({ex.Message}). It is at {presetFolder}"); }
     }
     private void LoadPreset(string name, bool discard)
     {

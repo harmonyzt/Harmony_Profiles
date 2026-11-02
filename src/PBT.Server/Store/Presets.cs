@@ -124,6 +124,21 @@ public sealed partial class PopulationStore
         }
     }
 
+    public string PresetFolderPath
+    {
+        get { Directory.CreateDirectory(PresetFolder); return PresetFolder; }
+    }
+
+    // Opens on the server's desktop, which is the user's own PC for a normal SPT install.
+    public void OpenPresetFolder()
+    {
+        string folder = PresetFolderPath;
+        var start = OperatingSystem.IsWindows() ? new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{folder}\"")
+            : new System.Diagnostics.ProcessStartInfo(OperatingSystem.IsMacOS() ? "open" : "xdg-open", folder);
+        start.UseShellExecute = false;
+        using var process = System.Diagnostics.Process.Start(start);
+    }
+
     public void DeletePreset(string name)
     {
         lock (gate)
