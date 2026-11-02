@@ -153,6 +153,8 @@ public sealed class WorldSettings
     public double WeeklyBossBoost { get; set; } = 1.6;
     // Streamers and chads crowd Labs, Streets and Customs and turn up in your raids there more.
     public double StreamerMapBoost { get; set; } = 2.5;
+    // Names like FactoryRat or CustomsMain play that map more and spawn there more.
+    public double NameMapBoost { get; set; } = 4;
     public double QueueTimeMultiplier { get; set; } = 1;
     // Fewer careers online late at night (your local time), more on evenings and weekends.
     public bool PeakHours { get; set; } = true;
@@ -164,8 +166,9 @@ public sealed class WorldSettings
     {
         if (!double.IsFinite(TransitChance) || TransitChance is < 0 or > 1 || !double.IsFinite(LogOffChance) || LogOffChance is < 0 or > 1
             || !double.IsFinite(WeeklyBossBoost) || WeeklyBossBoost is < 1 or > 5 || !double.IsFinite(StreamerMapBoost) || StreamerMapBoost is < 1 or > 10
+            || !double.IsFinite(NameMapBoost) || NameMapBoost is < 1 or > 10
             || !double.IsFinite(QueueTimeMultiplier) || QueueTimeMultiplier is < .1 or > 10 || MaximumMatchingSeconds is < 0 or > 600)
-            throw new InvalidDataException("World chances must be 0-1, boosts 1-5 (streamers 1-10), queue multiplier 0.1-10 and matching 0-600 seconds.");
+            throw new InvalidDataException("World chances must be 0-1, boosts 1-5 (streamer and name boosts 1-10), queue multiplier 0.1-10 and matching 0-600 seconds.");
     }
 }
 

@@ -36,6 +36,14 @@ public sealed partial class PopulationStore
     };
     private static readonly HashSet<string> SoloMaps = new(StringComparer.OrdinalIgnoreCase) { "icebreaker" };
     private static readonly HashSet<string> StreamerMaps = new(StringComparer.OrdinalIgnoreCase) { "laboratory", "tarkovstreets", "bigmap" };
+    // Name fragments that tie a player to a map. "lab" alone would match too many unrelated names.
+    private static readonly Dictionary<string, string[]> MapNameWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["factory4_day"] = ["factory"], ["factory4_night"] = ["factory"], ["bigmap"] = ["customs"], ["woods"] = ["woods"],
+        ["interchange"] = ["interchange"], ["tarkovstreets"] = ["streets"], ["shoreline"] = ["shoreline"], ["rezervbase"] = ["reserve", "rezerv"],
+        ["lighthouse"] = ["lighthouse"], ["sandbox"] = ["groundzero"], ["sandbox_high"] = ["groundzero"], ["laboratory"] = ["labs", "laboratory"],
+        ["labyrinth"] = ["labyrinth"], ["icebreaker"] = ["icebreaker"]
+    };
     // Bosses that are normally a gamble. One of them at 100% is a weekly boss.
     private static readonly HashSet<string> HeadlineBosses = new(StringComparer.OrdinalIgnoreCase)
         { "bossBully", "bossKilla", "bossKojaniy", "bossGluhar", "bossSanitar", "bossTagilla", "bossKnight", "bossBoar", "bossKolontay", "bossPartisan" };
@@ -100,6 +108,7 @@ public sealed partial class PopulationStore
         // Labs needs a keycard, so low levels almost never go.
         if (map.Id == "laboratory" && level < 20) weight *= .1;
         if (Notable(c) && StreamerMaps.Contains(map.Id)) weight *= policy.World.StreamerMapBoost;
+        if (NamedForMap(c, map.Id)) weight *= policy.World.NameMapBoost;
         weight *= c.Archetype switch
         {
             "Timmy" => map.Id is "factory4_day" or "bigmap" or "woods" or "sandbox" ? 1.4 : map.Id == "laboratory" ? .15 : 1,
@@ -372,7 +381,16 @@ public sealed partial class PopulationStore
             _ => 1
         };
         if (Notable(c) && StreamerMaps.Contains(map)) weight *= policy.World.StreamerMapBoost;
+        if (NamedForMap(c, map)) weight *= policy.World.NameMapBoost;
         return weight;
+    }
+
+    private static bool NamedForMap(Career c, string map)
+    {
+        if (!MapNameWords.TryGetValue(map, out var words) || string.IsNullOrEmpty(c.Name)) return false;
+        // Letters only, so Ground_Zero and ground-zero still match.
+        string name = new(c.Name.Where(char.IsLetter).ToArray());
+        return words.Any(w => name.Contains(w, StringComparison.OrdinalIgnoreCase));
     }
 
     private (string State, string Status, string Map, long Since) Describe(Career c, long now, HashSet<string> observed)

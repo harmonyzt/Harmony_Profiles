@@ -19,6 +19,8 @@ internal static class Matching
     private static bool passing;
     // Set when this game ran the matching, so raid start can say how many careers actually loaded in.
     private static bool matched;
+    // Set while a raid loads after a simulated queue.
+    private static bool onlineWording;
 
     internal static void Install(Harmony harmony)
     {
@@ -27,6 +29,20 @@ internal static class Matching
         if (create?.ReturnType != typeof(Task) || AccessTools.Property(typeof(TarkovApplication), "Matchmaker") is null)
             throw new MissingMethodException("Local game creation hook unavailable.");
         harmony.Patch(create, prefix: new HarmonyMethod(typeof(Matching), nameof(Create)));
+        InstallStatus(harmony);
+    }
+
+    private static void InstallStatus(Harmony harmony)
+    {
+        var update = AccessTools.Method(typeof(EFT.UI.Matchmaker.MatchmakerPlayersController), nameof(EFT.UI.Matchmaker.MatchmakerPlayersController.UpdateMatchingStatus));
+        if (update is null) { Plugin.Report("Matching status rename unavailable."); return; }
+        harmony.Patch(update, prefix: new HarmonyMethod(typeof(Matching), nameof(Rename)));
+    }
+
+    // After a simulated online queue, the vanilla offline wording gives the game away.
+    private static void Rename(ref string status)
+    {
+        if (onlineWording && status == "Local game starting...") status = "Connecting to server";
     }
 
     // Fika replaces LocalGameCreate, so wait inside its game creation instead. Only the host waits:
@@ -49,6 +65,7 @@ internal static class Matching
             fikaCreates.Add(method);
         }
         if (fikaCreates.Count == 0) throw new MissingMethodException("Fika game creation hook unavailable.");
+        InstallStatus(harmony);
     }
 
     private static bool Create(TarkovApplication __instance, object[] __args, ref Task __result)
@@ -84,6 +101,7 @@ internal static class Matching
             bool known = response.Value<int>("ProtocolVersion") == 1;
             int seconds = known ? response.Value<int>("Seconds") : 0;
             matched = known;
+            onlineWording = seconds > 0;
             if (seconds > 0)
             {
                 var random = new Random();
@@ -138,6 +156,7 @@ internal static class Matching
     // Bots are generated while the raid loads, so the real count is only known once it starts.
     internal static void RaidStarted()
     {
+        onlineWording = false;
         if (!matched) return;
         matched = false;
         _ = LogRaid();

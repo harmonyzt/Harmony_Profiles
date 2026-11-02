@@ -26,7 +26,7 @@
 .pbt-editor .fb-topbar {grid-column:1/-1;position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:12px;height:64px;padding:0 16px;background:var(--fb-surface);border-bottom:1px solid var(--fb-border)}
 .pbt-editor .fb-brand {display:flex;align-items:center;gap:10px;color:var(--fb-text);font-size:20px;font-weight:600;white-space:nowrap}
 .pbt-editor .fb-brand small {font-size:14px;font-weight:400;color:var(--fb-muted)}
-.pbt-editor .fb-logo {display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:var(--fb-primary);color:#fff;font-size:16px;font-weight:700}
+.pbt-editor .fb-logo {display:block;width:32px;height:32px;border-radius:8px;object-fit:cover}
 .pbt-editor .fb-spacer {flex:1}
 .pbt-editor .fb-icon-button {display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:8px;background:transparent;color:var(--fb-muted);cursor:pointer}
 .pbt-editor .fb-icon-button:hover {background:var(--fb-surface-2);color:var(--fb-text)}
@@ -36,6 +36,9 @@
 .pbt-editor .fb-pill-dot {width:8px;height:8px;border-radius:50%;background:currentColor}
 .pbt-editor .fb-pill-green {background:var(--fb-green-soft);color:var(--fb-green-text)}
 .pbt-editor .fb-pill-red {background:var(--fb-red-soft);color:var(--fb-red-text)}
+.pbt-editor .fb-pill-button {border:0;background:var(--fb-surface-2);color:var(--fb-muted);font-family:inherit;cursor:pointer}
+.pbt-editor .fb-pill-button:hover {color:var(--fb-text)}
+.pbt-editor .fb-actions-end {justify-content:flex-end}
 
 /* Sidebar */
 .pbt-editor .fb-sidebar {position:sticky;top:64px;height:calc(100vh - 64px);overflow-y:auto;display:flex;flex-direction:column;justify-content:space-between;padding:20px 12px;background:var(--fb-surface);border-right:1px solid var(--fb-border);z-index:20}

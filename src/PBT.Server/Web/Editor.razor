@@ -13,15 +13,20 @@
 
 @{ dirtyCache.Clear(); }
 <PageTitle>PBT - Progressive Bot Profiles</PageTitle>
+<HeadContent><link rel="icon" type="image/png" href="/pbt-assets/icon-128.png" /></HeadContent>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-<link href="/pbt-assets/pbt.css?v=20261102-ui" rel="stylesheet" />
+<link href="/pbt-assets/pbt.css?v=20261102-presets" rel="stylesheet" />
 <div class="pbt-editor" data-theme="@(dark ? "dark" : "light")">
     <nav class="fb-topbar">
         <button type="button" class="fb-icon-button fb-menu" aria-label="Toggle navigation" aria-expanded="@(menuOpen ? "true" : "false")" @onclick="() => menuOpen = !menuOpen">
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14" /></svg>
         </button>
-        <span class="fb-brand"><span class="fb-logo" aria-hidden="true">P</span><span>PBT</span><small>Progressive Bot Profiles</small></span>
+        <span class="fb-brand"><img class="fb-logo" src="/pbt-assets/icon-128.png" alt="" /><span>PBT</span><small>Progressive Bot Profiles</small></span>
         <span class="fb-spacer"></span>
+        @if (presets.FirstOrDefault(p => p.Selected) is { } chosen)
+        {
+            <button type="button" class="fb-pill fb-pill-button" title="Manage presets" @onclick='() => Go("Presets")'>Preset: @chosen.Name@(chosen.Modified ? " (changed)" : "")</button>
+        }
         @if (snapshot is null) { <span class="fb-pill fb-pill-red"><span class="fb-pill-dot" aria-hidden="true"></span>Settings unavailable</span> }
         <button type="button" class="fb-icon-button" title="@(dark ? "Switch to light mode" : "Switch to dark mode")" aria-label="Toggle dark mode" @onclick="() => dark = !dark">
             @if (dark)
@@ -113,7 +118,7 @@
         else if (page == "Overview")
         {
             var maps = world?.Maps ?? [];
-            <section class="fb-hero" aria-label="Maps">
+            <section class="fb-hero" aria-label="Maps" @onmouseenter="() => slideHover = true" @onmouseleave="() => slideHover = false">
                 <div class="fb-hero-track" style="transform:translateX(-@(slide * 100)%)">
                     @foreach (var map in maps)
                     {
@@ -139,7 +144,7 @@
                         @for (int index = 0; index < maps.Count; index++)
                         {
                             int target = index;
-                            <button type="button" class="@(index == slide ? "fb-dot-active" : "")" aria-label="Show @maps[index].Name" @onclick="() => slide = target"></button>
+                            <button type="button" class="@(index == slide ? "fb-dot-active" : "")" aria-label="Show @maps[index].Name" @onclick="() => { slide = target; slideHeld = true; }"></button>
                         }
                     </div>
                 }
@@ -460,6 +465,7 @@
             <section class="fb-card"><h2>Maps and queues</h2><p class="fb-muted">Online careers queue for a map, play a raid, extract, die or transit, then queue again or log off. Busy maps fill faster. Raid time is earned raid by raid, so profiles match what the maps show.</p><div class="fb-grid fb-grid-3">
                 <label class="fb-field"><span class="fb-label">Weekly boss boost@(Tip("Popularity of a map whose headline boss is guaranteed. Weekly boss rotations set one boss to 100%, so its map gets busier."))</span><input type="number" min="1" max="5" step="0.1" @bind="simulation.World.WeeklyBossBoost" /></label>
                 <label class="fb-field"><span class="fb-label">Streamer map boost@(Tip("How much more streamers and chads play Labs, Streets and Customs, and how much more often they spawn in your raids there."))</span><input type="number" min="1" max="10" step="0.1" @bind="simulation.World.StreamerMapBoost" /></label>
+                <label class="fb-field"><span class="fb-label">Map name boost@(Tip("How much more players with a map in their name (FactoryRat, CustomsMain) play that map, and how much more often they spawn in your raids there."))</span><input type="number" min="1" max="10" step="0.1" @bind="simulation.World.NameMapBoost" /></label>
                 <label class="fb-field"><span class="fb-label">Queue time multiplier@(Tip("Scales every simulated queue time. 2 doubles them."))</span><input type="number" min="0.1" max="10" step="0.1" @bind="simulation.World.QueueTimeMultiplier" /></label>
                 <label class="fb-field"><span class="fb-label">Transit chance@(Tip("Chance (0 to 1) that a survivor moves on to a connected map with its gear, in the world and after your raids."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.World.TransitChance" /></label>
                 <label class="fb-field"><span class="fb-label">Log off after a raid@(Tip("Chance (0 to 1) that a career logs off after a raid instead of queueing again. Deaths log off a bit more often."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.World.LogOffChance" /></label>
@@ -486,6 +492,58 @@
             </section>
             @SimulationSave
         }
+        else if (page == "Presets")
+        {
+            var active = presets.FirstOrDefault(p => p.Selected);
+            if (confirmPreset.Length > 0)
+            {
+                <div class="fb-alert fb-alert-yellow" role="alertdialog" aria-label="Discard unsaved settings">
+                    <div><strong>Load @confirmPreset and discard unsaved changes?</strong> Every section with edits goes back to the preset.</div>
+                    <div class="fb-actions"><button type="button" class="fb-button fb-button-red" @onclick="() => LoadPreset(confirmPreset, true)">Discard and load</button><button type="button" class="fb-button fb-button-light" @onclick='() => confirmPreset = ""'>Keep editing</button></div>
+                </div>
+            }
+            <section class="fb-card fb-flush">
+                <div class="fb-card-head fb-padded"><div><h2>Presets</h2><p>A preset holds personalities, simulation and population settings. Share one by dropping its .json file in the mod's Presets folder.</p></div></div>
+                <div class="fb-table-scroll">
+                    <table class="fb-table">
+                        <thead><tr><th>Name</th><th>Status</th><th></th></tr></thead>
+                        <tbody>
+                            @foreach (var preset in presets)
+                            {
+                                <tr>
+                                    <td><strong>@preset.Name</strong>@if (preset.BuiltIn) { <small class="fb-muted"> · built in</small> }</td>
+                                    <td>@if (preset.Selected) { <span class="fb-badge @(preset.Modified ? "fb-badge-yellow" : "fb-badge-green")">@(preset.Modified ? "Active, changed since" : "Active")</span> }</td>
+                                    <td><div class="fb-actions fb-actions-end">
+                                        <button type="button" class="fb-button fb-button-light" @onclick="() => LoadPreset(preset.Name, false)">Load</button>
+                                        @if (!preset.BuiltIn)
+                                        {
+                                            if (confirmDelete == preset.Name)
+                                            {
+                                                <button type="button" class="fb-button fb-button-red" @onclick="() => DeletePreset(preset.Name)">Delete for good</button>
+                                            }
+                                            else
+                                            {
+                                                <button type="button" class="fb-button fb-button-light" @onclick="() => confirmDelete = preset.Name">Delete</button>
+                                            }
+                                        }
+                                    </div></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            <section class="fb-card"><h2>Save current settings</h2><p class="fb-muted">Saves every page's current values, unsaved edits included, applies them and makes the preset active.</p>
+                <div class="fb-toolbar">
+                    <label class="fb-field"><span class="fb-label">New preset name</span><input maxlength="40" placeholder="My preset" @bind="presetName" @bind:event="oninput" /></label>
+                    <button type="button" class="fb-button" disabled="@(string.IsNullOrWhiteSpace(presetName))" @onclick="() => SavePreset(presetName, false)">Save as new preset</button>
+                    @if (active is { BuiltIn: false })
+                    {
+                        <button type="button" class="fb-button fb-button-light" @onclick="() => SavePreset(active.Name, true)">Update @active.Name</button>
+                    }
+                </div>
+            </section>
+        }
         else
         {
             <section class="fb-card"><h2>Friendships</h2>
@@ -506,7 +564,7 @@
 </div>
 
 @code {
-    private static readonly string[] topPages = ["Overview", "Dashboard", "Players", "Personalities", "Simulation", "Population"];
+    private static readonly string[] topPages = ["Overview", "Dashboard", "Players", "Personalities", "Simulation", "Population", "Presets"];
     private static readonly string[] simulationPages = ["Progression", "Hideout", "Gear", "Notable", "Prestige", "Stories", "Messages", "World"];
     private static readonly (string Value, string Label)[] statusFilters =
         [("", "Everyone"), ("Online", "Online"), ("Raid", "In raid"), ("Queue", "Queueing"), ("Menu", "Main menu"), ("Afk", "AFK"), ("Transit", "In transit"), ("Died", "Died"), ("Offline", "Offline"), ("Squad", "In a squad")];
@@ -516,13 +574,15 @@
     private WorldSnapshot? world;
     private List<WorldPlayerRow> players = new();
     private List<PersonalityTemplate> people = new();
+    private List<PresetInfo> presets = new();
+    private string presetName = "", confirmPreset = "", confirmDelete = "";
     private SimulationPolicy simulation = new();
     private PbtSettings config = new();
     private readonly Dictionary<string, string> baselines = new();
     private readonly Dictionary<string, double> shownNumbers = new(), targetNumbers = new();
     private string page = "Overview", message = "", playerSearch = "", playerFilter = "", playerSort = "Status";
     private int selectedIndex, slide, playerPage, ticks;
-    private bool error, confirmReload, dark = true, menuOpen, simulationOpen = true, sortDescending, animating;
+    private bool error, confirmReload, dark = true, menuOpen, simulationOpen = true, sortDescending, animating, slideHeld, slideHover;
     private System.Threading.Timer? live;
 
     private RenderFragment SimulationSave => @<div class="fb-savebar"><span>Saves every Simulation page at once.</span><button type="button" class="fb-button" disabled="@(!Dirty("simulation"))" @onclick="SavePolicy">Save simulation policy</button></div>;
@@ -544,9 +604,10 @@
         "Prestige" => "When simulated accounts prestige, and how many start prestiged.",
         "Stories" => "What happens to the PMCs from your raid after it ends.",
         "Messages" => "Rare post-raid messages from careers you met.",
+        "Presets" => "Named sets of every setting. Load one, tweak anything, then save it under a new name.",
         _ => "Friendships and activity between server sessions." };
     private static string? Section(string page) => page switch {
-        "Personalities" => "personalities", "Population" => "settings", "Dashboard" or "Overview" or "Players" => null, _ => "simulation" };
+        "Personalities" => "personalities", "Population" => "settings", "Dashboard" or "Overview" or "Players" or "Presets" => null, _ => "simulation" };
     // preventDefault keeps a click on the icon from toggling or focusing the label's control.
     private static RenderFragment Tip(string text) => @<span class="fb-tip" tabindex="0" @onclick:preventDefault="true"><span aria-hidden="true">?</span><span class="fb-tip-text" role="tooltip">@text</span></span>;
     private static string Percent(int part, int whole) => (part * 100.0 / whole).ToString("0.0") + "%";
@@ -570,6 +631,7 @@
         "Reload" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M16.5 10A6.5 6.5 0 1 1 14.6 5.4M16.5 3v3.5H13" /></svg>,
         "Home" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 9.5 10 3l7 6.5M5 8v8.5h4V12h2v4.5h4V8" /></svg>,
         "Clock" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 6v4l2.5 2.5" /></svg>,
+        "Presets" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 3.5h12v13H4ZM7 7h6M7 10h6M7 13h3" /></svg>,
         "Plus" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>,
         _ => @<svg class="fb-icon fb-icon-sm" viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg> };
 
@@ -599,7 +661,10 @@
     {
         ClearNotice();
         page = next;
+        slideHeld = slideHover = false;
+        confirmPreset = confirmDelete = "";
         if (next is "Overview" or "Players") LoadWorld();
+        if (next == "Presets") LoadPresets();
         menuOpen = false;
         if (simulationPages.Contains(next)) simulationOpen = true;
     }
@@ -615,6 +680,7 @@
     {
         Reload();
         LoadWorld();
+        try { presets = Store.GetPresets(); } catch { }
     }
     protected override void OnAfterRender(bool first)
     {
@@ -638,7 +704,8 @@
         if (page is "Overview" or "Players") LoadWorld();
         else if (page == "Dashboard") UpdateStatus();
         else return;
-        if (page == "Overview" && ++ticks % 2 == 0 && world?.Maps.Count > 1) slide = (slide + 1) % world.Maps.Count;
+        // A picked slide stays put until the user leaves the page.
+        if (page == "Overview" && !slideHeld && !slideHover && ++ticks % 2 == 0 && world?.Maps.Count > 1) slide = (slide + 1) % world.Maps.Count;
         StateHasChanged();
         // Ease shown numbers toward the values the last render asked for.
         animating = true;
@@ -738,6 +805,49 @@
         }
         catch when (!rethrow) { }
     }
+    private void LoadPresets()
+    {
+        try { presets = Store.GetPresets(); }
+        catch (Exception ex) { Notify(true, ex.Message); }
+    }
+    private void LoadPreset(string name, bool discard)
+    {
+        if (!discard && new[] { "personalities", "simulation", "settings" }.Any(Dirty)) { confirmPreset = name; return; }
+        try
+        {
+            Store.ApplyPreset(name);
+            Reload();
+            LoadPresets();
+            Notify(false, $"Loaded and applied {name}.");
+        }
+        catch (Exception ex) { Notify(true, ex.Message); }
+        confirmPreset = "";
+    }
+    private void SavePreset(string name, bool overwrite)
+    {
+        try
+        {
+            foreach (var item in people) if (string.IsNullOrWhiteSpace(item.ProgressTo)) item.ProgressTo = null;
+            Store.SavePreset(name, overwrite, Contents("personalities"), Contents("simulation"), Contents("settings"),
+                [snapshot!.PersonalitiesRevision, snapshot.PolicyRevision, snapshot.SettingsRevision]);
+            Reload();
+            LoadPresets();
+            presetName = "";
+            Notify(false, $"Saved, applied and selected {name.Trim()}.");
+        }
+        catch (Exception ex) { Notify(true, ex.Message); }
+    }
+    private void DeletePreset(string name)
+    {
+        try
+        {
+            Store.DeletePreset(name);
+            LoadPresets();
+            Notify(false, $"Deleted {name}.");
+        }
+        catch (Exception ex) { Notify(true, ex.Message); }
+        confirmDelete = "";
+    }
     private void Add()
     {
         int number = 1; while (people.Any(p => p.Id == "Custom" + number)) number++;
@@ -765,6 +875,7 @@
                 "personalities" => snapshot! with { PersonalitiesRevision = saved.PersonalitiesRevision },
                 "simulation" => snapshot! with { PolicyRevision = saved.PolicyRevision },
                 _ => snapshot! with { SettingsRevision = saved.SettingsRevision } };
+            try { presets = Store.GetPresets(); } catch { }
             Notify(false, "Saved and applied. Other unsaved sections are unchanged.");
         }
         catch (Exception ex) { Notify(true, ex.Message); }

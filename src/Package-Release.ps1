@@ -16,6 +16,7 @@ $files = [ordered]@{
     "src/PBT.Client/bin/$Configuration/netstandard2.1/PBT.Client.dll" = 'BepInEx/plugins/PBT/PBT.Client.dll'
     "src/PBT.Server/bin/$Configuration/net10.0/PBT.Server.dll" = 'SPT_Runtime/user/mods/PBT/PBT.Server.dll'
     'src/PBT.Server/wwwroot/pbt.css' = 'SPT_Runtime/user/mods/PBT/wwwroot/pbt.css'
+    'src/PBT.Server/wwwroot/icon-128.png' = 'SPT_Runtime/user/mods/PBT/wwwroot/icon-128.png'
 }
 foreach ($image in Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src/PBT.Server/wwwroot/maps') -Filter '*.jpg' -ErrorAction SilentlyContinue) {
     $files["src/PBT.Server/wwwroot/maps/$($image.Name)"] = "SPT_Runtime/user/mods/PBT/wwwroot/maps/$($image.Name)"
@@ -58,5 +59,5 @@ try {
     }
 }
 finally { $zip.Dispose() }
-Write-Host "Packaged PBT ${version}: two DLLs, CSS and map images."
+Write-Host "Packaged PBT ${version}: two DLLs, CSS, icon and map images."
 Write-Host $archive

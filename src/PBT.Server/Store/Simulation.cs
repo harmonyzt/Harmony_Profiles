@@ -12,22 +12,24 @@ public sealed partial class PopulationStore
         string path = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(directory)!, "personalities.json");
         if (!File.Exists(path))
         {
-            personalities =
-            [
-                new() { Id = "Timmy", Weight = 30, MinimumLevel = 1,
-                    MaximumLevel = 15, MinimumSurvival = .12, MaximumSurvival = .3,
-                    MinimumRaidMinutes = 4, MaximumRaidMinutes = 28, ProgressTo = "Casual" },
-                new(),
-                new() { Id = "Aggressive", Weight = 20, MinimumRaidMinutes = 5, MaximumRaidMinutes = 32 },
-                new() { Id = "Survivor", Weight = 10, MinimumSurvival = .5, MaximumSurvival = .7,
-                    MinimumRaidMinutes = 16, MaximumRaidMinutes = 48 }
-            ];
+            personalities = DefaultPersonalities();
             AtomicFile.Write(path, JsonSerializer.Serialize(personalities, new JsonSerializerOptions { WriteIndented = true }));
         }
         else personalities = JsonSerializer.Deserialize<List<PersonalityTemplate>>(File.ReadAllText(path))
             ?? throw new InvalidDataException("Personalities file is empty.");
         ValidatePersonalities(personalities);
     }
+
+    private static List<PersonalityTemplate> DefaultPersonalities() =>
+    [
+        new() { Id = "Timmy", Weight = 30, MinimumLevel = 1,
+            MaximumLevel = 15, MinimumSurvival = .12, MaximumSurvival = .3,
+            MinimumRaidMinutes = 4, MaximumRaidMinutes = 28, ProgressTo = "Casual" },
+        new(),
+        new() { Id = "Aggressive", Weight = 20, MinimumRaidMinutes = 5, MaximumRaidMinutes = 32 },
+        new() { Id = "Survivor", Weight = 10, MinimumSurvival = .5, MaximumSurvival = .7,
+            MinimumRaidMinutes = 16, MaximumRaidMinutes = 48 }
+    ];
 
     private static void ValidatePersonalities(List<PersonalityTemplate> candidates)
     {
