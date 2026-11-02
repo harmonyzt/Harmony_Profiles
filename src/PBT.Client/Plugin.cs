@@ -30,6 +30,11 @@ public sealed class Plugin : BaseUnityPlugin
     private static string pendingProfile = "";
     internal static string KillerProfileId => pendingProfile;
     internal static string KillerAccount => pendingAccount;
+    // The Fika headless has no main player, but it hosts every raid it runs.
+    private static bool headless;
+    // Fika clients see bots as observed players with no AI brain, flagged by this field instead.
+    private static AccessTools.FieldRef<object, bool>? observedAi;
+    private static System.Type? fikaPlayer;
     internal static void Report(string message) => log?.LogWarning(message);
     internal static void Trace(string message) => log?.LogInfo(message);
 
@@ -69,6 +74,10 @@ public sealed class Plugin : BaseUnityPlugin
                 activityHarmony = null;
                 Logger.LogWarning("Raid observation disabled; killer capture remains available. " + ex.Message);
             }
+            headless = BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey("com.fika.headless");
+            fikaPlayer = AccessTools.TypeByName("Fika.Core.Main.Players.FikaPlayer");
+            if (fikaPlayer is not null && AccessTools.Field(fikaPlayer, "IsObservedAI")?.FieldType == typeof(bool))
+                observedAi = AccessTools.FieldRefAccess<bool>(fikaPlayer, "IsObservedAI");
             _ = CheckServer();
         }
         catch (Exception ex)
@@ -94,7 +103,7 @@ public sealed class Plugin : BaseUnityPlugin
 
     private static void Started(GameWorld __instance)
     {
-        if (__instance.MainPlayer?.IsYourPlayer != true) return;
+        if (!headless && __instance.MainPlayer?.IsYourPlayer != true) return;
         raidId = Guid.NewGuid().ToString("N");
         captured = false;
         try { Matching.RaidStarted(); }
@@ -115,7 +124,7 @@ public sealed class Plugin : BaseUnityPlugin
             catch (Exception ex) { Report("Raid death observation failed: " + ex.Message); }
         }
         if (!compatible || captured || raidId.Length == 0 || !__instance.IsYourPlayer || ___AggressorFound
-            || aggressor is not Player killer || !killer.IsAI
+            || aggressor is not Player killer || !IsBot(killer)
             || killer.ProfileId == __instance.ProfileId
             || killer.Profile.Side is not (EPlayerSide.Bear or EPlayerSide.Usec)) return;
         try
@@ -144,6 +153,13 @@ public sealed class Plugin : BaseUnityPlugin
             pendingUpload = Upload(body);
         }
         catch (Exception ex) { log?.LogWarning("PBT killer capture failed; generated loadout remains available. " + ex); }
+    }
+
+    internal static bool IsBot(Player player)
+    {
+        if (player.IsAI) return true;
+        try { return observedAi is not null && fikaPlayer!.IsInstanceOfType(player) && observedAi(player); }
+        catch { return false; }
     }
 
     private static JObject EquipmentTree(JValue equipmentId, JArray items)
