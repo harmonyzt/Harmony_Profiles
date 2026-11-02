@@ -48,7 +48,11 @@ public sealed partial class PopulationStore
                     PmcKills = Math.Max(incoming.PmcKills, old?.PmcKills ?? 0),
                     ScavKills = Math.Max(incoming.ScavKills, old?.ScavKills ?? 0),
                     UsecKills = Math.Max(incoming.UsecKills, old?.UsecKills ?? 0),
-                    BearKills = Math.Max(incoming.BearKills, old?.BearKills ?? 0)
+                    BearKills = Math.Max(incoming.BearKills, old?.BearKills ?? 0),
+                    KilledByPlayer = incoming.KilledByPlayer || old?.KilledByPlayer == true,
+                    KilledPlayer = incoming.KilledPlayer || old?.KilledPlayer == true,
+                    NearExtract = incoming.NearExtract || old?.NearExtract == true,
+                    LootValue = Math.Clamp(Math.Max(incoming.LootValue, old?.LootValue ?? 0), 0, 1_000_000_000)
                 };
                 if (merged.UsecKills + merged.BearKills > merged.PmcKills) continue;
                 accepted++;

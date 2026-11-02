@@ -337,6 +337,19 @@
             </section>
             @SimulationSave
         }
+        else if (page == "Messages")
+        {
+            <section class="fb-card"><h2>Bot messages</h2><p class="fb-muted">Careers you kill, or that kill you, can message you after the raid. They only speak up after something notable: a squad wipe, a long shot, a kill at an exit or on a full bag, a boss raid, a rampage cut short, an underdog win or an expensive kit. Their tone follows the personality, and streamers talk to their chat.</p>
+                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.BotMessages.Enabled" /><span class="fb-switch-track"></span>Send career messages@(Tip("Let careers message you after notable raid events."))</label></div>
+                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.BotMessages.ReplaceNativeMessages" /><span class="fb-switch-track"></span>Silence SPT's own PMC messages@(Tip("Careers never send SPT's built-in victim and killer messages."))</label></div>
+                <div class="fb-grid fb-grid-3">
+                    <label class="fb-field"><span class="fb-label">Chance per notable event@(Tip("Chance (0 to 1) that a notable event gets a message. A squad wipe counts three times. At most one message per raid."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.BotMessages.Chance" /></label>
+                    <label class="fb-field"><span class="fb-label">Delay, minimum seconds@(Tip("Earliest time after the raid that a message arrives."))</span><input type="number" min="0" max="3600" @bind="simulation.BotMessages.MinimumDelaySeconds" /></label>
+                    <label class="fb-field"><span class="fb-label">Delay, maximum seconds@(Tip("Latest time after the raid that a message arrives."))</span><input type="number" min="0" max="3600" @bind="simulation.BotMessages.MaximumDelaySeconds" /></label>
+                </div>
+            </section>
+            @SimulationSave
+        }
         else
         {
             <section class="fb-card"><h2>Friendships</h2>
@@ -358,7 +371,7 @@
 
 @code {
     private static readonly string[] topPages = ["Dashboard", "Personalities", "Simulation", "Population"];
-    private static readonly string[] simulationPages = ["Progression", "Hideout", "Gear", "Notable", "Prestige", "Stories"];
+    private static readonly string[] simulationPages = ["Progression", "Hideout", "Gear", "Notable", "Prestige", "Stories", "Messages"];
     private EditorSnapshot? snapshot;
     private List<PersonalityTemplate> people = new();
     private SimulationPolicy simulation = new();
@@ -371,7 +384,7 @@
     private RenderFragment SimulationSave => @<div class="fb-savebar"><span>Saves every Simulation page at once.</span><button type="button" class="fb-button" disabled="@(!Dirty("simulation"))" @onclick="SavePolicy">Save simulation policy</button></div>;
 
     private static string Title(string page) => page switch {
-        "Gear" => "Gear & showcases", "Notable" => "Chads & streamers", "Stories" => "Post-raid stories", _ => page };
+        "Gear" => "Gear & showcases", "Notable" => "Chads & streamers", "Stories" => "Post-raid stories", "Messages" => "Bot messages", _ => page };
     private static string Heading(string page) => page switch {
         "Dashboard" => "Population dashboard", "Population" => "Population settings", _ => Title(page) };
     private static string Description(string page) => page switch {
@@ -383,6 +396,7 @@
         "Notable" => "Better stats and gear for chad and streamer names.",
         "Prestige" => "When simulated accounts prestige, and how many start prestiged.",
         "Stories" => "What happens to a PMC after it kills you.",
+        "Messages" => "Rare post-raid messages from careers you met.",
         _ => "Friendships and activity between server sessions." };
     private static string? Section(string page) => page switch {
         "Personalities" => "personalities", "Population" => "settings", "Dashboard" => null, _ => "simulation" };

@@ -24,6 +24,10 @@ internal static class RaidActivity
         public int ScavKills;
         public int UsecKills;
         public int BearKills;
+        public bool KilledByPlayer;
+        public bool KilledPlayer;
+        public bool NearExtract;
+        public int LootValue;
     }
 
     private static readonly Dictionary<string, Observation> bots = new();
@@ -108,9 +112,16 @@ internal static class RaidActivity
         {
             dead.Died = true;
             dead.Stopped ??= Time.realtimeSinceStartup;
+            if (aggressor is Player { IsYourPlayer: true })
+            {
+                dead.KilledByPlayer = true;
+                try { RecordContext(dead, victim); }
+                catch (Exception ex) { Plugin.Trace("Kill context unavailable: " + ex.Message); }
+            }
         }
         if (bots.TryGetValue(aggressor.ProfileId, out var killer))
         {
+            if (victim.IsYourPlayer) killer.KilledPlayer = true;
             if (victim.Profile.Side == EPlayerSide.Savage) killer.ScavKills++;
             else if (victim.Profile.Side is EPlayerSide.Bear or EPlayerSide.Usec)
             {
@@ -120,6 +131,21 @@ internal static class RaidActivity
             }
         }
         if (victim.IsYourPlayer) End();
+    }
+
+    // Bot messages mention a kill at an exit or on a full bag.
+    private static void RecordContext(Observation dead, Player victim)
+    {
+        var exits = currentWorld?.ExfiltrationController?.ExfiltrationPoints;
+        if (exits != null)
+            foreach (var exit in exits)
+                if (exit != null && Vector3.Distance(exit.transform.position, victim.Position) <= 30) { dead.NearExtract = true; break; }
+        long value = 0;
+        var items = victim.Profile?.Inventory?.AllRealPlayerItems;
+        if (items != null)
+            foreach (var item in items)
+                value += (long)(item.Template?.CreditsPrice ?? 0) * Math.Max(1, item.StackObjectsCount);
+        dead.LootValue = (int)Math.Min(int.MaxValue, value);
     }
 
     internal static void Tick()
@@ -156,7 +182,8 @@ internal static class RaidActivity
             {
                 ["AccountId"] = bot.AccountId, ["RuntimeProfileId"] = bot.RuntimeProfileId,
                 ["ActiveSeconds"] = Math.Max(0, Math.Min(21600, (int)((bot.Stopped ?? Time.realtimeSinceStartup) - bot.Started))),
-                ["Finished"] = bot.Stopped.HasValue, ["Died"] = bot.Died, ["PmcKills"] = bot.PmcKills, ["ScavKills"] = bot.ScavKills, ["UsecKills"] = bot.UsecKills, ["BearKills"] = bot.BearKills
+                ["Finished"] = bot.Stopped.HasValue, ["Died"] = bot.Died, ["PmcKills"] = bot.PmcKills, ["ScavKills"] = bot.ScavKills, ["UsecKills"] = bot.UsecKills, ["BearKills"] = bot.BearKills,
+                ["KilledByPlayer"] = bot.KilledByPlayer, ["KilledPlayer"] = bot.KilledPlayer, ["NearExtract"] = bot.NearExtract, ["LootValue"] = bot.LootValue
             });
         string payload = new JObject { ["ProtocolVersion"] = 1, ["RaidId"] = raid, ["Bots"] = entries }.ToString(Formatting.None);
         pending = SendAfter(pending, payload);

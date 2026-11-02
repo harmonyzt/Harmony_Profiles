@@ -84,11 +84,14 @@ public sealed class SimulationPolicy
     public int StoryMinimumDelaySeconds { get; set; } = 120;
     public int StoryMaximumDelaySeconds { get; set; } = 600;
     public int StoryVisibilitySeconds { get; set; } = 900;
+    public BotMessageSettings BotMessages { get; set; } = new();
 
     public void Validate()
     {
         if (Hideout is null) throw new InvalidDataException("Hideout policy is missing.");
         Hideout.Validate();
+        if (BotMessages is null) throw new InvalidDataException("Bot message policy is missing.");
+        BotMessages.Validate();
         if (NotableNames is null) throw new InvalidDataException("Notable name policy is missing.");
         NotableNames.Validate();
         if (InitialPrestige is null || !double.IsFinite(InitialPrestige.Share) || InitialPrestige.Share is < 0 or > 1
@@ -130,6 +133,24 @@ public sealed class InitialPrestigeSettings
     public double Share { get; set; } = .15;
     // Chance of each further prestige after the first.
     public double Repeat { get; set; } = .45;
+}
+
+public sealed class BotMessageSettings
+{
+    public bool Enabled { get; set; } = true;
+    // Chance per notable event. A squad wipe counts three times.
+    public double Chance { get; set; } = .05;
+    // Careers never send SPT's own repetitive victim and killer messages.
+    public bool ReplaceNativeMessages { get; set; } = true;
+    public int MinimumDelaySeconds { get; set; } = 30;
+    public int MaximumDelaySeconds { get; set; } = 240;
+
+    public void Validate()
+    {
+        if (!double.IsFinite(Chance) || Chance is < 0 or > 1 || MinimumDelaySeconds is < 0 or > 3600
+            || MaximumDelaySeconds < MinimumDelaySeconds || MaximumDelaySeconds > 3600)
+            throw new InvalidDataException("Bot messages need a 0-1 chance and a 0-3600 second delay range.");
+    }
 }
 
 public sealed class NotableNameSettings

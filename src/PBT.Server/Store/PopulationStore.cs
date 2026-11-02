@@ -19,6 +19,7 @@ using SPTarkov.Server.Core.Models.Eft.Profile;
 using SPTarkov.Server.Core.Models.Spt.Bots;
 using SPTarkov.Server.Core.Models.Spt.Tables;
 using SPTarkov.Server.Core.Servers;
+using SPTarkov.Server.Core.Services.Locales;
 using SPTarkov.Server.Core.Utils;
 
 namespace PBT.Server;
@@ -27,7 +28,7 @@ namespace PBT.Server;
 public sealed partial class PopulationStore(
     BotTable bots, GlobalTable globals, TemplateTable templates, HideoutTable hideout, TradersTable traders,
     ProfileHelper profileHelper, NotificationSendHelper notifications, HttpResponseUtil responses,
-    SaveServer saves, JsonUtil json, ModHelper modHelper, ItemHelper itemHelper, PresetHelper presetHelper, BotInventoryGenerator inventoryGenerator, BotInventoryContainerService inventoryContainers, ISptLogger<PopulationStore> logger) : IOnLoad, IDisposable
+    SaveServer saves, JsonUtil json, ModHelper modHelper, ItemHelper itemHelper, PresetHelper presetHelper, BotInventoryGenerator inventoryGenerator, BotInventoryContainerService inventoryContainers, LocaleService locales, LocationTable locations, ISptLogger<PopulationStore> logger) : IOnLoad, IDisposable
 {
     private readonly object gate = new();
     private readonly Dictionary<int, Encounter> encounters = new();
@@ -138,6 +139,8 @@ public sealed partial class PopulationStore(
                 harmony = new Harmony("com.local.pbt.server");
                 ConfigureRequiredApbs(harmony);
                 ServerPatches.Install(harmony);
+                try { ChatPatches.Install(harmony); }
+                catch (Exception ex) { logger.Warning("[PBT] Bot messages disabled; SPT's own PMC messages remain. " + ex.Message); }
                 InstallApbsIntegration();
                 socialHarmony = new Harmony("com.local.pbt.social");
                 try
@@ -684,6 +687,7 @@ public sealed partial class PopulationStore(
                 AdvanceOnline(now);
                 Simulate(now);
                 ProcessProfileEquipment(now);
+                SendDueMessages(now);
                 assets = SnapshotChangedAssets();
                 if (dirty) snapshot = SnapshotPopulation();
             }
