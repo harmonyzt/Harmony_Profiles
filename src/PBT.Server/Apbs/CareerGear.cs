@@ -152,8 +152,8 @@ public sealed partial class PopulationStore
     {
         if (gearFactory is null || !bots.Types.TryGetValue(career.Side.ToLowerInvariant(), out var source))
             throw new InvalidOperationException("APBS PMC equipment services are unavailable.");
-        var isolated = json.Deserialize<BotType>(json.Serialize(source)!)
-            ?? throw new InvalidDataException("Cannot clone PMC inventory template.");
+        // SPT's own cloner, as its bot generator uses. A JSON round trip of the bot type churned megabytes per regear.
+        var isolated = cloner.Clone(source) ?? throw new InvalidDataException("Cannot clone PMC inventory template.");
         var inventory = gearFactory.Generate(inventoryGenerator, inventoryContainers, session, isolated, career, Level(career.Experience),
             TierBoost(career) + extraTiers, Random.Shared.NextDouble() < policy.NightGearChance);
         var equipment = EquipmentTree(JsonNode.Parse(json.Serialize(inventory)!)!.AsObject());

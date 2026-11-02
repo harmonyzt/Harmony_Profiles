@@ -22,6 +22,7 @@ using SPTarkov.Server.Core.Models.Spt.Tables;
 using SPTarkov.Server.Core.Servers;
 using SPTarkov.Server.Core.Services.Locales;
 using SPTarkov.Server.Core.Utils;
+using SPTarkov.Server.Core.Utils.Cloners;
 
 namespace PBT.Server;
 
@@ -29,7 +30,7 @@ namespace PBT.Server;
 public sealed partial class PopulationStore(
     BotTable bots, GlobalTable globals, TemplateTable templates, HideoutTable hideout, TradersTable traders,
     ProfileHelper profileHelper, NotificationSendHelper notifications, HttpResponseUtil responses,
-    SaveServer saves, JsonUtil json, ModHelper modHelper, ItemHelper itemHelper, PresetHelper presetHelper, BotInventoryGenerator inventoryGenerator, BotInventoryContainerService inventoryContainers, LocaleService locales, LocationTable locations, ISptLogger<PopulationStore> logger) : IOnLoad, IDisposable
+    SaveServer saves, JsonUtil json, ModHelper modHelper, ItemHelper itemHelper, PresetHelper presetHelper, BotInventoryGenerator inventoryGenerator, BotInventoryContainerService inventoryContainers, LocaleService locales, LocationTable locations, ICloner cloner, ISptLogger<PopulationStore> logger) : IOnLoad, IDisposable
 {
     private readonly object gate = new();
     private int startupPrestiges;
@@ -438,8 +439,9 @@ public sealed partial class PopulationStore(
             if (selected?.Id == career.Id)
                 ApplyAccountIdentity(career, bot.Info);
 
-            var source = JsonNode.Parse(json.Serialize(bot)!)!.AsObject();
-            var inventory = source["Inventory"]!.AsObject();
+            // Only the parts we keep, not the whole bot profile.
+            var inventory = JsonNode.Parse(json.Serialize(bot.Inventory)!)!.AsObject();
+            var customization = JsonNode.Parse(json.Serialize(bot.Customization)!)!.AsObject();
             var equipment = EquipmentTree(inventory);
             if (!ValidEquipment(equipment))
                 throw new InvalidDataException("Generated equipment graph is not safe for profile viewing.");
@@ -450,7 +452,7 @@ public sealed partial class PopulationStore(
                 GenerationOrder = checked(++population.LastGenerationOrder),
                 GeneratedExperience = bot.Info.Experience ?? 0, GeneratedLevel = bot.Info.Level ?? 1,
                 GeneratedPrestige = bot.Info.PrestigeLevel ?? 0,
-                Equipment = equipment, Customization = source["Customization"]!.DeepClone().AsObject(),
+                Equipment = equipment, Customization = customization,
                 Map = MapKey(details.Location)
             };
             // Persist the alias before publishing it to a bot. Runtime bot IDs and all inventory IDs stay native.

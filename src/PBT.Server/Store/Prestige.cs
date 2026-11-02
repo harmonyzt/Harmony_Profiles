@@ -222,8 +222,8 @@ public sealed partial class PopulationStore
             string tpl = item["_tpl"]!.ToString();
             if (tpl is "5449016a4bdc2d6f028b456f" or "5696686a4bdc2da3298b456a" or "569668774bdc2da2298b4568") continue;
             if (excluded.Any(f => ItemBasedOn(tpl, f)) || !included.Any(f => ItemBasedOn(tpl, f))) continue;
-            var props = JsonNode.Parse(json.Serialize(templates.Items[new MongoId(tpl)])!)?["_props"];
-            int width = Math.Max(1, props?["Width"]?.GetValue<int>() ?? 1), height = Math.Max(1, props?["Height"]?.GetValue<int>() ?? 1);
+            var props = templates.Items[new MongoId(tpl)].Properties;
+            int width = Math.Max(1, props?.Width ?? 1), height = Math.Max(1, props?.Height ?? 1);
             if (width > columns || height > rows) continue;
             if (x + width > columns) { x = 0; y += rowHeight; rowHeight = 0; }
             if (y + height > rows) continue;
@@ -241,7 +241,7 @@ public sealed partial class PopulationStore
         while (IsId(tpl) && seen.Add(tpl) && templates.Items.TryGetValue(new MongoId(tpl), out var item))
         {
             if (tpl == ancestor) return true;
-            tpl = JsonNode.Parse(json.Serialize(item)!)?["_parent"]?.ToString() ?? "";
+            tpl = item.Parent.ToString();
         }
         return false;
     }
