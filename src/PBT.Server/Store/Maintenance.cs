@@ -6,6 +6,7 @@ namespace PBT.Server;
 public sealed partial class PopulationStore
 {
     private readonly Dictionary<string, (string Side, string Rarity)> achievementStories = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> wearable = new();
 
     public Dictionary<string, int> AchievementPercentages()
     {
@@ -57,6 +58,24 @@ public sealed partial class PopulationStore
     private bool IsMannequin(string? id) => IsId(id) && templates.Customization.TryGetValue(new MongoId(id!), out var template)
         && template.Name?.Contains("Mannequin", StringComparison.OrdinalIgnoreCase) == true;
 
+    // The client resolves Head/Body/Feet to a bundle while spawning; an id it can't resolve crashes bot loading.
+    private bool Wearable(string part, string? id)
+    {
+        if (!IsId(id)) return false;
+        if (wearable.TryGetValue(id!, out bool known)) return known;
+        bool ok = templates.Customization.TryGetValue(new MongoId(id!), out var template) && template.Type == "Item"
+            && (part is "Voice" || template.Properties?.BodyPart == part && PrefabPath(template.Properties.Prefab));
+        wearable[id!] = ok;
+        return ok;
+    }
+
+    private bool PrefabPath(object? prefab) => prefab switch
+    {
+        null => false,
+        string path => path.Length > 0,
+        _ => JsonNode.Parse(json.Serialize(prefab) ?? "null") is JsonObject node && !string.IsNullOrEmpty(node["path"]?.ToString())
+    };
+
     private Dictionary<MongoId, double> PlayableHeads(Dictionary<MongoId, double> heads)
     {
         var playable = heads.Where(h => !IsMannequin(h.Key.ToString())).ToDictionary();
@@ -79,7 +98,7 @@ public sealed partial class PopulationStore
         foreach (string part in new[] { "Head", "Body", "Hands", "Feet", "Voice" })
         {
             string? asset = c.Customization[part]?.ToString();
-            if (IsId(asset) && templates.Customization.ContainsKey(new MongoId(asset!)) && !(part == "Head" && IsMannequin(asset))) continue;
+            if (Wearable(part, asset) && !(part == "Head" && IsMannequin(asset))) continue;
             if (native["Customization"]?[part] is { } fallback) c.Customization[part] = fallback.DeepClone();
         }
     }

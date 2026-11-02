@@ -283,7 +283,7 @@ public sealed partial class PopulationStore
         MongoId? Asset(string key)
         {
             string? id = c.Customization[key]?.GetValue<string>();
-            return IsId(id) && templates.Customization.ContainsKey(new MongoId(id!)) ? new MongoId(id!) : (MongoId?)null;
+            return Wearable(key, id) ? new MongoId(id!) : (MongoId?)null;
         }
         if (settings.PersistentFaceAndVoice)
         {

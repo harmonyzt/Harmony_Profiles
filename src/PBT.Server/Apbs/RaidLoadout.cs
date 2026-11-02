@@ -93,6 +93,10 @@ public sealed partial class PopulationStore
                 gearFactory.AddLoot(botId, session, template, details, inventory);
                 inventoryContainers.ClearCache(botId);
             }
+            // Duplicate ids make the client hang children off the wrong item (inserts inside inserts).
+            var seen = new HashSet<MongoId>();
+            if (inventory.Items.Any(i => !seen.Add(i.Id)))
+                throw new InvalidDataException($"Profile loadout for {c.Name} produced duplicate item ids; kept the generated kit.");
         }
         catch
         {
