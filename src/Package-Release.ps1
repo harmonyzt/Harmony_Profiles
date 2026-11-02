@@ -17,6 +17,9 @@ $files = [ordered]@{
     "src/PBT.Server/bin/$Configuration/net10.0/PBT.Server.dll" = 'SPT_Runtime/user/mods/PBT/PBT.Server.dll'
     'src/PBT.Server/wwwroot/pbt.css' = 'SPT_Runtime/user/mods/PBT/wwwroot/pbt.css'
 }
+foreach ($image in Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src/PBT.Server/wwwroot/maps') -Filter '*.jpg' -ErrorAction SilentlyContinue) {
+    $files["src/PBT.Server/wwwroot/maps/$($image.Name)"] = "SPT_Runtime/user/mods/PBT/wwwroot/maps/$($image.Name)"
+}
 foreach ($source in $files.Keys) {
     $path = Join-Path $projectRoot $source
     if (-not (Test-Path -LiteralPath $path)) { throw "Build output is missing: $source" }
@@ -55,5 +58,5 @@ try {
     }
 }
 finally { $zip.Dispose() }
-Write-Host "Packaged PBT ${version}: two DLLs and required CSS only."
+Write-Host "Packaged PBT ${version}: two DLLs, CSS and map images."
 Write-Host $archive
