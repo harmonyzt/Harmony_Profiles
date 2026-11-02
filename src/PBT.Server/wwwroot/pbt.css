@@ -1431,6 +1431,7 @@
 }
 
 .pbt-editor .fb-pager {
+    align-self: center;
     font-variant-numeric: tabular-nums;
     padding: 0 4px
 }
