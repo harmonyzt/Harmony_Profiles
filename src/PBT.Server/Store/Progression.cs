@@ -141,7 +141,7 @@ public sealed partial class PopulationStore
                     dirty = true;
                 }
             }
-            if (promoted > 0) logger.Info($"[PBT] Prepared {promoted} unencountered {side} careers for APBS level coverage; existing friend and encounter careers retained.");
+            if (promoted > 0) logger.Debug($"[PBT] Prepared {promoted} unencountered {side} careers for APBS level coverage; existing friend and encounter careers retained.");
         }
         population.CoverageVersion = 1;
         dirty = true;

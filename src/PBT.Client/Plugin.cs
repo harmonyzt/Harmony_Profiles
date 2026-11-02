@@ -87,7 +87,7 @@ public sealed class Plugin : BaseUnityPlugin
             compatible = status.Value<int>("ProtocolVersion") == 1 && status.Value<bool>("Ready");
             RaidActivity.Supported = compatible && RaidActivity.Installed && status.Value<int>("ActivityProtocolVersion") == 1;
             if (!compatible) log?.LogWarning("PBT server is unavailable or incompatible; capture disabled.");
-            else log?.LogInfo("PBT protocol 1 connected.");
+            else log?.LogInfo("Connected to the PBT server.");
         }
         catch (Exception ex) { compatible = false; log?.LogWarning("PBT server check failed: " + ex.Message); }
     }

@@ -25,7 +25,7 @@ public sealed record WorldEvent(long Id, long Utc, string Kind, string Text, str
 public sealed record WorldMapStatus(string Id, string Name, int InRaid, int Queueing, int QueueSeconds, double Share, bool WeeklyBoss, bool Solo, int[] History);
 
 public sealed record WorldPlayerRow(string Name, string Side, string Personality, int Level, int Prestige, string State, string Status,
-    string Map, long Since, int Raids, double KillDeath, bool Notable);
+    string Map, long Since, int Raids, double KillDeath, bool Notable, string[] Squad);
 
 public sealed record WorldSnapshot(int Online, int InRaid, int Queueing, int InMenu, int InTransit, int PendingStories,
     List<WorldMapStatus> Maps, List<WorldEvent> Events);

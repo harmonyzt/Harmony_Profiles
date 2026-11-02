@@ -12,8 +12,8 @@
 @implements IDisposable
 
 <PageTitle>PBT - Progressive Bot Profiles</PageTitle>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-<link href="/pbt-assets/pbt.css?v=20261102-world" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet" />
+<link href="/pbt-assets/pbt.css?v=20261102-squads" rel="stylesheet" />
 <div class="pbt-editor" data-theme="@(dark ? "dark" : "light")">
     <nav class="fb-topbar">
         <button type="button" class="fb-icon-button fb-menu" aria-label="Toggle navigation" aria-expanded="@(menuOpen ? "true" : "false")" @onclick="() => menuOpen = !menuOpen">
@@ -212,9 +212,9 @@
                             @foreach (var row in rows.Skip(current * PageSize).Take(PageSize))
                             {
                                 <tr @key="row.Name + row.Side">
-                                    <td><span class="fb-person"><span class="fb-avatar @(row.Side.Equals("Bear", StringComparison.OrdinalIgnoreCase) ? "fb-avatar-bear" : "fb-avatar-usec")">@row.Name[..1].ToUpperInvariant()</span><span><strong>@row.Name</strong><small>@row.Side.ToUpperInvariant()@(row.Notable ? " · streamer" : "")</small></span></span></td>
+                                    <td><span class="fb-person"><span class="fb-avatar @(row.Side.Equals("Bear", StringComparison.OrdinalIgnoreCase) ? "fb-avatar-bear" : "fb-avatar-usec")">@row.Name[..1].ToUpperInvariant()</span><span><strong>@row.Name</strong><small>@row.Side.ToUpperInvariant()@(row.Notable ? " · streamer" : "")@if (row.Squad.Length > 0) { <span class="fb-squad" title="Squad with @string.Join(", ", row.Squad)">@Icon("Users") @(row.Squad.Length + 1)</span> }</small></span></span></td>
                                     <td>@row.Personality</td><td>@row.Level</td><td>@row.Prestige</td><td>@row.Raids.ToString("N0")</td><td>@row.KillDeath.ToString("0.00")</td>
-                                    <td><span class="fb-status"><span class="fb-status-dot fb-state-@row.State.ToLowerInvariant()"></span>@row.Status</span></td>
+                                    <td><span class="fb-status"><span class="fb-status-dot fb-state-@row.State.ToLowerInvariant()"></span><span class="fb-status-text fb-text-@row.State.ToLowerInvariant()">@row.Status</span></span></td>
                                     <td class="fb-muted">@(row.Since > 0 ? Duration(row.Since) : "")</td>
                                 </tr>
                             }
@@ -507,7 +507,7 @@
     private static readonly string[] topPages = ["Overview", "Dashboard", "Players", "Personalities", "Simulation", "Population"];
     private static readonly string[] simulationPages = ["Progression", "Hideout", "Gear", "Notable", "Prestige", "Stories", "Messages", "World"];
     private static readonly (string Value, string Label)[] statusFilters =
-        [("", "Everyone"), ("Online", "Online"), ("Raid", "In raid"), ("Queue", "Queueing"), ("Menu", "Main menu"), ("Transit", "In transit"), ("Died", "Died"), ("Offline", "Offline")];
+        [("", "Everyone"), ("Online", "Online"), ("Raid", "In raid"), ("Queue", "Queueing"), ("Menu", "Main menu"), ("Afk", "AFK"), ("Transit", "In transit"), ("Died", "Died"), ("Offline", "Offline"), ("Squad", "In a squad")];
     private static readonly string[] sortOptions = ["Status", "Name", "Level", "Prestige", "Raids", "K/D"];
     private const int PageSize = 50;
     private EditorSnapshot? snapshot;
@@ -530,9 +530,9 @@
     private static string Heading(string page) => page switch {
         "Overview" => "Live world", "Dashboard" => "Population dashboard", "Population" => "Population settings", _ => Title(page) };
     private static string Description(string page) => page switch {
-        "Overview" => "Where your server's careers are right now. Updates live.",
+        "Overview" => "Who's online, where they're playing and what just happened. Updates live.",
         "Dashboard" => "A snapshot of your server's persistent population.",
-        "Players" => "Every career, what it is doing and how it has played.",
+        "Players" => "Every career: what it's doing right now, who it plays with and how it has done.",
         "World" => "Map popularity, queues, transits and the matching screen.",
         "Personalities" => "Starting ranges and progression targets. Edits affect future simulation without rerolling existing accounts.",
         "Progression" => "Level cohorts guide varied account histories. Native requirements remain in force.",
@@ -632,6 +632,7 @@
         IEnumerable<WorldPlayerRow> rows = players;
         if (!string.IsNullOrWhiteSpace(playerSearch)) rows = rows.Where(p => p.Name.Contains(playerSearch.Trim(), StringComparison.OrdinalIgnoreCase));
         if (playerFilter == "Online") rows = rows.Where(p => p.State is not ("Offline" or "Died"));
+        else if (playerFilter == "Squad") rows = rows.Where(p => p.Squad.Length > 0);
         else if (playerFilter.Length > 0) rows = rows.Where(p => p.State == playerFilter);
         Func<WorldPlayerRow, object> key = playerSort switch {
             "Name" => p => p.Name, "Level" => p => p.Level, "Prestige" => p => p.Prestige, "Raids" => p => p.Raids, "K/D" => p => p.KillDeath,
@@ -639,7 +640,7 @@
         var sorted = sortDescending ? rows.OrderByDescending(key) : rows.OrderBy(key);
         return sorted.ThenByDescending(p => p.Level).ThenBy(p => p.Name);
     }
-    private static int StateOrder(string state) => state switch { "Raid" => 0, "Queue" => 1, "Transit" => 2, "Menu" => 3, "Died" => 4, _ => 5 };
+    private static int StateOrder(string state) => state switch { "Raid" => 0, "Queue" => 1, "Transit" => 2, "Menu" => 3, "Afk" => 4, "Died" => 5, _ => 6 };
     private static int Hue(string id) => (int)((uint)id.Aggregate(17, (h, c) => h * 31 + c) % 360);
     private static int Bars(double share) => share >= .15 ? 4 : share >= .09 ? 3 : share >= .04 ? 2 : share > 0 ? 1 : 0;
     private static string Clock(int seconds) => $"{seconds / 60}:{seconds % 60:D2}";

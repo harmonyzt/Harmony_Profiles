@@ -37,7 +37,7 @@ public sealed partial class PopulationStore
                 logger.Warning("[PBT] Achievement rule skipped: " + id + ": " + ex.Message);
             }
         }
-        logger.Info($"[PBT] {milestones.Count} supported lifetime achievement rules loaded.");
+        logger.Debug($"[PBT] {milestones.Count} supported lifetime achievement rules loaded.");
     }
 
     private static bool Keys(JsonObject node, params string[] allowed) => node.All(p => allowed.Contains(p.Key));

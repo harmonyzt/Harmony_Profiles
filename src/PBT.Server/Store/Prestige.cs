@@ -203,7 +203,9 @@ public sealed partial class PopulationStore
         assets.Stash = stash;
         assets.Changed();
         dirty = true;
-        logger.Info($"[PBT] Synthetic prestige completed: account={c.AccountId}, prestige={c.PrestigeLevel}.");
+        // Startup catch-up can prestige dozens at once, so those only count toward the Ready line.
+        if (Ready) logger.Info($"[PBT] {c.Name} prestiged to {c.PrestigeLevel}.");
+        else startupPrestiges++;
     }
 
     private List<JsonArray> PrestigeCarry(JsonObject stash, JsonObject? config)

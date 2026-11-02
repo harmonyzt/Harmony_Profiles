@@ -34,6 +34,7 @@ internal static class RaidActivity
     private static readonly HashSet<string> deaths = new();
     private static string raid = "";
     private static string map = "";
+    private static int loggedCount;
     private static bool observing;
     private static float nextUpload;
     private static GameWorld? currentWorld;
@@ -59,6 +60,7 @@ internal static class RaidActivity
         End();
         bots.Clear();
         deaths.Clear();
+        loggedCount = 0;
         raid = raidId;
         map = world.LocationId ?? "";
         currentWorld = world;
@@ -172,11 +174,22 @@ internal static class RaidActivity
         currentWorld = null;
         foreach (var bot in bots.Values) bot.Stopped ??= Time.realtimeSinceStartup;
         Flush();
+        if (bots.Count > 0)
+        {
+            int died = 0;
+            foreach (var bot in bots.Values) if (bot.Died) died++;
+            Plugin.Trace($"Raid over: met {bots.Count} PBT career{(bots.Count == 1 ? "" : "s")} on {map}, {died} died.");
+        }
     }
 
     private static void Flush()
     {
         if (bots.Count == 0) return;
+        if (observing && bots.Count != loggedCount)
+        {
+            loggedCount = bots.Count;
+            Plugin.Trace($"{bots.Count} PBT career{(bots.Count == 1 ? "" : "s")} in this raid so far.");
+        }
         foreach (var bot in bots.Values) CheckDead(bot);
         var entries = new JArray();
         foreach (var bot in bots.Values)
@@ -198,7 +211,6 @@ internal static class RaidActivity
         {
             var response = JObject.Parse(await RequestHandler.PostJsonAsync("/pbt/activity", payload));
             if (response.Value<int>("ProtocolVersion") != 1) Plugin.Report("Raid observation protocol mismatch.");
-            else Plugin.Trace("Raid observations saved: " + response.Value<int>("Accepted") + ".");
         }
         catch (Exception ex) { Plugin.Report("Raid observation upload failed; later cumulative reports can retry. " + ex.Message); }
     }

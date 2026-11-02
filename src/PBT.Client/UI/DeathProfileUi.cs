@@ -49,7 +49,6 @@ internal static class DeathProfileUi
             var menu = ____reportPanel.GetComponent<KillerProfileMenu>() ?? ____reportPanel.gameObject.AddComponent<KillerProfileMenu>();
             menu.Bind(____reportPanel, ____showProfileButton, __5, aggressor.AccountId ?? "",
                 aggressor.ProfileId ?? "", aggressor.Name ?? "", aggressor.Side.ToString());
-            Plugin.Trace($"Killer menu bound: account={aggressor.AccountId}, runtime={aggressor.ProfileId}, nativeReports={__5.ReportAvailable}.");
         }
         catch (Exception ex)
         {

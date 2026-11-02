@@ -334,7 +334,7 @@ public sealed partial class PopulationStore
         dirty = true;
         assets.Changed();
         if (c.ShowcaseAreas.Count > roots.Count)
-            logger.Info($"[PBT] Removed {c.ShowcaseAreas.Count - roots.Count} invalid, dogtag or carried-gun showcase trees for account {c.AccountId}; career retained.");
+            logger.Debug($"[PBT] Removed {c.ShowcaseAreas.Count - roots.Count} invalid, dogtag or carried-gun showcase trees for account {c.AccountId}; career retained.");
         assets.ShowcaseItems = retained;
         c.ShowcaseAreas = roots;
     }

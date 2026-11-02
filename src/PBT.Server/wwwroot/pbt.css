@@ -213,7 +213,7 @@
 .pbt-editor .fb-log-dot {width:8px;height:8px;border-radius:50%;background:var(--fb-muted)}
 .pbt-editor .fb-log-death .fb-log-dot,.pbt-editor .fb-log-mia .fb-log-dot {background:var(--fb-red)}
 .pbt-editor .fb-log-extract .fb-log-dot,.pbt-editor .fb-log-online .fb-log-dot {background:var(--fb-green)}
-.pbt-editor .fb-log-transit .fb-log-dot,.pbt-editor .fb-log-queue .fb-log-dot {background:var(--fb-secondary)}
+.pbt-editor .fb-log-transit .fb-log-dot,.pbt-editor .fb-log-queue .fb-log-dot,.pbt-editor .fb-log-squad .fb-log-dot {background:var(--fb-secondary)}
 .pbt-editor .fb-log-achievement .fb-log-dot,.pbt-editor .fb-log-prestige .fb-log-dot {background:var(--fb-yellow-text)}
 .pbt-editor .fb-toolbar-wrap {flex-wrap:wrap}
 .pbt-editor .fb-pager {font-variant-numeric:tabular-nums;padding:0 4px}
@@ -223,6 +223,14 @@
 .pbt-editor .fb-status-dot.fb-state-menu {background:var(--fb-green)}
 .pbt-editor .fb-status-dot.fb-state-died {background:var(--fb-yellow-text)}
 .pbt-editor .fb-status-dot.fb-state-offline {background:var(--fb-muted)}
+.pbt-editor .fb-status-dot.fb-state-afk {background:transparent;box-shadow:inset 0 0 0 2px var(--fb-muted)}
+.pbt-editor .fb-status-text {font-family:'Rajdhani',sans-serif;font-weight:600;font-size:15px;letter-spacing:.04em;text-transform:uppercase;color:var(--fb-text)}
+.pbt-editor .fb-status-text.fb-text-raid {color:var(--fb-red)}
+.pbt-editor .fb-status-text.fb-text-queue {color:var(--fb-secondary)}
+.pbt-editor .fb-status-text.fb-text-transit {color:var(--fb-link)}
+.pbt-editor .fb-status-text.fb-text-offline,.pbt-editor .fb-status-text.fb-text-afk {color:var(--fb-muted)}
+.pbt-editor .fb-squad {display:inline-flex;align-items:center;gap:2px;margin-left:6px;padding:0 6px;border-radius:9px;background:var(--fb-primary-soft);color:var(--fb-link);font-weight:600}
+.pbt-editor .fb-squad .fb-icon {width:12px;height:12px}
 @keyframes fb-pop {from {opacity:0;transform:translateY(-6px) scale(.98)} to {opacity:1;transform:none}}
 @keyframes fb-pulse {0%,100% {opacity:1} 50% {opacity:.35}}
 

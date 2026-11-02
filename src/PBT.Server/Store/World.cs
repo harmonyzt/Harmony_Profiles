@@ -14,6 +14,10 @@ public sealed partial class PopulationStore
         // In your raid or waiting on a post-raid story. Stories and observations move it, not the world tick.
         public bool Held;
         public bool WantsOffline;
+        // What a career in the menu is busy with, e.g. Selling on the flea or AFK.
+        public string Doing = "";
+        // Careers queueing and playing together, including this one.
+        public string[] Party = [];
     }
 
     // Solo maps run a private instance for you and your team, with no random PMCs.
@@ -25,6 +29,11 @@ public sealed partial class PopulationStore
         ["factory4_day"] = 8, ["lighthouse"] = 7, ["sandbox"] = 7, ["sandbox_high"] = 6, ["laboratory"] = 5, ["factory4_night"] = 3, ["labyrinth"] = 2
     };
     private static readonly HashSet<string> HiddenMaps = new(StringComparer.OrdinalIgnoreCase) { "hideout", "develop", "privatearea", "suburbs", "terminal", "town" };
+    // Same map in the game's selector, but separate lobbies with their own players.
+    private static readonly Dictionary<string, string> SplitMapNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["factory4_day"] = "Factory (Day)", ["factory4_night"] = "Factory (Night)", ["sandbox"] = "Ground Zero", ["sandbox_high"] = "Ground Zero 21+"
+    };
     private static readonly HashSet<string> SoloMaps = new(StringComparer.OrdinalIgnoreCase) { "icebreaker" };
     private static readonly HashSet<string> StreamerMaps = new(StringComparer.OrdinalIgnoreCase) { "laboratory", "tarkovstreets", "bigmap" };
     // Bosses that are normally a gamble. One of them at 100% is a weekly boss.
@@ -66,16 +75,20 @@ public sealed partial class PopulationStore
         foreach (var location in locations.GetDictionary().Values)
         {
             var b = location?.Base;
-            if (b is null || string.IsNullOrEmpty(b.Id) || !b.Enabled || b.Locked == true || HiddenMaps.Contains(b.Id)) continue;
+            if (b is null || string.IsNullOrEmpty(b.Id) || b.Locked == true || HiddenMaps.Contains(b.Id)) continue;
             string id = MapKey(b.Id);
+            // Night Factory is disabled in the database but picked through Factory's time selector.
+            if (!b.Enabled && id != "factory4_night") continue;
             if (next.Any(m => m.Id == id)) continue;
             bool solo = SoloMaps.Contains(id) || (b.BotMax == 0 && (b.Waves is null || b.Waves.Count == 0));
             bool weekly = !solo && b.BossLocationSpawn?.Any(s => s.BossChance >= 100 && s.BossName is { } boss && HeadlineBosses.Contains(boss)) == true;
-            string name = names.GetValueOrDefault(b.Id) ?? names.GetValueOrDefault(b.IdField + " Name") ?? b.Name ?? b.Id;
+            string name = SplitMapNames.GetValueOrDefault(id) ?? names.GetValueOrDefault(b.Id) ?? names.GetValueOrDefault(b.IdField + " Name") ?? b.Name ?? b.Id;
             var transits = (b.Transits ?? []).Where(t => t.IsActive != false && !string.IsNullOrEmpty(t.Location))
                 .Select(t => MapKey(t.Location)).Where(t => t != id).Distinct().ToArray();
-            next.Add(new(id, name, MapPopularity.GetValueOrDefault(id, solo ? 3 : 5), transits, b.RequiredPlayerLevelMin ?? 0,
-                b.RequiredPlayerLevelMax is > 0 ? b.RequiredPlayerLevelMax.Value : 100, weekly, solo));
+            int minimum = b.RequiredPlayerLevelMin ?? 0, maximum = b.RequiredPlayerLevelMax is > 0 ? b.RequiredPlayerLevelMax.Value : 100;
+            // The game sends level 21+ to the high Ground Zero, but its database entry has no lower gate.
+            if (id == "sandbox_high") minimum = Math.Max(minimum, 21);
+            next.Add(new(id, name, MapPopularity.GetValueOrDefault(id, solo ? 3 : 5), transits, minimum, maximum, weekly, solo));
         }
         if (next.Count > 0) worldMaps = next;
     }
@@ -160,7 +173,7 @@ public sealed partial class PopulationStore
             // Start mid-session instead of everyone in the menu at once.
             double roll = Random.Shared.NextDouble();
             var map = PickMap(c);
-            if (map is null || roll < .2) Set(a, "Menu", "", now, now + Random.Shared.Next(10, 241));
+            if (map is null || roll < .2) EnterMenu(c, a, now);
             else if (roll < .32) Set(a, "Queue", map.Id, now, now + (long)(Random.Shared.NextDouble() * QueueSeconds(map.Id)) + 5);
             else
             {
@@ -169,11 +182,14 @@ public sealed partial class PopulationStore
                 Set(a, "Raid", map.Id, now - into, now + Math.Max(30, length - into));
             }
         }
+        FormSquads();
         worldTimer = new Timer(_ => TickWorld(), null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
     }
 
-    private static void Set(Activity a, string state, string map, long since, long until, bool held = false, string target = "")
+    private static void Set(Activity a, string state, string map, long since, long until, bool held = false, string target = "", string[]? party = null)
     {
+        a.Doing = "";
+        a.Party = party ?? [];
         a.State = state;
         a.Map = map;
         a.Since = since;
@@ -231,14 +247,17 @@ public sealed partial class PopulationStore
                     if (c.NeedsRegear)
                     {
                         if (Random.Shared.NextDouble() < .1) GoOffline(c, a, now);
-                        else a.Until = now + Random.Shared.Next(60, 181);
+                        else { a.Until = now + Random.Shared.Next(60, 181); a.Doing = "Gearing up"; }
                         break;
                     }
+                    // Another errand now and then before the next raid.
+                    if (a.Doing is not ("AFK" or "Waiting for squad") && Random.Shared.NextDouble() < .25) { NextErrand(c, a, now); break; }
+                    if (TryQueueSquad(c, a, now)) break;
                     if (PickMap(c) is not { } map) { a.Until = now + 120; break; }
                     Set(a, "Queue", map.Id, now, now + QueueSeconds(map.Id));
                     break;
                 case "Queue":
-                    Set(a, "Raid", a.Map, now, now + RaidLength(c));
+                    StartRaid(c, a, now);
                     break;
                 case "Transit":
                     Set(a, "Raid", a.Target, now, now + RaidLength(c));
@@ -309,17 +328,18 @@ public sealed partial class PopulationStore
     private void ToMenu(Career c, Activity a, long now, bool died = false)
     {
         bool wanted = a.WantsOffline;
-        Set(a, "Menu", "", now, now + Random.Shared.Next(60, 361));
+        EnterMenu(c, a, now, died);
         a.WantsOffline = wanted || Random.Shared.NextDouble() < policy.World.LogOffChance * (died ? 1.3 : 1);
         c.IsOnline = true;
     }
 
-    private void GoOnline(Career c, Activity a, long now)
+    private void GoOnline(Career c, Activity a, long now, bool withSquad = true)
     {
         c.IsOnline = true;
-        Set(a, "Menu", "", now, now + Random.Shared.Next(30, 241));
+        EnterMenu(c, a, now);
         a.WantsOffline = false;
         Log("online", $"{c.Name} came online");
+        if (withSquad) BringSquadOnline(c, now);
     }
 
     private void GoOffline(Career c, Activity a, long now)
@@ -360,14 +380,16 @@ public sealed partial class PopulationStore
         var a = activities.GetValueOrDefault(c.Id);
         if (a is null || c.Retired || a.State == "Offline")
             return now - c.DiedUtc < 1800 && c.NeedsRegear ? ("Died", "Died", "", c.DiedUtc) : ("Offline", "Offline", "", a?.Since ?? 0);
-        string map = MapLabel(a.Map);
+        string map = MapLabel(a.Map), squad = a.Party.Length > 1 ? $" · squad of {a.Party.Length}" : "";
         return a.State switch
         {
-            "Queue" => ("Queue", "Queueing " + map, a.Map, a.Since),
-            "Raid" when a.Held && observed.Contains(c.Id) => ("Raid", $"In your raid ({map})", a.Map, a.Since),
-            "Raid" => ("Raid", $"In Raid ({map})", a.Map, a.Since),
-            "Transit" => ("Transit", $"In Transit ({map} to {MapLabel(a.Target)})", a.Target, a.Since),
-            _ => c.NeedsRegear ? ("Died", "Died, regearing", "", c.DiedUtc) : ("Menu", "Online/Main Menu", "", a.Since)
+            "Queue" => ("Queue", $"Queueing for {map}{squad}", a.Map, a.Since),
+            "Raid" when a.Held && observed.Contains(c.Id) => ("Raid", $"In your raid on {map}", a.Map, a.Since),
+            "Raid" => ("Raid", $"In raid on {map}{squad}", a.Map, a.Since),
+            "Transit" => ("Transit", $"Transiting to {MapLabel(a.Target)}", a.Target, a.Since),
+            _ when c.NeedsRegear => ("Died", "Died, gearing up again", "", c.DiedUtc),
+            _ when a.Doing == "AFK" => ("Afk", "AFK", "", a.Since),
+            _ => ("Menu", a.Doing.Length > 0 ? a.Doing : "In the main menu", "", a.Since)
         };
     }
 
@@ -406,7 +428,8 @@ public sealed partial class PopulationStore
             {
                 var (state, status, map, since) = Describe(c, now, observed);
                 return new WorldPlayerRow(c.Name, c.Side, c.Archetype, Level(c.Experience), c.PrestigeLevel, state, status, map,
-                    since > 0 ? now - since : 0, (int)(c.Raids + c.Observed.Raids), Math.Round((double)(c.PmcKills + c.Observed.PmcKills) / Deaths(c), 2), Notable(c));
+                    since > 0 ? now - since : 0, (int)(c.Raids + c.Observed.Raids), Math.Round((double)(c.PmcKills + c.Observed.PmcKills) / Deaths(c), 2), Notable(c),
+                    SquadNames(c));
             }).ToList();
         }
     }

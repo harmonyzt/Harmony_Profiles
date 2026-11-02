@@ -210,7 +210,7 @@ public sealed partial class PopulationStore
             ApbsIntegration.Install(apbsHarmony, apbs);
             apbsAvailable = true;
             GenerationMode = "APBS career bridge available";
-            logger.Info("[PBT] APBS career bridge installed; APBS owns ranges, tiers, inventory, and appearance; selected careers retain account identity and prestige. Assembly: " + apbs.GetName().Version);
+            apbsVersion = apbs.GetName().Version?.ToString(3) ?? "";
         }
         catch (Exception ex)
         {

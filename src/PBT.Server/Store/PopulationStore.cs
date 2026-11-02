@@ -31,6 +31,8 @@ public sealed partial class PopulationStore(
     SaveServer saves, JsonUtil json, ModHelper modHelper, ItemHelper itemHelper, PresetHelper presetHelper, BotInventoryGenerator inventoryGenerator, BotInventoryContainerService inventoryContainers, LocaleService locales, LocationTable locations, ISptLogger<PopulationStore> logger) : IOnLoad, IDisposable
 {
     private readonly object gate = new();
+    private int startupPrestiges;
+    private string apbsVersion = "";
     private readonly Dictionary<int, Encounter> encounters = new();
     private Population population = new();
     private Dictionary<string, Career> byName = new();
@@ -158,7 +160,9 @@ public sealed partial class PopulationStore(
                 SavePopulation();
                 Ready = true;
                 checkpoint = new Timer(_ => Checkpoint(), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
-                logger.Info($"[PBT] Ready: {population.Careers.Count} PMC identities, {encounters.Count} encounter profiles. Protocol 1.");
+                logger.Info($"[PBT] Ready: {population.Careers.Count} careers, {encounters.Count} encounters"
+                    + (startupPrestiges > 0 ? $", {startupPrestiges} prestiged while away" : "")
+                    + (apbsVersion.Length > 0 ? $". APBS {apbsVersion} bridge active." : "."));
             }
             catch (Exception ex)
             {

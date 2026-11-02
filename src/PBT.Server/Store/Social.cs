@@ -161,7 +161,7 @@ public sealed partial class PopulationStore
         catch (Exception ex) { Report(ex); return result; }
     }
 
-    internal void SocialInstalled(bool fika) => logger.Info("[PBT] Social handlers installed for vanilla"
+    internal void SocialInstalled(bool fika) => logger.Debug("[PBT] Social handlers installed for vanilla"
         + (fika ? " and Fika." : "."));
 
     private async Task NotifyAccepted(MongoId session, SearchFriendResponse profile, string requestId, string key)
