@@ -11,9 +11,10 @@
 @rendermode InteractiveServer
 @implements IDisposable
 
+@{ dirtyCache.Clear(); }
 <PageTitle>PBT - Progressive Bot Profiles</PageTitle>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet" />
-<link href="/pbt-assets/pbt.css?v=20261102-squads" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="/pbt-assets/pbt.css?v=20261102-ui" rel="stylesheet" />
 <div class="pbt-editor" data-theme="@(dark ? "dark" : "light")">
     <nav class="fb-topbar">
         <button type="button" class="fb-icon-button fb-menu" aria-label="Toggle navigation" aria-expanded="@(menuOpen ? "true" : "false")" @onclick="() => menuOpen = !menuOpen">
@@ -211,7 +212,7 @@
                         <tbody>
                             @foreach (var row in rows.Skip(current * PageSize).Take(PageSize))
                             {
-                                <tr @key="row.Name + row.Side">
+                                <tr>
                                     <td><span class="fb-person @(row.Team.Length > 0 ? "fb-in-team" : "")" style="@(row.Team.Length > 0 ? $"--fb-team-hue:{TeamHue(row)}" : null)"><span class="fb-avatar @(row.Side.Equals("Bear", StringComparison.OrdinalIgnoreCase) ? "fb-avatar-bear" : "fb-avatar-usec")">@row.Name[..1].ToUpperInvariant()</span><span><strong>@row.Name</strong>@if (row.Team.Length > 0) { <span class="fb-team-with">with @string.Join(", ", row.Team)</span> }<small>@row.Side.ToUpperInvariant()@(row.Notable ? " · streamer" : "")@if (row.Squad.Length > 0) { <span class="fb-squad" title="Squad with @string.Join(", ", row.Squad)">@Icon("Users") @(row.Squad.Length + 1)</span> }</small></span></span></td>
                                     <td>@row.Personality</td><td>@row.Level</td><td>@row.Prestige</td><td>@row.Raids.ToString("N0")</td><td>@row.KillDeath.ToString("0.00")</td>
                                     <td><span class="fb-state fb-state-@row.State.ToLowerInvariant()"><span class="fb-state-label">@StateLabel(row.State)</span><span class="fb-state-detail">@row.Status</span>@if (row.Team.Length > 0) { <span class="fb-team" style="--fb-team-hue:@TeamHue(row)" title="Playing with @string.Join(", ", row.Team)">@Icon("Users")Team of @(row.Team.Length + 1)</span> }</span></td>
@@ -572,20 +573,31 @@
         "Plus" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>,
         _ => @<svg class="fb-icon fb-icon-sm" viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg> };
 
-    private int noticeId;
+    private CancellationTokenSource? noticeTimer;
     private void Notify(bool isError, string text)
     {
+        ClearNotice();
         error = isError; message = text;
-        int id = ++noticeId;
-        _ = Task.Delay(isError ? 10000 : 5000).ContinueWith(_ => InvokeAsync(() =>
+        _ = Dismiss((noticeTimer = new()).Token, isError ? 10000 : 5000);
+    }
+    private async Task Dismiss(CancellationToken token, int milliseconds)
+    {
+        try
         {
-            if (id != noticeId) return;
-            message = ""; StateHasChanged();
-        }));
+            await Task.Delay(milliseconds, token);
+            // A newer notice may have replaced this one while the callback was queued.
+            await InvokeAsync(() => { if (token.IsCancellationRequested) return; message = ""; StateHasChanged(); });
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException) { }
+    }
+    private void ClearNotice()
+    {
+        noticeTimer?.Cancel(); noticeTimer?.Dispose(); noticeTimer = null;
+        message = "";
     }
     private void Go(string next)
     {
-        message = ""; noticeId++;
+        ClearNotice();
         page = next;
         if (next is "Overview" or "Players") LoadWorld();
         menuOpen = false;
@@ -608,7 +620,7 @@
     {
         if (first) live = new System.Threading.Timer(_ => _ = InvokeAsync(Tick), null, 3000, 3000);
     }
-    public void Dispose() => live?.Dispose();
+    public void Dispose() { live?.Dispose(); noticeTimer?.Cancel(); noticeTimer?.Dispose(); }
 
     private void LoadWorld()
     {
@@ -650,7 +662,6 @@
     }
     private IEnumerable<WorldPlayerRow> FilteredPlayers()
     {
-        if (players.Count == 0) { try { players = Store.GetPlayers(); } catch { } }
         IEnumerable<WorldPlayerRow> rows = players;
         if (!string.IsNullOrWhiteSpace(playerSearch)) rows = rows.Where(p => p.Name.Contains(playerSearch.Trim(), StringComparison.OrdinalIgnoreCase));
         if (playerFilter == "Online") rows = rows.Where(p => p.State is not ("Offline" or "Died"));
@@ -685,7 +696,13 @@
     }
     private string Contents(string section) => section switch {
         "personalities" => JsonSerializer.Serialize(people), "simulation" => JsonSerializer.Serialize(simulation), _ => JsonSerializer.Serialize(config) };
-    private bool Dirty(string section) => baselines.TryGetValue(section, out var baseline) && baseline != Contents(section);
+    private readonly Dictionary<string, bool> dirtyCache = new();
+    // Cleared at the top of every render, so each section is serialized once per render.
+    private bool Dirty(string section)
+    {
+        if (dirtyCache.TryGetValue(section, out bool dirty)) return dirty;
+        return dirtyCache[section] = baselines.TryGetValue(section, out var baseline) && baseline != Contents(section);
+    }
     private bool PageDirty(string page) => Section(page) is { } section && Dirty(section);
     private void Reload()
     {
@@ -697,7 +714,7 @@
             var nextConfig = JsonSerializer.Deserialize<PbtSettings>(saved.SettingsJson)!;
             snapshot = saved; people = nextPeople; simulation = nextPolicy; config = nextConfig;
             foreach (string section in new[] { "personalities", "simulation", "settings" }) baselines[section] = Contents(section);
-            selectedIndex = 0; confirmReload = false; error = false; message = "";
+            selectedIndex = 0; confirmReload = false; error = false; ClearNotice(); dirtyCache.Clear();
         }
         catch (Exception ex) { Notify(true, ex.Message); }
     }
@@ -740,12 +757,14 @@
         {
             string value = Contents(section);
             Store.SaveEditorSection(section, value, revision);
-            var saved = Store.GetEditorSnapshot();
+            baselines[section] = value; dirtyCache.Clear();
+            EditorSnapshot saved;
+            try { saved = Store.GetEditorSnapshot(); }
+            catch { Notify(true, "Saved, but the new revision could not be read. Use Reload saved settings before saving again."); return; }
             snapshot = section switch {
                 "personalities" => snapshot! with { PersonalitiesRevision = saved.PersonalitiesRevision },
                 "simulation" => snapshot! with { PolicyRevision = saved.PolicyRevision },
                 _ => snapshot! with { SettingsRevision = saved.SettingsRevision } };
-            baselines[section] = value;
             Notify(false, "Saved and applied. Other unsaved sections are unchanged.");
         }
         catch (Exception ex) { Notify(true, ex.Message); }
