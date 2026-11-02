@@ -51,7 +51,7 @@
                             <ul class="fb-subnav">
                                 @foreach (var sub in simulationPages)
                                 {
-                                    <li><button type="button" class="fb-nav-item @(page == sub ? "fb-active" : "")" aria-current="@(page == sub ? "page" : null)" @onclick="() => Go(sub)">@Title(sub)</button></li>
+                                    <li><button type="button" class="fb-nav-item @(page == sub ? "fb-active" : "")" aria-current="@(page == sub ? "page" : null)" @onclick="() => Go(sub)">@SubIcon(sub)@Title(sub)</button></li>
                                 }
                             </ul>
                         }
@@ -549,6 +549,15 @@
     // preventDefault keeps a click on the icon from toggling or focusing the label's control.
     private static RenderFragment Tip(string text) => @<span class="fb-tip" tabindex="0" @onclick:preventDefault="true"><span aria-hidden="true">?</span><span class="fb-tip-text" role="tooltip">@text</span></span>;
     private static string Percent(int part, int whole) => (part * 100.0 / whole).ToString("0.0") + "%";
+    private static RenderFragment SubIcon(string name) => name switch {
+        "Progression" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 14l5-5 3 3 6-6M12 6h5v5" /></svg>,
+        "Hideout" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 9.5 10 3l7 6.5M5 8v8.5h10V8M8.5 16.5V12h3v4.5" /></svg>,
+        "Gear" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7h14v9H3zM7.5 7V5h5v2M3 11h14" /></svg>,
+        "Notable" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m10 2.8 2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L2.8 8.1l5-.7Z" /></svg>,
+        "Prestige" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="8" r="4.5" /><path d="m7.5 11.8-1 5.7 3.5-2 3.5 2-1-5.7" /></svg>,
+        "Stories" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 3h8l3 3v11H5ZM13 3v3h3M7.5 10h5M7.5 13h5" /></svg>,
+        "Messages" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4.5h14v9H8.5L5 16.5v-3H3Z" /></svg>,
+        _ => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 17.5s5.5-4.6 5.5-9a5.5 5.5 0 0 0-11 0c0 4.4 5.5 9 5.5 9Z" /><circle cx="10" cy="8.5" r="2" /></svg> };
     private static RenderFragment Icon(string name) => name switch {
         "Dashboard" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v7h7A7 7 0 1 1 10 3Z" /><path d="M13 2.5A5 5 0 0 1 17.5 7H13Z" /></svg>,
         "Overview" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 5.5 7 3.5l6 2 4.5-2v11l-4.5 2-6-2-4.5 2ZM7 3.5v11M13 5.5v11" /></svg>,

@@ -48,7 +48,8 @@
 .pbt-editor .fb-nav-label {flex:1}
 .pbt-editor .fb-active {background:var(--fb-surface-2);font-weight:500}
 .pbt-editor .fb-subnav {list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:2px}
-.pbt-editor .fb-subnav .fb-nav-item {justify-content:flex-end;padding-right:36px;font-size:15px;text-align:right}
+.pbt-editor .fb-subnav .fb-nav-item {gap:12px;padding-left:20px;font-size:15px}
+.pbt-editor .fb-subnav .fb-nav-item .fb-icon {width:18px;height:18px}
 .pbt-editor .fb-chevron {width:20px;height:20px;color:var(--fb-muted);transition:transform .15s}
 .pbt-editor .fb-rotated {transform:rotate(180deg)}
 .pbt-editor .fb-dot {width:8px;height:8px;border-radius:50%;background:#e3a008;flex:none}
