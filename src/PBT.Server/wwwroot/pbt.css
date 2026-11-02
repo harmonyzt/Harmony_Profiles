@@ -49,7 +49,22 @@
 .pbt-editor .fb-active {background:var(--fb-surface-2);font-weight:500}
 .pbt-editor .fb-subnav {list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:2px}
 .pbt-editor .fb-subnav .fb-nav-item {gap:12px;padding-left:20px;font-size:15px}
-.pbt-editor .fb-subnav .fb-nav-item .fb-icon {width:18px;height:18px}
+.pbt-editor .fb-subnav .fb-nav-item .fb-icon {width:18px;height:18px;transition:transform .25s cubic-bezier(.34,1.56,.64,1),color .15s}
+.pbt-editor .fb-subnav .fb-nav-item {position:relative;transition:background .15s,padding-left .2s}
+.pbt-editor .fb-subnav .fb-nav-item:hover {padding-left:24px}
+.pbt-editor .fb-subnav .fb-nav-item:hover .fb-icon {transform:scale(1.18) rotate(-6deg)}
+.pbt-editor .fb-nav-item.fb-active::before {content:"";position:absolute;left:4px;top:8px;bottom:8px;width:3px;border-radius:2px;background:var(--fb-link);transform-origin:center;animation:fb-grow .25s ease-out}
+.pbt-editor .fb-subnav li {animation:fb-slide .28s ease-out both}
+.pbt-editor .fb-subnav li:nth-child(2) {animation-delay:.03s}
+.pbt-editor .fb-subnav li:nth-child(3) {animation-delay:.06s}
+.pbt-editor .fb-subnav li:nth-child(4) {animation-delay:.09s}
+.pbt-editor .fb-subnav li:nth-child(5) {animation-delay:.12s}
+.pbt-editor .fb-subnav li:nth-child(6) {animation-delay:.15s}
+.pbt-editor .fb-subnav li:nth-child(7) {animation-delay:.18s}
+.pbt-editor .fb-subnav li:nth-child(8) {animation-delay:.21s}
+@keyframes fb-slide {from {opacity:0;transform:translateX(-10px)} to {opacity:1;transform:none}}
+@keyframes fb-grow {from {transform:scaleY(0)} to {transform:scaleY(1)}}
+@media(prefers-reduced-motion:reduce) {.pbt-editor .fb-subnav li,.pbt-editor .fb-subnav .fb-active::before {animation:none}}
 .pbt-editor .fb-chevron {width:20px;height:20px;color:var(--fb-muted);transition:transform .15s}
 .pbt-editor .fb-rotated {transform:rotate(180deg)}
 .pbt-editor .fb-dot {width:8px;height:8px;border-radius:50%;background:#e3a008;flex:none}
@@ -262,4 +277,27 @@
  .pbt-editor .fb-slide-stats {gap:16px}
  .pbt-editor .fb-bar-label {font-size:10px}
 }
+/* Motion */
+.pbt-editor .fb-nav-item {position:relative;transition:background .15s,color .15s}
+.pbt-editor .fb-nav-item .fb-icon {transition:transform .25s cubic-bezier(.34,1.56,.64,1),color .15s}
+.pbt-editor .fb-nav-item:hover .fb-icon {transform:scale(1.15) rotate(-6deg)}
+.pbt-editor .fb-content > * {animation:fb-rise .35s cubic-bezier(.2,.7,.2,1) both}
+.pbt-editor .fb-content > :nth-child(2) {animation-delay:.05s}
+.pbt-editor .fb-content > :nth-child(3) {animation-delay:.1s}
+.pbt-editor .fb-content > :nth-child(4) {animation-delay:.15s}
+.pbt-editor .fb-content > :nth-child(5) {animation-delay:.2s}
+.pbt-editor .fb-content > :nth-child(n+6) {animation-delay:.25s}
+.pbt-editor .fb-card {transition:border-color .2s,transform .2s}
+.pbt-editor .fb-stat:hover {transform:translateY(-2px);border-color:var(--fb-input-border)}
+.pbt-editor .fb-bar-fill {transform-origin:bottom;animation:fb-grow-y .6s cubic-bezier(.2,.7,.2,1) both;transition:background .15s}
+.pbt-editor .fb-progress > span {transform-origin:left;animation:fb-grow-x .7s cubic-bezier(.2,.7,.2,1) both}
+.pbt-editor .fb-button {transition:background .15s,transform .1s}
+.pbt-editor .fb-button:active:not(:disabled) {transform:scale(.97)}
+.pbt-editor .fb-table td {transition:background .15s}
+.pbt-editor .fb-link .fb-icon {transition:transform .2s}
+.pbt-editor .fb-link:hover .fb-icon {transform:translateX(3px)}
+@keyframes fb-rise {from {opacity:0;transform:translateY(10px)} to {opacity:1;transform:none}}
+@keyframes fb-grow-y {from {transform:scaleY(0)} to {transform:scaleY(1)}}
+@keyframes fb-grow-x {from {transform:scaleX(0)} to {transform:scaleX(1)}}
+
 @media(prefers-reduced-motion:reduce) {.pbt-editor * {transition:none!important;animation:none!important}}

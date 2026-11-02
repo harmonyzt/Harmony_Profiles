@@ -75,7 +75,7 @@
     </aside>
     @if (menuOpen) { <div class="fb-backdrop" @onclick="() => menuOpen = false"></div> }
 
-    <main class="fb-content">
+    <main class="fb-content" @key="page">
         <ol class="fb-breadcrumb" aria-label="Breadcrumb">
             <li>@Icon("Home")PBT</li>
             @if (simulationPages.Contains(page)) { <li>Simulation</li> }
