@@ -435,14 +435,19 @@ public sealed partial class PopulationStore
         }
     }
 
-    // Seconds the client should show Matching for this map. Zero when matching is off.
-    public int MatchingSeconds(string map)
+    // Seconds the client should show Matching for this map (zero when off), and how many careers are queueing for it.
+    // Raid spawns prefer careers queued for the same map, so those are the ones you match with.
+    public (int Seconds, int Matched) Matching(string map)
     {
         lock (gate)
         {
-            if (!Ready || !policy.World.SimulateMatching) return 0;
+            if (!Ready) return (0, 0);
+            string key = MapKey(map);
+            // Solo maps never put strangers in your instance.
+            int matched = FindMap(map)?.Solo == true ? 0 : activities.Values.Count(a => a.State == "Queue" && a.Map == key && !a.Held);
+            if (!policy.World.SimulateMatching) return (0, matched);
             int seconds = QueueSeconds(map);
-            return Math.Min(policy.World.MaximumMatchingSeconds, (int)(seconds * (.7 + Random.Shared.NextDouble() * .6)));
+            return (Math.Min(policy.World.MaximumMatchingSeconds, (int)(seconds * (.7 + Random.Shared.NextDouble() * .6))), matched);
         }
     }
 

@@ -78,7 +78,8 @@ internal static class Matching
         {
             var response = JObject.Parse(await RequestHandler.PostJsonAsync("/pbt/world/matching",
                 new JObject { ["Map"] = map }.ToString(Newtonsoft.Json.Formatting.None)));
-            int seconds = response.Value<int>("ProtocolVersion") == 1 ? response.Value<int>("Seconds") : 0;
+            bool known = response.Value<int>("ProtocolVersion") == 1;
+            int seconds = known ? response.Value<int>("Seconds") : 0;
             if (seconds > 0)
             {
                 var random = new Random();
@@ -94,6 +95,7 @@ internal static class Matching
                 await Task.Delay(100);
             }
             else Plugin.Trace($"Matching on {map}: off or instant.");
+            if (known) Plugin.Trace($"Matched with {response.Value<int>("Matched")} PBT profile(s).");
         }
         catch (Exception ex) { Plugin.Report("Matching simulation skipped: " + ex.Message); }
         passing = true;
