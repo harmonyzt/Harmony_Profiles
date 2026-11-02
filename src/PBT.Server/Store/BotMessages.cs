@@ -176,9 +176,9 @@ public sealed partial class PopulationStore
         return c.Archetype switch
         {
             "Timmy" => "timmy",
-            "Aggressive" => "salty",
-            "Casual" => Stable(c.Id + ":tone") < .3 ? "salty" : "chill",
-            _ => "chill"
+            "Aggressive" => Stable(c.Id + ":tone") < .5 ? "salty" : "tryhard",
+            "Casual" => Stable(c.Id + ":tone") switch { < .25 => "salty", < .6 => "chill", _ => "friendly" },
+            _ => Stable(c.Id + ":tone") < .3 ? "friendly" : "chill"
         };
     }
 }
