@@ -9,10 +9,11 @@
 @attribute [Authorize]
 @attribute [ExcludeFromInteractiveRouting]
 @rendermode InteractiveServer
+@implements IDisposable
 
 <PageTitle>PBT - Progressive Bot Profiles</PageTitle>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-<link href="/pbt-assets/pbt.css?v=20261101-tips" rel="stylesheet" />
+<link href="/pbt-assets/pbt.css?v=20261102-world" rel="stylesheet" />
 <div class="pbt-editor" data-theme="@(dark ? "dark" : "light")">
     <nav class="fb-topbar">
         <button type="button" class="fb-icon-button fb-menu" aria-label="Toggle navigation" aria-expanded="@(menuOpen ? "true" : "false")" @onclick="() => menuOpen = !menuOpen">
@@ -108,25 +109,138 @@
         {
             <section class="fb-card fb-empty"><h2>Settings are unavailable</h2><p>The population store could not be loaded. Try again when the server is ready.</p><button type="button" class="fb-button" @onclick="Reload">Try again</button></section>
         }
+        else if (page == "Overview")
+        {
+            var maps = world?.Maps ?? [];
+            <section class="fb-hero" aria-label="Maps">
+                <div class="fb-hero-track" style="transform:translateX(-@(slide * 100)%)">
+                    @foreach (var map in maps)
+                    {
+                        <article class="fb-slide" @key="map.Id" style="--fb-map-hue:@Hue(map.Id);background-image:url('/pbt-assets/maps/@(map.Id).jpg'),linear-gradient(135deg,hsl(@Hue(map.Id) 35% 28%),hsl(@((Hue(map.Id) + 40) % 360) 30% 12%))">
+                            <div class="fb-slide-shade"></div>
+                            <div class="fb-slide-body">
+                                @if (map.WeeklyBoss) { <span class="fb-badge fb-badge-yellow">Weekly boss</span> }
+                                <h2 class="fb-slide-name">@map.Name</h2>
+                                <ul class="fb-slide-stats">
+                                    <li><strong>@Num("slide-raid-" + map.Id, map.InRaid)</strong><span>in raid</span></li>
+                                    <li><strong>@Num("slide-queue-" + map.Id, map.Queueing)</strong><span>queueing</span></li>
+                                    <li><strong>@Clock(map.QueueSeconds)</strong><span>avg queue</span></li>
+                                    <li><strong>@((map.Share * 100).ToString("0"))%</strong><span>of players</span></li>
+                                </ul>
+                            </div>
+                        </article>
+                    }
+                </div>
+                @if (maps.Count > 1)
+                {
+                    <div class="fb-hero-dots">
+                        @for (int index = 0; index < maps.Count; index++)
+                        {
+                            int target = index;
+                            <button type="button" class="@(index == slide ? "fb-dot-active" : "")" aria-label="Show @maps[index].Name" @onclick="() => slide = target"></button>
+                        }
+                    </div>
+                }
+            </section>
+
+            <div class="fb-stats fb-stats-6">
+                <article class="fb-card fb-stat"><span class="fb-stat-label">Online@(Tip("Careers playing right now: in the menu, queueing, in a raid or in transit."))</span><strong>@Num("online", world?.Online ?? 0)</strong></article>
+                <article class="fb-card fb-stat"><span class="fb-stat-label">In raid@(Tip("Careers in a raid, including the ones in yours."))</span><strong>@Num("raid", world?.InRaid ?? 0)</strong></article>
+                <article class="fb-card fb-stat"><span class="fb-stat-label">Queueing@(Tip("Careers waiting for a match. Busy maps fill faster."))</span><strong>@Num("queue", world?.Queueing ?? 0)</strong></article>
+                <article class="fb-card fb-stat"><span class="fb-stat-label">Main menu@(Tip("Online between raids: sorting the stash, regearing, flea."))</span><strong>@Num("menu", world?.InMenu ?? 0)</strong></article>
+                <article class="fb-card fb-stat"><span class="fb-stat-label">In transit@(Tip("Survivors moving to a connected map with their gear."))</span><strong>@Num("transit", world?.InTransit ?? 0)</strong></article>
+                <article class="fb-card fb-stat"><span class="fb-stat-label">Pending stories@(Tip("PMCs from your raids whose outcome is still to come."))</span><strong>@Num("stories", world?.PendingStories ?? 0)</strong></article>
+            </div>
+
+            <div class="fb-row fb-row-wide">
+                <section class="fb-card fb-flush">
+                    <div class="fb-card-head fb-padded"><div><h2>Maps</h2><p>Players per map over the last 90 minutes.</p></div></div>
+                    <div class="fb-table-scroll">
+                        <table class="fb-table">
+                            <thead><tr><th>Map</th><th>In raid</th><th>Queueing</th><th>Avg queue</th><th>Share</th><th>Last 90 min</th></tr></thead>
+                            <tbody>
+                                @foreach (var map in maps)
+                                {
+                                    <tr @key="map.Id">
+                                        <td><strong>@map.Name</strong>@if (map.WeeklyBoss) { <span class="fb-badge fb-badge-yellow fb-inline-badge">Weekly boss</span> }</td>
+                                        <td>@Num("raid-" + map.Id, map.InRaid)</td><td>@Num("queue-" + map.Id, map.Queueing)</td><td>@Clock(map.QueueSeconds)</td>
+                                        <td><span class="fb-signal" title="@((map.Share * 100).ToString("0.0"))% of players">@for (int bar = 0; bar < 4; bar++) { <span class="@(bar < Bars(map.Share) ? "fb-lit" : "")"></span> }</span></td>
+                                        <td>@Sparkline(map.History)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+                <section class="fb-card">
+                    <div class="fb-card-head"><div><h2>Live activity</h2><p>What careers are doing, newest first.</p></div><span class="fb-live"><span></span>Live</span></div>
+                    <ol class="fb-log">
+                        @foreach (var item in (world?.Events ?? []).Take(25))
+                        {
+                            <li @key="item.Id" class="fb-log-@item.Kind"><span class="fb-log-dot"></span><span class="fb-log-text">@item.Text</span><time>@Ago(item.Utc)</time></li>
+                        }
+                    </ol>
+                    @if (world?.Events.Count is null or 0) { <p class="fb-muted">Nothing yet. Careers come online over the next few minutes.</p> }
+                </section>
+            </div>
+        }
+        else if (page == "Players")
+        {
+            var rows = FilteredPlayers().ToList();
+            int pages = Math.Max(1, (rows.Count + PageSize - 1) / PageSize);
+            int current = Math.Clamp(playerPage, 0, pages - 1);
+            <section class="fb-card">
+                <div class="fb-toolbar fb-toolbar-wrap">
+                    <label class="fb-field"><span class="fb-label">Search</span><input placeholder="Name" @bind="playerSearch" @bind:event="oninput" @bind:after="() => playerPage = 0" /></label>
+                    <label class="fb-field"><span class="fb-label">Status</span><select @bind="playerFilter" @bind:after="() => playerPage = 0">
+                        @foreach (var (value, label) in statusFilters) { <option value="@value">@label</option> }
+                    </select></label>
+                    <label class="fb-field"><span class="fb-label">Sort by</span><select @bind="playerSort">
+                        @foreach (var option in sortOptions) { <option value="@option">@option</option> }
+                    </select></label>
+                    <button type="button" class="fb-button fb-button-light" @onclick="() => sortDescending = !sortDescending">@(sortDescending ? "Descending" : "Ascending")</button>
+                </div>
+            </section>
+            <section class="fb-card fb-flush">
+                <div class="fb-card-head fb-padded"><div><h2>@rows.Count.ToString("N0") players</h2><p>Updates every few seconds.</p></div>
+                    <div class="fb-actions"><button type="button" class="fb-button fb-button-light" disabled="@(current == 0)" @onclick="() => playerPage = current - 1">Previous</button><span class="fb-muted fb-pager">@(current + 1) / @pages</span><button type="button" class="fb-button fb-button-light" disabled="@(current >= pages - 1)" @onclick="() => playerPage = current + 1">Next</button></div></div>
+                <div class="fb-table-scroll">
+                    <table class="fb-table">
+                        <thead><tr><th>Name</th><th>Personality</th><th>Level</th><th title="Prestige">Prest.</th><th>Raids</th><th title="PMC kills per death">K/D</th><th>Status</th><th>For</th></tr></thead>
+                        <tbody>
+                            @foreach (var row in rows.Skip(current * PageSize).Take(PageSize))
+                            {
+                                <tr @key="row.Name + row.Side">
+                                    <td><span class="fb-person"><span class="fb-avatar @(row.Side.Equals("Bear", StringComparison.OrdinalIgnoreCase) ? "fb-avatar-bear" : "fb-avatar-usec")">@row.Name[..1].ToUpperInvariant()</span><span><strong>@row.Name</strong><small>@row.Side.ToUpperInvariant()@(row.Notable ? " · streamer" : "")</small></span></span></td>
+                                    <td>@row.Personality</td><td>@row.Level</td><td>@row.Prestige</td><td>@row.Raids.ToString("N0")</td><td>@row.KillDeath.ToString("0.00")</td>
+                                    <td><span class="fb-status"><span class="fb-status-dot fb-state-@row.State.ToLowerInvariant()"></span>@row.Status</span></td>
+                                    <td class="fb-muted">@(row.Since > 0 ? Duration(row.Since) : "")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
         else if (page == "Dashboard")
         {
             var insights = snapshot.Insights;
             int total = Math.Max(1, snapshot.Careers);
             <div class="fb-stats">
                 <article class="fb-card fb-stat">
-                    <span class="fb-stat-label">Accounts@(Tip("Persistent PMC careers, one per bot name."))</span><strong>@snapshot.Careers.ToString("N0")</strong>
+                    <span class="fb-stat-label">Accounts@(Tip("Persistent PMC careers, one per bot name."))</span><strong>@Num("careers", snapshot.Careers)</strong>
                     <span class="fb-stat-foot">@Icon("Users") Persistent identities</span>
                 </article>
                 <article class="fb-card fb-stat">
-                    <span class="fb-stat-label">Simulated online@(Tip("Accounts currently marked online. Re-rolled for each account every 10-30 minutes from its daily raid hours."))</span><strong>@snapshot.Online.ToString("N0")</strong>
+                    <span class="fb-stat-label">Simulated online@(Tip("Accounts playing right now. Each account comes online and logs off around its daily raid hours."))</span><strong>@Num("online-all", snapshot.Online)</strong>
                     <span class="fb-stat-foot"><span class="fb-up">@Percent(snapshot.Online, total)</span> of accounts</span>
                 </article>
                 <article class="fb-card fb-stat">
-                    <span class="fb-stat-label">Prestiged@(Tip("Accounts that have prestiged at least once."))</span><strong>@snapshot.Prestiged.ToString("N0")</strong>
+                    <span class="fb-stat-label">Prestiged@(Tip("Accounts that have prestiged at least once."))</span><strong>@Num("prestiged", snapshot.Prestiged)</strong>
                     <span class="fb-stat-foot"><span class="fb-up">@Percent(snapshot.Prestiged, total)</span> of accounts</span>
                 </article>
                 <article class="fb-card fb-stat">
-                    <span class="fb-stat-label">Pending stories@(Tip("Killer stories waiting to resolve (a later death or regear)."))</span><strong>@snapshot.PendingStories.ToString("N0")</strong>
+                    <span class="fb-stat-label">Pending stories@(Tip("PMCs from your raids whose outcome (a later death, regear, transit or survival) is still to come."))</span><strong>@Num("stories-all", snapshot.PendingStories)</strong>
                     <span class="fb-stat-foot">@Icon("Clock") Outcomes awaiting resolution</span>
                 </article>
             </div>
@@ -325,8 +439,8 @@
         }
         else if (page == "Stories")
         {
-            <section class="fb-card"><h2>Post-raid stories</h2><p class="fb-muted">A PMC that killed you can later die or regear. Outcomes are mutually exclusive, delayed, and never rewrite the killer's historical equipment.</p>
-                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.EnablePostRaidStories" /><span class="fb-switch-track"></span>Enable post-raid stories@(Tip("After a PMC kills you, it may later die or regear, so its profile changes between raids."))</label></div>
+            <section class="fb-card"><h2>Post-raid stories</h2><p class="fb-muted">Every career from your raid that did not die in front of you gets a delayed outcome: it dies, regears, transits or survives. A PMC that killed you uses the chances below. Outcomes never rewrite the equipment you saw.</p>
+                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.EnablePostRaidStories" /><span class="fb-switch-track"></span>Enable post-raid stories@(Tip("PMCs from your raid may later die, regear or transit, so their profiles change between raids."))</label></div>
                 <div class="fb-grid">
                     <label class="fb-field"><span class="fb-label">Later death chance@(Tip("Chance (0 to 1) that a PMC who killed you dies later."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.PostRaidDeathChance" /></label>
                     <label class="fb-field"><span class="fb-label">Survivor regear chance@(Tip("Chance (0 to 1) that a PMC who killed you swaps to new gear later."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.PostRaidRegearChance" /></label>
@@ -334,6 +448,23 @@
                     <label class="fb-field"><span class="fb-label">Delay, maximum seconds@(Tip("Latest time after your death that a story outcome can happen."))</span><input type="number" min="30" max="86400" @bind="simulation.StoryMaximumDelaySeconds" /></label>
                     <label class="fb-field"><span class="fb-label">Outcome visibility, seconds@(Tip("How long a story outcome stays visible before the account carries on normally."))</span><input type="number" min="60" max="86400" @bind="simulation.StoryVisibilitySeconds" /></label>
                 </div><p class="fb-hint">Death and regear chances together cannot exceed 1. Otherwise the killer keeps its kit.</p>
+            </section>
+            @SimulationSave
+        }
+        else if (page == "World")
+        {
+            <section class="fb-card"><h2>Maps and queues</h2><p class="fb-muted">Online careers queue for a map, play a raid, extract, die or transit, then queue again or log off. Busy maps fill faster. Raid time is earned raid by raid, so profiles match what the maps show.</p><div class="fb-grid fb-grid-3">
+                <label class="fb-field"><span class="fb-label">Weekly boss boost@(Tip("Popularity of a map whose headline boss is guaranteed. Weekly boss rotations set one boss to 100%, so its map gets busier."))</span><input type="number" min="1" max="5" step="0.1" @bind="simulation.World.WeeklyBossBoost" /></label>
+                <label class="fb-field"><span class="fb-label">Streamer map boost@(Tip("How much more streamers and chads play Labs, Streets and Customs, and how much more often they spawn in your raids there."))</span><input type="number" min="1" max="10" step="0.1" @bind="simulation.World.StreamerMapBoost" /></label>
+                <label class="fb-field"><span class="fb-label">Queue time multiplier@(Tip("Scales every simulated queue time. 2 doubles them."))</span><input type="number" min="0.1" max="10" step="0.1" @bind="simulation.World.QueueTimeMultiplier" /></label>
+                <label class="fb-field"><span class="fb-label">Transit chance@(Tip("Chance (0 to 1) that a survivor moves on to a connected map with its gear, in the world and after your raids."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.World.TransitChance" /></label>
+                <label class="fb-field"><span class="fb-label">Log off after a raid@(Tip("Chance (0 to 1) that a career logs off after a raid instead of queueing again. Deaths log off a bit more often."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.World.LogOffChance" /></label>
+            </div></section>
+            <section class="fb-card"><h2>Matching screen</h2><p class="fb-muted">Before a raid the loading screen shows Matching with a timer, then Looking for server (5-15 s), Preparing the game and Awaiting response. Not used with Fika or on transits.</p>
+                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.World.SimulateMatching" /><span class="fb-switch-track"></span>Simulate matching@(Tip("Wait for a match based on the map's simulated queue before the raid starts."))</label></div>
+                <div class="fb-grid fb-grid-3">
+                    <label class="fb-field"><span class="fb-label">Longest matching, seconds@(Tip("Cap on the Matching stage. Looking for server still adds 5-15 seconds."))</span><input type="number" min="0" max="600" @bind="simulation.World.MaximumMatchingSeconds" /></label>
+                </div>
             </section>
             @SimulationSave
         }
@@ -370,41 +501,54 @@
 </div>
 
 @code {
-    private static readonly string[] topPages = ["Dashboard", "Personalities", "Simulation", "Population"];
-    private static readonly string[] simulationPages = ["Progression", "Hideout", "Gear", "Notable", "Prestige", "Stories", "Messages"];
+    private static readonly string[] topPages = ["Overview", "Dashboard", "Players", "Personalities", "Simulation", "Population"];
+    private static readonly string[] simulationPages = ["Progression", "Hideout", "Gear", "Notable", "Prestige", "Stories", "Messages", "World"];
+    private static readonly (string Value, string Label)[] statusFilters =
+        [("", "Everyone"), ("Online", "Online"), ("Raid", "In raid"), ("Queue", "Queueing"), ("Menu", "Main menu"), ("Transit", "In transit"), ("Died", "Died"), ("Offline", "Offline")];
+    private static readonly string[] sortOptions = ["Status", "Name", "Level", "Prestige", "Raids", "K/D"];
+    private const int PageSize = 50;
     private EditorSnapshot? snapshot;
+    private WorldSnapshot? world;
+    private List<WorldPlayerRow> players = new();
     private List<PersonalityTemplate> people = new();
     private SimulationPolicy simulation = new();
     private PbtSettings config = new();
     private readonly Dictionary<string, string> baselines = new();
-    private string page = "Dashboard", message = "";
-    private int selectedIndex;
-    private bool error, confirmReload, dark = true, menuOpen, simulationOpen = true;
+    private readonly Dictionary<string, double> shownNumbers = new(), targetNumbers = new();
+    private string page = "Overview", message = "", playerSearch = "", playerFilter = "", playerSort = "Status";
+    private int selectedIndex, slide, playerPage, ticks;
+    private bool error, confirmReload, dark = true, menuOpen, simulationOpen = true, sortDescending, animating;
+    private System.Threading.Timer? live;
 
     private RenderFragment SimulationSave => @<div class="fb-savebar"><span>Saves every Simulation page at once.</span><button type="button" class="fb-button" disabled="@(!Dirty("simulation"))" @onclick="SavePolicy">Save simulation policy</button></div>;
 
     private static string Title(string page) => page switch {
-        "Gear" => "Gear & showcases", "Notable" => "Chads & streamers", "Stories" => "Post-raid stories", "Messages" => "Bot messages", _ => page };
+        "Gear" => "Gear & showcases", "Notable" => "Chads & streamers", "Stories" => "Post-raid stories", "Messages" => "Bot messages", "Players" => "All players", "World" => "Maps & matching", _ => page };
     private static string Heading(string page) => page switch {
-        "Dashboard" => "Population dashboard", "Population" => "Population settings", _ => Title(page) };
+        "Overview" => "Live world", "Dashboard" => "Population dashboard", "Population" => "Population settings", _ => Title(page) };
     private static string Description(string page) => page switch {
+        "Overview" => "Where your server's careers are right now. Updates live.",
         "Dashboard" => "A snapshot of your server's persistent population.",
+        "Players" => "Every career, what it is doing and how it has played.",
+        "World" => "Map popularity, queues, transits and the matching screen.",
         "Personalities" => "Starting ranges and progression targets. Edits affect future simulation without rerolling existing accounts.",
         "Progression" => "Level cohorts guide varied account histories. Native requirements remain in force.",
         "Hideout" => "How simulated accounts build and upgrade their hideout.",
         "Gear" => "Profile loadouts, night kits and weapon racks.",
         "Notable" => "Better stats and gear for chad and streamer names.",
         "Prestige" => "When simulated accounts prestige, and how many start prestiged.",
-        "Stories" => "What happens to a PMC after it kills you.",
+        "Stories" => "What happens to the PMCs from your raid after it ends.",
         "Messages" => "Rare post-raid messages from careers you met.",
         _ => "Friendships and activity between server sessions." };
     private static string? Section(string page) => page switch {
-        "Personalities" => "personalities", "Population" => "settings", "Dashboard" => null, _ => "simulation" };
+        "Personalities" => "personalities", "Population" => "settings", "Dashboard" or "Overview" or "Players" => null, _ => "simulation" };
     // preventDefault keeps a click on the icon from toggling or focusing the label's control.
     private static RenderFragment Tip(string text) => @<span class="fb-tip" tabindex="0" @onclick:preventDefault="true"><span aria-hidden="true">?</span><span class="fb-tip-text" role="tooltip">@text</span></span>;
     private static string Percent(int part, int whole) => (part * 100.0 / whole).ToString("0.0") + "%";
     private static RenderFragment Icon(string name) => name switch {
         "Dashboard" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v7h7A7 7 0 1 1 10 3Z" /><path d="M13 2.5A5 5 0 0 1 17.5 7H13Z" /></svg>,
+        "Overview" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 5.5 7 3.5l6 2 4.5-2v11l-4.5 2-6-2-4.5 2ZM7 3.5v11M13 5.5v11" /></svg>,
+        "Players" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h9" /><circle cx="15.5" cy="15" r="1.5" /></svg>,
         "Personalities" or "Users" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="7.5" cy="7" r="3" /><path d="M2 17a5.5 5.5 0 0 1 11 0M13 4.2a3 3 0 0 1 0 5.6M15 12a5.5 5.5 0 0 1 3 5" /></svg>,
         "Simulation" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="2.5" /><path d="M10 2v3M10 15v3M2 10h3M15 10h3M4.3 4.3l2.1 2.1M13.6 13.6l2.1 2.1M4.3 15.7l2.1-2.1M13.6 6.4l2.1-2.1" /></svg>,
         "Population" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5" /><path d="M2.5 10h15M10 2.5c2.2 2.2 2.2 12.8 0 15M10 2.5c-2.2 2.2-2.2 12.8 0 15" /></svg>,
@@ -418,6 +562,7 @@
     private void Go(string next)
     {
         page = next;
+        if (next is "Overview" or "Players") LoadWorld();
         menuOpen = false;
         if (simulationPages.Contains(next)) simulationOpen = true;
     }
@@ -429,7 +574,85 @@
     }
     private PersonalityTemplate? Current => selectedIndex >= 0 && selectedIndex < people.Count ? people[selectedIndex] : people.FirstOrDefault();
     private static PopulationStore Store => PopulationStore.Active ?? throw new InvalidOperationException("PBT is not ready.");
-    protected override void OnInitialized() => Reload();
+    protected override void OnInitialized()
+    {
+        Reload();
+        LoadWorld();
+    }
+    protected override void OnAfterRender(bool first)
+    {
+        if (first) live = new System.Threading.Timer(_ => _ = InvokeAsync(Tick), null, 3000, 3000);
+    }
+    public void Dispose() => live?.Dispose();
+
+    private void LoadWorld()
+    {
+        try
+        {
+            world = Store.GetWorld(25);
+            if (page == "Players") players = Store.GetPlayers();
+            if (world.Maps.Count > 0) slide %= world.Maps.Count;
+        }
+        catch { }
+    }
+    private async Task Tick()
+    {
+        if (animating || snapshot is null) return;
+        if (page is "Overview" or "Players") LoadWorld();
+        else if (page == "Dashboard") UpdateStatus();
+        else return;
+        if (page == "Overview" && ++ticks % 2 == 0 && world?.Maps.Count > 1) slide = (slide + 1) % world.Maps.Count;
+        StateHasChanged();
+        // Ease shown numbers toward the values the last render asked for.
+        animating = true;
+        try
+        {
+            for (int frame = 0; frame < 12 && shownNumbers.Any(p => Math.Abs(p.Value - targetNumbers[p.Key]) > .5); frame++)
+            {
+                await Task.Delay(40);
+                foreach (var key in shownNumbers.Keys.ToList())
+                    shownNumbers[key] = frame == 11 ? targetNumbers[key] : shownNumbers[key] + (targetNumbers[key] - shownNumbers[key]) * .3;
+                StateHasChanged();
+            }
+        }
+        finally { animating = false; }
+    }
+    private string Num(string key, int value)
+    {
+        targetNumbers[key] = value;
+        if (!shownNumbers.TryGetValue(key, out double shown)) shownNumbers[key] = shown = value;
+        return Math.Round(shown).ToString("N0");
+    }
+    private IEnumerable<WorldPlayerRow> FilteredPlayers()
+    {
+        if (players.Count == 0) { try { players = Store.GetPlayers(); } catch { } }
+        IEnumerable<WorldPlayerRow> rows = players;
+        if (!string.IsNullOrWhiteSpace(playerSearch)) rows = rows.Where(p => p.Name.Contains(playerSearch.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (playerFilter == "Online") rows = rows.Where(p => p.State is not ("Offline" or "Died"));
+        else if (playerFilter.Length > 0) rows = rows.Where(p => p.State == playerFilter);
+        Func<WorldPlayerRow, object> key = playerSort switch {
+            "Name" => p => p.Name, "Level" => p => p.Level, "Prestige" => p => p.Prestige, "Raids" => p => p.Raids, "K/D" => p => p.KillDeath,
+            _ => p => StateOrder(p.State) };
+        var sorted = sortDescending ? rows.OrderByDescending(key) : rows.OrderBy(key);
+        return sorted.ThenByDescending(p => p.Level).ThenBy(p => p.Name);
+    }
+    private static int StateOrder(string state) => state switch { "Raid" => 0, "Queue" => 1, "Transit" => 2, "Menu" => 3, "Died" => 4, _ => 5 };
+    private static int Hue(string id) => (int)((uint)id.Aggregate(17, (h, c) => h * 31 + c) % 360);
+    private static int Bars(double share) => share >= .15 ? 4 : share >= .09 ? 3 : share >= .04 ? 2 : share > 0 ? 1 : 0;
+    private static string Clock(int seconds) => $"{seconds / 60}:{seconds % 60:D2}";
+    private static string Duration(long seconds) => seconds < 60 ? $"{seconds}s" : seconds < 3600 ? $"{seconds / 60}m" : seconds < 86400 ? $"{seconds / 3600}h {seconds % 3600 / 60}m" : $"{seconds / 86400}d";
+    private static string Ago(long utc)
+    {
+        long seconds = Math.Max(0, DateTimeOffset.UtcNow.ToUnixTimeSeconds() - utc);
+        return seconds < 10 ? "now" : Duration(seconds) + " ago";
+    }
+    private static RenderFragment Sparkline(int[] points)
+    {
+        if (points.Length < 2) return @<span class="fb-muted">-</span>;
+        int top = Math.Max(1, points.Max());
+        string line = string.Join(" ", points.Select((v, i) => $"{i * 100.0 / (points.Length - 1):0.#},{22 - v * 20.0 / top:0.#}"));
+        return @<svg class="fb-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline points="@line" /></svg>;
+    }
     private string Contents(string section) => section switch {
         "personalities" => JsonSerializer.Serialize(people), "simulation" => JsonSerializer.Serialize(simulation), _ => JsonSerializer.Serialize(config) };
     private bool Dirty(string section) => baselines.TryGetValue(section, out var baseline) && baseline != Contents(section);
@@ -452,13 +675,21 @@
     {
         try
         {
+            UpdateStatus(true);
+            error = false; message = "Status refreshed. Unsaved edits are retained.";
+        }
+        catch (Exception ex) { error = true; message = ex.Message; }
+    }
+    private void UpdateStatus(bool rethrow = false)
+    {
+        try
+        {
             var status = Store.GetEditorSnapshot();
             snapshot = snapshot! with { Careers = status.Careers, Online = status.Online, PendingStories = status.PendingStories,
                 Prestiged = status.Prestiged, GenerationMode = status.GenerationMode, ApbsMatched = status.ApbsMatched, ApbsFallback = status.ApbsFallback,
                 Insights = status.Insights };
-            error = false; message = "Status refreshed. Unsaved edits are retained.";
         }
-        catch (Exception ex) { error = true; message = ex.Message; }
+        catch when (!rethrow) { }
     }
     private void Add()
     {

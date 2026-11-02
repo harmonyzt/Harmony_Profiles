@@ -233,14 +233,21 @@ public sealed partial class PopulationStore
             if (!Ready) return false;
             if (!reservedCareers.TryGetValue(scope.Session.ToString(), out var used))
                 reservedCareers.Add(scope.Session.ToString(), used = new());
+            string map = MapKey(scope.Details.Location);
+            // Careers still playing out a story from your last raid are busy elsewhere.
+            var storied = population.PendingStories.Values.Select(s => s.CareerId).ToHashSet();
             var candidates = population.Careers.Values.Where(c => !c.Retired && c.Side.Equals(scope.Details.Side, StringComparison.OrdinalIgnoreCase)
-                && !used.Contains(c.Id)).Select(c => new { Career = c, Level = Level(c.Experience) })
-                .Where(c => c.Level >= minimum && c.Level <= maximum).ToArray();
+                && !used.Contains(c.Id) && !storied.Contains(c.Id)).Select(c => new { Career = c, Level = Level(c.Experience), Weight = RaidWeight(c, map) })
+                .Where(c => c.Level >= minimum && c.Level <= maximum && c.Weight > 0).ToArray();
             if (candidates.Length == 0) { ApbsFallback++; return false; }
             int rolled = sampler(minimum, maximum, 1, 1.15);
             int distance = candidates.Min(c => Math.Abs(c.Level - rolled));
-            var nearest = candidates.Where(c => Math.Abs(c.Level - rolled) == distance).ToArray();
-            var selected = nearest[Random.Shared.Next(nearest.Length)];
+            // A couple of levels of slack lets queueing and transiting careers win over an exact level match.
+            var nearest = candidates.Where(c => Math.Abs(c.Level - rolled) <= distance + 2)
+                .Select(c => (c.Career, c.Level, Weight: c.Weight / (1 + Math.Abs(c.Level - rolled) - distance))).ToArray();
+            double roll = Random.Shared.NextDouble() * nearest.Sum(c => c.Weight);
+            var selected = nearest[^1];
+            foreach (var candidate in nearest) { roll -= candidate.Weight; if (roll <= 0) { selected = candidate; break; } }
             scope.Career = selected.Career;
             scope.Level = selected.Level;
             scope.Experience = selected.Career.Experience;

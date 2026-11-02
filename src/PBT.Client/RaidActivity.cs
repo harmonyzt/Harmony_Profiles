@@ -33,6 +33,7 @@ internal static class RaidActivity
     private static readonly Dictionary<string, Observation> bots = new();
     private static readonly HashSet<string> deaths = new();
     private static string raid = "";
+    private static string map = "";
     private static bool observing;
     private static float nextUpload;
     private static GameWorld? currentWorld;
@@ -59,6 +60,7 @@ internal static class RaidActivity
         bots.Clear();
         deaths.Clear();
         raid = raidId;
+        map = world.LocationId ?? "";
         currentWorld = world;
         observing = Supported;
         nextUpload = Time.realtimeSinceStartup + 60;
@@ -185,7 +187,7 @@ internal static class RaidActivity
                 ["Finished"] = bot.Stopped.HasValue, ["Died"] = bot.Died, ["PmcKills"] = bot.PmcKills, ["ScavKills"] = bot.ScavKills, ["UsecKills"] = bot.UsecKills, ["BearKills"] = bot.BearKills,
                 ["KilledByPlayer"] = bot.KilledByPlayer, ["KilledPlayer"] = bot.KilledPlayer, ["NearExtract"] = bot.NearExtract, ["LootValue"] = bot.LootValue
             });
-        string payload = new JObject { ["ProtocolVersion"] = 1, ["RaidId"] = raid, ["Bots"] = entries }.ToString(Formatting.None);
+        string payload = new JObject { ["ProtocolVersion"] = 1, ["RaidId"] = raid, ["Map"] = map, ["Bots"] = entries }.ToString(Formatting.None);
         pending = SendAfter(pending, payload);
     }
 

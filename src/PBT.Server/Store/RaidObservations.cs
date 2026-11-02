@@ -21,6 +21,7 @@ public sealed partial class PopulationStore
             var confirmedStoryDeaths = new Dictionary<int, string>();
             var previousStories = population.AppliedStories;
             var seen = new HashSet<int>();
+            var finished = new List<(Encounter Encounter, RaidObservation Observation)>();
             int accepted = 0;
             bool changed = false;
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -58,6 +59,7 @@ public sealed partial class PopulationStore
                 accepted++;
                 if (merged == old) continue;
                 merged = merged with { LastReportUtc = now };
+                if (merged.Finished && old?.Finished != true) finished.Add((encounter, merged));
                 if (merged.Died && old?.Died != true)
                 {
                     newDeaths.Add(career.Id);
@@ -119,6 +121,12 @@ public sealed partial class PopulationStore
                 population.AppliedStories = previousStories;
                 dirty = previousDirty;
                 throw;
+            }
+            // Your raid is over for these PMCs. What happens to them next is a pending story.
+            foreach (var (encounter, observation) in finished)
+            {
+                try { AfterRaid(encounter, observation, report.Map, killer: false, now); }
+                catch (Exception ex) { Report(ex); }
             }
             return accepted;
         }

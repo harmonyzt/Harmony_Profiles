@@ -1,0 +1,396 @@
+namespace PBT.Server;
+
+// What every online career is doing right now: main menu, queueing, in raid or in transit.
+// Online careers earn their raids here one at a time, so profiles, maps and the activity log agree.
+public sealed partial class PopulationStore
+{
+    private sealed class Activity
+    {
+        public string State = "Offline";
+        public string Map = "";
+        public string Target = "";
+        public long Since;
+        public long Until;
+        // In your raid or waiting on a post-raid story. Stories and observations move it, not the world tick.
+        public bool Held;
+        public bool WantsOffline;
+    }
+
+    private sealed record WorldMap(string Id, string Name, double Weight, string[] Transits, int MinimumLevel, int MaximumLevel, bool WeeklyBoss);
+
+    private static readonly Dictionary<string, double> MapPopularity = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["bigmap"] = 16, ["woods"] = 13, ["interchange"] = 11, ["tarkovstreets"] = 11, ["shoreline"] = 9, ["rezervbase"] = 9,
+        ["factory4_day"] = 8, ["lighthouse"] = 7, ["sandbox"] = 7, ["sandbox_high"] = 6, ["laboratory"] = 5, ["factory4_night"] = 3, ["labyrinth"] = 2
+    };
+    private static readonly HashSet<string> HiddenMaps = new(StringComparer.OrdinalIgnoreCase) { "hideout", "develop", "privatearea", "suburbs", "terminal", "town" };
+    private static readonly HashSet<string> StreamerMaps = new(StringComparer.OrdinalIgnoreCase) { "laboratory", "tarkovstreets", "bigmap" };
+    // Bosses that are normally a gamble. One of them at 100% is a weekly boss.
+    private static readonly HashSet<string> HeadlineBosses = new(StringComparer.OrdinalIgnoreCase)
+        { "bossBully", "bossKilla", "bossKojaniy", "bossGluhar", "bossSanitar", "bossTagilla", "bossKnight", "bossBoar", "bossKolontay", "bossPartisan" };
+
+    private const int LogSize = 300;
+    private const int HistoryPoints = 90;
+    private readonly Dictionary<string, Activity> activities = new();
+    private List<WorldMap> worldMaps = [];
+    private long mapsRefreshedUtc;
+    private readonly LinkedList<WorldEvent> worldLog = new();
+    private long worldEventId;
+    private readonly Dictionary<string, Queue<int>> mapHistory = new();
+    private long historyUtc;
+    private Timer? worldTimer;
+    private long worldErrorUtc;
+
+    private Activity ActivityOf(Career c)
+    {
+        if (!activities.TryGetValue(c.Id, out var a)) activities.Add(c.Id, a = new());
+        return a;
+    }
+
+    private static string MapKey(string? map) => (map ?? "").Trim().ToLowerInvariant();
+
+    private WorldMap? FindMap(string? id) => worldMaps.FirstOrDefault(m => m.Id == MapKey(id));
+
+    private string MapLabel(string? id) => FindMap(id)?.Name ?? MapName(id);
+
+    private void RefreshMaps(long now)
+    {
+        if (worldMaps.Count > 0 && now - mapsRefreshedUtc < 600) return;
+        mapsRefreshedUtc = now;
+        Dictionary<string, string> names;
+        try { names = locales.GetLocaleDb(); }
+        catch { names = new(); }
+        var next = new List<WorldMap>();
+        foreach (var location in locations.GetDictionary().Values)
+        {
+            var b = location?.Base;
+            if (b is null || string.IsNullOrEmpty(b.Id) || !b.Enabled || b.Locked == true || HiddenMaps.Contains(b.Id)) continue;
+            string id = MapKey(b.Id);
+            if (next.Any(m => m.Id == id)) continue;
+            bool weekly = b.BossLocationSpawn?.Any(s => s.BossChance >= 100 && s.BossName is { } boss && HeadlineBosses.Contains(boss)) == true;
+            string name = names.GetValueOrDefault(b.Id) ?? names.GetValueOrDefault(b.IdField + " Name") ?? b.Name ?? b.Id;
+            var transits = (b.Transits ?? []).Where(t => t.IsActive != false && !string.IsNullOrEmpty(t.Location))
+                .Select(t => MapKey(t.Location)).Where(t => t != id).Distinct().ToArray();
+            next.Add(new(id, name, MapPopularity.GetValueOrDefault(id, 5), transits, b.RequiredPlayerLevelMin ?? 0,
+                b.RequiredPlayerLevelMax is > 0 ? b.RequiredPlayerLevelMax.Value : 100, weekly));
+        }
+        if (next.Count > 0) worldMaps = next;
+    }
+
+    private double MapWeight(Career c, WorldMap map, int level)
+    {
+        if (level < map.MinimumLevel || level > map.MaximumLevel) return 0;
+        double weight = map.Weight * (map.WeeklyBoss ? policy.World.WeeklyBossBoost : 1);
+        // Labs needs a keycard, so low levels almost never go.
+        if (map.Id == "laboratory" && level < 20) weight *= .1;
+        if (Notable(c) && StreamerMaps.Contains(map.Id)) weight *= policy.World.StreamerMapBoost;
+        weight *= c.Archetype switch
+        {
+            "Timmy" => map.Id is "factory4_day" or "bigmap" or "woods" or "sandbox" ? 1.4 : map.Id == "laboratory" ? .15 : 1,
+            "Aggressive" => map.Id is "factory4_day" or "factory4_night" or "interchange" or "tarkovstreets" ? 1.4 : 1,
+            "Survivor" => map.Id is "woods" or "shoreline" or "lighthouse" or "rezervbase" ? 1.3 : 1,
+            _ => 1
+        };
+        // Everyone has a couple of favourite maps.
+        return weight * (.6 + Stable(c.Id + ":map:" + map.Id) * .8);
+    }
+
+    private WorldMap? PickMap(Career c)
+    {
+        int level = Level(c.Experience);
+        var weights = worldMaps.Select(m => (Map: m, Weight: MapWeight(c, m, level))).Where(x => x.Weight > 0).ToArray();
+        double total = weights.Sum(x => x.Weight);
+        if (weights.Length == 0 || total <= 0) return null;
+        double roll = Random.Shared.NextDouble() * total;
+        foreach (var (map, weight) in weights) { roll -= weight; if (roll <= 0) return map; }
+        return weights[^1].Map;
+    }
+
+    // Busy maps fill a lobby fast. Quiet ones keep you waiting.
+    private int QueueSeconds(string map)
+    {
+        var playing = activities.Values.Where(a => a.State is "Raid" or "Queue").GroupBy(a => a.Map).ToDictionary(g => g.Key, g => g.Count());
+        double average = worldMaps.Count == 0 ? 1 : (double)playing.Where(p => worldMaps.Any(m => m.Id == p.Key)).Sum(p => p.Value) / worldMaps.Count;
+        double ratio = (playing.GetValueOrDefault(MapKey(map)) + 1) / (average + 1);
+        double seconds = 45 / Math.Pow(ratio, .6) * policy.World.QueueTimeMultiplier;
+        return (int)Math.Clamp(seconds, 8, 600);
+    }
+
+    private void Log(string kind, string text, string map = "")
+    {
+        worldLog.AddFirst(new WorldEvent(++worldEventId, DateTimeOffset.UtcNow.ToUnixTimeSeconds(), kind, text, map));
+        while (worldLog.Count > LogSize) worldLog.RemoveLast();
+    }
+
+    private void InitializeWorld(long now)
+    {
+        RefreshMaps(now);
+        var held = population.PendingStories.Values.ToDictionary(s => s.CareerId, s => s, StringComparer.Ordinal);
+        foreach (var c in population.Careers.Values.Where(c => !c.Retired))
+        {
+            var a = ActivityOf(c);
+            if (held.TryGetValue(c.Id, out var story))
+            {
+                c.IsOnline = true;
+                Set(a, "Raid", story.Map, now, story.DueUtc + 60, held: true);
+                continue;
+            }
+            if (!c.IsOnline) continue;
+            // Start mid-session instead of everyone in the menu at once.
+            double roll = Random.Shared.NextDouble();
+            var map = PickMap(c);
+            if (map is null || roll < .2) Set(a, "Menu", "", now, now + Random.Shared.Next(10, 241));
+            else if (roll < .32) Set(a, "Queue", map.Id, now, now + (long)(Random.Shared.NextDouble() * QueueSeconds(map.Id)) + 5);
+            else
+            {
+                long length = RaidLength(c);
+                long into = (long)(Random.Shared.NextDouble() * length);
+                Set(a, "Raid", map.Id, now - into, now + Math.Max(30, length - into));
+            }
+        }
+        worldTimer = new Timer(_ => TickWorld(), null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+    }
+
+    private static void Set(Activity a, string state, string map, long since, long until, bool held = false, string target = "")
+    {
+        a.State = state;
+        a.Map = map;
+        a.Since = since;
+        a.Until = until;
+        a.Held = held;
+        a.Target = target;
+    }
+
+    private long RaidLength(Career c)
+    {
+        if (c.TargetRaidSeconds <= 0) c.TargetRaidSeconds = RaidDuration(c, true);
+        return (long)Math.Max(120, c.TargetRaidSeconds - c.PendingRaidSeconds + 1);
+    }
+
+    private void TickWorld()
+    {
+        lock (gate)
+        {
+            if (!Ready) return;
+            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            try { WorldTick(now); }
+            catch (Exception ex)
+            {
+                if (now - worldErrorUtc < 300) return;
+                worldErrorUtc = now;
+                logger.Error($"[PBT] World tick failed; retrying. {ex}");
+            }
+        }
+    }
+
+    // Caller holds the gate.
+    private void WorldTick(long now)
+    {
+        RefreshMaps(now);
+        foreach (var c in population.Careers.Values)
+        {
+            if (c.Retired) continue;
+            var a = ActivityOf(c);
+            if (a.State == "Offline" || now < a.Until) continue;
+            if (a.Held)
+            {
+                // A raid that never reported back (no client plugin, crash) releases the career eventually.
+                if (!IsObservedActive(c, now) && !population.PendingStories.Values.Any(s => s.CareerId == c.Id)) ToMenu(c, a, now);
+                else a.Until = now + 60;
+                continue;
+            }
+            switch (a.State)
+            {
+                case "Menu":
+                    if (a.WantsOffline || !c.IsOnline) { GoOffline(c, a, now); break; }
+                    // Dead and naked: wait for the regear, and some give up for the day.
+                    if (c.NeedsRegear)
+                    {
+                        if (Random.Shared.NextDouble() < .1) GoOffline(c, a, now);
+                        else a.Until = now + Random.Shared.Next(60, 181);
+                        break;
+                    }
+                    if (PickMap(c) is not { } map) { a.Until = now + 120; break; }
+                    Set(a, "Queue", map.Id, now, now + QueueSeconds(map.Id));
+                    break;
+                case "Queue":
+                    Set(a, "Raid", a.Map, now, now + RaidLength(c));
+                    break;
+                case "Transit":
+                    Set(a, "Raid", a.Target, now, now + RaidLength(c));
+                    break;
+                case "Raid":
+                    FinishRaid(c, a, now);
+                    break;
+            }
+        }
+        if (now - historyUtc >= 60)
+        {
+            historyUtc = now;
+            var counts = activities.Values.Where(a => a.State is "Raid" or "Queue").GroupBy(a => a.Map).ToDictionary(g => g.Key, g => g.Count());
+            foreach (var map in worldMaps)
+            {
+                if (!mapHistory.TryGetValue(map.Id, out var points)) mapHistory.Add(map.Id, points = new());
+                points.Enqueue(counts.GetValueOrDefault(map.Id));
+                while (points.Count > HistoryPoints) points.Dequeue();
+            }
+        }
+    }
+
+    private void FinishRaid(Career c, Activity a, long now)
+    {
+        int raids = c.Raids, survived = c.Survived, missing = c.MissingRaids, awol = c.AwolRaids, runner = c.RunThroughRaids, kills = c.PmcKills;
+        double seconds = Math.Max(0, c.TargetRaidSeconds - c.PendingRaidSeconds) + .01;
+        ApplySimulation(c, seconds);
+        c.PendingLiveSeconds += seconds;
+        c.Achievements = EarnedMilestones(c, now);
+        dirty = true;
+        string map = MapLabel(a.Map), gained = c.PmcKills > kills ? $" with {c.PmcKills - kills} PMC kill{(c.PmcKills - kills == 1 ? "" : "s")}" : "";
+        if (c.Raids == raids) { ToMenu(c, a, now); return; }
+        if (c.Survived > survived)
+        {
+            var target = FindMap(a.Map)?.Transits.Select(FindMap).Where(m => m is not null).ToArray() ?? [];
+            if (target.Length > 0 && Random.Shared.NextDouble() < policy.World.TransitChance)
+            {
+                var next = target[Random.Shared.Next(target.Length)]!;
+                Log("transit", $"{c.Name} transited from {map} to {next.Name}{gained}", next.Id);
+                Set(a, "Transit", a.Map, now, now + Random.Shared.Next(20, 91), target: next.Id);
+                return;
+            }
+            Log("extract", $"{c.Name} extracted from {map}{gained}", a.Map);
+        }
+        else if (c.MissingRaids > missing) Log("mia", $"{c.Name} went missing in action on {map}", a.Map);
+        else if (c.AwolRaids > awol) Log("mia", $"{c.Name} left the raid on {map}", a.Map);
+        else if (c.RunThroughRaids > runner) Log("extract", $"{c.Name} ran through {map}", a.Map);
+        else Log("death", Killed(c, a.Map, map) + gained, a.Map);
+        ToMenu(c, a, now, died: c.Survived == survived);
+    }
+
+    // Half the deaths name another career on the same map. The log only, no stats change.
+    private string Killed(Career c, string mapId, string map)
+    {
+        var others = population.Careers.Values.Where(o => o.Id != c.Id && activities.TryGetValue(o.Id, out var oa)
+            && oa.State == "Raid" && oa.Map == mapId).Take(50).ToArray();
+        if (others.Length > 0 && Random.Shared.NextDouble() < .5)
+            return $"{c.Name} was killed by {others[Random.Shared.Next(others.Length)].Name} on {map}";
+        return $"{c.Name} was killed on {map}";
+    }
+
+    private void ToMenu(Career c, Activity a, long now, bool died = false)
+    {
+        bool wanted = a.WantsOffline;
+        Set(a, "Menu", "", now, now + Random.Shared.Next(60, 361));
+        a.WantsOffline = wanted || Random.Shared.NextDouble() < policy.World.LogOffChance * (died ? 1.3 : 1);
+        c.IsOnline = true;
+    }
+
+    private void GoOnline(Career c, Activity a, long now)
+    {
+        c.IsOnline = true;
+        Set(a, "Menu", "", now, now + Random.Shared.Next(30, 241));
+        a.WantsOffline = false;
+        Log("online", $"{c.Name} came online");
+    }
+
+    private void GoOffline(Career c, Activity a, long now)
+    {
+        c.IsOnline = false;
+        Set(a, "Offline", "", now, 0);
+        a.WantsOffline = false;
+        Log("offline", $"{c.Name} logged off");
+    }
+
+    // A career picked for your raid stays there until its story or observation moves it on.
+    private void HoldInRaid(Career c, string map, long until)
+    {
+        var a = ActivityOf(c);
+        c.IsOnline = true;
+        Set(a, "Raid", MapKey(map), DateTimeOffset.UtcNow.ToUnixTimeSeconds(), until, held: true);
+    }
+
+    // Preference when APBS spawns a PMC into your raid on this map.
+    private double RaidWeight(Career c, string map)
+    {
+        if (!activities.TryGetValue(c.Id, out var a)) return 1;
+        if (a.Held) return 0;
+        double weight = a.State switch
+        {
+            "Queue" => a.Map == map ? 8 : .3,
+            "Transit" => a.Target == map ? 8 : .3,
+            "Raid" => a.Map == map ? 4 : .3,
+            "Menu" => 2,
+            _ => 1
+        };
+        if (Notable(c) && StreamerMaps.Contains(map)) weight *= policy.World.StreamerMapBoost;
+        return weight;
+    }
+
+    private (string State, string Status, string Map, long Since) Describe(Career c, long now)
+    {
+        var a = activities.GetValueOrDefault(c.Id);
+        if (a is null || c.Retired || a.State == "Offline")
+            return now - c.DiedUtc < 1800 && c.NeedsRegear ? ("Died", "Died", "", c.DiedUtc) : ("Offline", "Offline", "", a?.Since ?? 0);
+        string map = MapLabel(a.Map);
+        return a.State switch
+        {
+            "Queue" => ("Queue", "Queueing " + map, a.Map, a.Since),
+            "Raid" when a.Held && IsObservedActive(c, now) => ("Raid", $"In your raid ({map})", a.Map, a.Since),
+            "Raid" => ("Raid", $"In Raid ({map})", a.Map, a.Since),
+            "Transit" => ("Transit", $"In Transit ({map} to {MapLabel(a.Target)})", a.Target, a.Since),
+            _ => c.NeedsRegear ? ("Died", "Died, regearing", "", c.DiedUtc) : ("Menu", "Online/Main Menu", "", a.Since)
+        };
+    }
+
+    public WorldSnapshot GetWorld(int events = 40)
+    {
+        lock (gate)
+        {
+            if (!Ready) throw new InvalidOperationException("PBT has not finished loading.");
+            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            var live = activities.Where(p => population.Careers.TryGetValue(p.Key, out var c) && !c.Retired).Select(p => p.Value).ToList();
+            int playing = Math.Max(1, live.Count(a => a.State is "Raid" or "Queue"));
+            var maps = worldMaps.Select(m =>
+            {
+                int raid = live.Count(a => a.State == "Raid" && a.Map == m.Id), queue = live.Count(a => a.State == "Queue" && a.Map == m.Id);
+                return new WorldMapStatus(m.Id, m.Name, raid, queue, QueueSeconds(m.Id), (raid + queue) / (double)playing, m.WeeklyBoss,
+                    mapHistory.TryGetValue(m.Id, out var points) ? points.ToArray() : []);
+            }).OrderByDescending(m => m.InRaid + m.Queueing).ThenBy(m => m.Name).ToList();
+            return new(live.Count(a => a.State != "Offline"), live.Count(a => a.State == "Raid"), live.Count(a => a.State == "Queue"),
+                live.Count(a => a.State == "Menu"), live.Count(a => a.State == "Transit"), population.PendingStories.Count, maps,
+                worldLog.Take(Math.Clamp(events, 0, LogSize)).ToList());
+        }
+    }
+
+    public List<WorldPlayerRow> GetPlayers()
+    {
+        lock (gate)
+        {
+            if (!Ready) throw new InvalidOperationException("PBT has not finished loading.");
+            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            long Deaths(Career c) => Math.Max(1, c.Raids - c.Survived - c.MissingRaids - c.AwolRaids - c.RunThroughRaids + c.Observed.Deaths + c.StoryDeaths);
+            return population.Careers.Values.Where(c => !c.Retired).Select(c =>
+            {
+                var (state, status, map, since) = Describe(c, now);
+                return new WorldPlayerRow(c.Name, c.Side, c.Archetype, Level(c.Experience), c.PrestigeLevel, state, status, map,
+                    since > 0 ? now - since : 0, (int)(c.Raids + c.Observed.Raids), Math.Round((double)(c.PmcKills + c.Observed.PmcKills) / Deaths(c), 2), Notable(c));
+            }).ToList();
+        }
+    }
+
+    // Seconds the client should show Matching for this map. Zero when matching is off.
+    public int MatchingSeconds(string map)
+    {
+        lock (gate)
+        {
+            if (!Ready || !policy.World.SimulateMatching) return 0;
+            int seconds = QueueSeconds(map);
+            return Math.Min(policy.World.MaximumMatchingSeconds, (int)(seconds * (.7 + Random.Shared.NextDouble() * .6)));
+        }
+    }
+
+    public Dictionary<string, object> MapIndicators()
+    {
+        var world = GetWorld(0);
+        return world.Maps.ToDictionary(m => m.Id, m => (object)new { m.InRaid, m.Queueing, m.Share, m.QueueSeconds, m.WeeklyBoss });
+    }
+}

@@ -23,7 +23,7 @@ public sealed partial class PopulationStore
             string config = File.ReadAllText(EditorPath("settings"));
             return new(people, Revision(people), simulation, Revision(simulation), config, Revision(config),
                 population.Careers.Count, population.Careers.Values.Count(c => c.IsOnline),
-                encounters.Values.Count(e => e.StoryOutcome != "None" && e.KillerCapturedUtc > 0 && !population.AppliedStories.ContainsKey(e.AccountId)),
+                population.PendingStories.Count,
                 population.Careers.Values.Count(c => c.PrestigeLevel > 0), GenerationMode, ApbsMatched, ApbsFallback, Insights());
         }
     }

@@ -138,14 +138,13 @@ public sealed partial class PopulationStore
         foreach (var c in population.Careers.Values.Where(c => !c.Retired && now >= c.NextActivityUtc))
         {
             if (IsObservedActive(c, now) || now < c.StoryHoldUntilUtc) continue;
-            long elapsed = Math.Clamp(now - Math.Max(c.LastActivityUtc, now - 1800), 0, 1800);
-            c.IsOnline = RollOnline(c);
-            if (c.IsOnline)
-            {
-                ApplySimulation(c, elapsed);
-                c.PendingLiveSeconds += elapsed;
-                c.Achievements = EarnedMilestones(c, now);
-            }
+            // Raid time itself is earned raid by raid in the world tick. This only decides who plays.
+            var a = ActivityOf(c);
+            bool wants = RollOnline(c);
+            if (wants && a.State == "Offline") GoOnline(c, a, now);
+            else if (!wants && a.State == "Menu" && !a.Held) GoOffline(c, a, now);
+            else a.WantsOffline = !wants;
+            if (c.IsOnline) c.Achievements = EarnedMilestones(c, now);
             c.LastActivityUtc = now;
             c.NextActivityUtc = now + Random.Shared.Next(600, 1801);
             dirty = true;

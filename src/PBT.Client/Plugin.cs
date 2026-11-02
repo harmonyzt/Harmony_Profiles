@@ -50,6 +50,15 @@ public sealed class Plugin : BaseUnityPlugin
             HideoutAccessGate.Install(harmony);
             try { HideoutVisitGuard.Install(harmony); }
             catch (Exception ex) { Logger.LogWarning("Hideout visit guard disabled. " + ex.Message); }
+            try { MapIndicators.Install(harmony); }
+            catch (Exception ex) { Logger.LogWarning("Map online indicators disabled. " + ex.Message); }
+            // Fika runs its own matching and game creation.
+            if (BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey("com.fika.core")) Logger.LogInfo("Fika detected; matching simulation left to Fika.");
+            else
+            {
+                try { Matching.Install(harmony); }
+                catch (Exception ex) { Logger.LogWarning("Matching simulation disabled. " + ex.Message); }
+            }
             activityHarmony = new Harmony("com.local.pbt.activity");
             try { RaidActivity.Install(activityHarmony); }
             catch (Exception ex)
@@ -187,6 +196,8 @@ public sealed class Plugin : BaseUnityPlugin
     {
         try { RaidActivity.Tick(); }
         catch (Exception ex) { Report("Raid observation checkpoint failed: " + ex.Message); }
+        try { MapIndicators.Tick(); }
+        catch (Exception ex) { Report("Map online indicator update failed: " + ex.Message); }
     }
 
     private void OnDestroy()

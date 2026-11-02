@@ -31,6 +31,24 @@ public sealed class PbtRouter(JsonUtil json, PopulationStore store) : StaticRout
                 return new ValueTask<string>(json.Serialize(new { ProtocolVersion = 1, Accepted = false })!);
             }
         }),
+    new RouteAction<MatchingRequest>("/pbt/world/matching",
+        (url, request, session, output, token) =>
+        {
+            int seconds = 0;
+            try { seconds = store.MatchingSeconds(request.Map); }
+            catch (Exception ex) { store.Report(ex); }
+            return new ValueTask<string>(json.Serialize(new { ProtocolVersion = 1, Seconds = seconds })!);
+        }),
+    new RouteAction("/pbt/world/maps",
+        (url, request, session, output, token) =>
+        {
+            try { return new ValueTask<object>(json.Serialize(new { ProtocolVersion = 1, Maps = store.MapIndicators() })!); }
+            catch (Exception ex)
+            {
+                store.Report(ex);
+                return new ValueTask<object>(json.Serialize(new { ProtocolVersion = 1, Maps = new { } })!);
+            }
+        }),
     new RouteAction("/client/match/local/end",
         (url, request, session, output, token) =>
         {

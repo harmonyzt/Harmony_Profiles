@@ -133,6 +133,7 @@ public sealed partial class PopulationStore(
                     TryPrestige(career, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
                 }
                 developing.Finish();
+                InitializeWorld(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
                 Active = this;
                 fikaPresent = AppDomain.CurrentDomain.GetAssemblies()
                     .Any(a => a.GetType("FikaServer.Controllers.FikaDialogueController", throwOnError: false) is not null);
@@ -163,6 +164,7 @@ public sealed partial class PopulationStore(
             {
                 Ready = false;
                 Active = null;
+                worldTimer?.Dispose();
                 harmony?.UnpatchSelf();
                 apbsHarmony?.UnpatchSelf();
                 socialHarmony?.UnpatchSelf();
@@ -190,8 +192,13 @@ public sealed partial class PopulationStore(
                 throw new InvalidDataException("Invalid raid observation receipt; preserve Data and restore a known-good backup.");
         }
         foreach (var (account, outcome) in population.AppliedStories)
-            if (account is < 1_500_000_000 or >= 2_000_000_000 || outcome is not ("Died" or "DiedUncounted" or "Regeared" or "ObservedDeath" or "Superseded" or "NoLoadoutAvailable" or "ConfirmedDeath"))
+            if (account is < 1_500_000_000 or >= 2_000_000_000 || outcome is not ("Died" or "DiedUncounted" or "Regeared" or "ObservedDeath" or "Superseded" or "NoLoadoutAvailable" or "ConfirmedDeath" or "Survived" or "Transited"))
                 throw new InvalidDataException("Invalid story receipt; preserve Data and restore a known-good backup.");
+        population.PendingStories ??= new();
+        foreach (var (account, story) in population.PendingStories)
+            if (account is < 1_500_000_000 or >= 2_000_000_000 || story is null || !population.Careers.ContainsKey(story.CareerId)
+                || story.Outcome is not ("Died" or "Survived" or "Transit") || story.DueUtc < 0 || story.ScheduledUtc < 0)
+                throw new InvalidDataException("Invalid pending story; preserve Data and restore a known-good backup.");
         if (population.SessionEndedUtc.Any(s => !IsId(s.Key) || s.Value < 0))
             throw new InvalidDataException("Invalid saved raid-end state.");
         var accounts = new HashSet<int>();
@@ -431,7 +438,8 @@ public sealed partial class PopulationStore(
                 GenerationOrder = checked(++population.LastGenerationOrder),
                 GeneratedExperience = bot.Info.Experience ?? 0, GeneratedLevel = bot.Info.Level ?? 1,
                 GeneratedPrestige = bot.Info.PrestigeLevel ?? 0,
-                Equipment = equipment, Customization = source["Customization"]!.DeepClone().AsObject()
+                Equipment = equipment, Customization = source["Customization"]!.DeepClone().AsObject(),
+                Map = MapKey(details.Location)
             };
             // Persist the alias before publishing it to a bot. Runtime bot IDs and all inventory IDs stay native.
             WriteEncounter(encounter);
@@ -450,6 +458,7 @@ public sealed partial class PopulationStore(
             }
             EnsureShowcase(career);
             EnsureLife(career, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            HoldInRaid(career, encounter.Map, encounter.GeneratedUtc + 3600);
             dirty = true;
         }
     }
@@ -554,11 +563,12 @@ public sealed partial class PopulationStore(
                 GenerationOrder = e.GenerationOrder,
                 GeneratedExperience = e.GeneratedExperience, GeneratedLevel = e.GeneratedLevel, GeneratedPrestige = e.GeneratedPrestige,
                 Equipment = report.Equipment.DeepClone().AsObject(), Customization = e.Customization,
-                KillerCaptured = true, RaidId = report.RaidId
+                KillerCaptured = true, RaidId = report.RaidId, Map = e.Map, KillerCapturedUtc = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
             };
-            ScheduleStory(updated, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             WriteEncounter(updated);
             encounters[e.AccountId] = updated;
+            population.RaidObservations.TryGetValue(e.AccountId, out var observation);
+            AfterRaid(updated, observation, updated.Map, killer: true, updated.KillerCapturedUtc);
             // An older killer report must not replace the loadout from a newer generated encounter.
             if (population.Careers.TryGetValue(e.CareerId, out var career) && career.LastEquipmentAccount == e.AccountId)
                 RememberEquipment(career, updated);
@@ -775,6 +785,7 @@ public sealed partial class PopulationStore(
         lock (gate)
         {
             checkpoint?.Dispose();
+            worldTimer?.Dispose();
             Ready = false;
             Active = null;
             harmony?.UnpatchSelf();

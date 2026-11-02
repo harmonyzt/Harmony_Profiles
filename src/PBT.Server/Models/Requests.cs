@@ -11,8 +11,24 @@ public sealed class ActivityReport : IRequestData
 {
     public int ProtocolVersion { get; set; }
     public string RaidId { get; set; } = "";
+    public string Map { get; set; } = "";
     public List<RaidObservation> Bots { get; set; } = [];
 }
+
+public sealed class MatchingRequest : IRequestData
+{
+    public string Map { get; set; } = "";
+}
+
+public sealed record WorldEvent(long Id, long Utc, string Kind, string Text, string Map);
+
+public sealed record WorldMapStatus(string Id, string Name, int InRaid, int Queueing, int QueueSeconds, double Share, bool WeeklyBoss, int[] History);
+
+public sealed record WorldPlayerRow(string Name, string Side, string Personality, int Level, int Prestige, string State, string Status,
+    string Map, long Since, int Raids, double KillDeath, bool Notable);
+
+public sealed record WorldSnapshot(int Online, int InRaid, int Queueing, int InMenu, int InTransit, int PendingStories,
+    List<WorldMapStatus> Maps, List<WorldEvent> Events);
 
 public sealed class KillerLookup : IRequestData
 {

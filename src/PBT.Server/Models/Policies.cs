@@ -85,9 +85,12 @@ public sealed class SimulationPolicy
     public int StoryMaximumDelaySeconds { get; set; } = 600;
     public int StoryVisibilitySeconds { get; set; } = 900;
     public BotMessageSettings BotMessages { get; set; } = new();
+    public WorldSettings World { get; set; } = new();
 
     public void Validate()
     {
+        if (World is null) throw new InvalidDataException("World policy is missing.");
+        World.Validate();
         if (Hideout is null) throw new InvalidDataException("Hideout policy is missing.");
         Hideout.Validate();
         if (BotMessages is null) throw new InvalidDataException("Bot message policy is missing.");
@@ -133,6 +136,30 @@ public sealed class InitialPrestigeSettings
     public double Share { get; set; } = .15;
     // Chance of each further prestige after the first.
     public double Repeat { get; set; } = .45;
+}
+
+public sealed class WorldSettings
+{
+    // Survivors left in a raid that move on to a connected map with their gear.
+    public double TransitChance { get; set; } = .15;
+    // Accounts that log off after a raid instead of queueing again. Deaths log off a bit more.
+    public double LogOffChance { get; set; } = .25;
+    // Popularity of a map whose headline boss is guaranteed (a weekly boss rotation sets it to 100%).
+    public double WeeklyBossBoost { get; set; } = 1.6;
+    // Streamers and chads crowd Labs, Streets and Customs and turn up in your raids there more.
+    public double StreamerMapBoost { get; set; } = 2.5;
+    public double QueueTimeMultiplier { get; set; } = 1;
+    // The client shows Matching / Looking for server before a raid, capped at this many seconds.
+    public bool SimulateMatching { get; set; } = true;
+    public int MaximumMatchingSeconds { get; set; } = 45;
+
+    public void Validate()
+    {
+        if (!double.IsFinite(TransitChance) || TransitChance is < 0 or > 1 || !double.IsFinite(LogOffChance) || LogOffChance is < 0 or > 1
+            || !double.IsFinite(WeeklyBossBoost) || WeeklyBossBoost is < 1 or > 5 || !double.IsFinite(StreamerMapBoost) || StreamerMapBoost is < 1 or > 10
+            || !double.IsFinite(QueueTimeMultiplier) || QueueTimeMultiplier is < .1 or > 10 || MaximumMatchingSeconds is < 0 or > 600)
+            throw new InvalidDataException("World chances must be 0-1, boosts 1-5 (streamers 1-10), queue multiplier 0.1-10 and matching 0-600 seconds.");
+    }
 }
 
 public sealed class BotMessageSettings
