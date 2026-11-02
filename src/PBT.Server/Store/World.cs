@@ -385,11 +385,13 @@ public sealed partial class PopulationStore
         return weight;
     }
 
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> letterNames = new();
+
     private static bool NamedForMap(Career c, string map)
     {
         if (!MapNameWords.TryGetValue(map, out var words) || string.IsNullOrEmpty(c.Name)) return false;
         // Letters only, so Ground_Zero and ground-zero still match.
-        string name = new(c.Name.Where(char.IsLetter).ToArray());
+        string name = letterNames.GetOrAdd(c.Name, n => new string(n.Where(char.IsLetter).ToArray()));
         return words.Any(w => name.Contains(w, StringComparison.OrdinalIgnoreCase));
     }
 

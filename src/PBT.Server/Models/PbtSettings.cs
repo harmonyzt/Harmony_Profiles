@@ -12,6 +12,8 @@ public sealed class PbtSettings
     public double OnlineRateMultiplier { get; set; } = 1;
     public int ProgressionThresholdSeconds { get; set; } = 3600;
     public int MaximumOfflineDays { get; set; } = 14;
+    // Hands the server's free large-object memory back once raids have finished loading.
+    public bool CompactMemory { get; set; } = true;
 
     internal static PbtSettings Load(string path)
     {

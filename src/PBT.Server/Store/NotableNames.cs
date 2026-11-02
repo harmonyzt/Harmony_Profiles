@@ -12,7 +12,11 @@ public sealed partial class PopulationStore
         || name.StartsWith("ttv", StringComparison.OrdinalIgnoreCase)
         || NameWords.Matches(name).Any(m => m.Value.ToLowerInvariant() is "ttv" or "yt" or "tv");
 
-    private bool Notable(Career c) => policy.NotableNames.Enabled && (IsNotableName(c.Name) || IsNotableName(c.SourceName));
+    // Names never change, and the regex ran for every career on every PMC pick.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> notableCache = new();
+
+    private bool Notable(Career c) => policy.NotableNames.Enabled
+        && (notableCache.GetOrAdd(c.Name, IsNotableName) || notableCache.GetOrAdd(c.SourceName, IsNotableName));
 
     internal int TierBoost(Career c)
     {

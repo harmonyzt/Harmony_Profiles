@@ -411,6 +411,7 @@ public sealed partial class PopulationStore(
 
     public void RecordGenerated(BotBase bot, BotGenerationDetails details, MongoId session)
     {
+        Volatile.Write(ref lastBotGeneratedUtc, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
         lock (gate)
         {
             if (!Ready || !details.IsPmc || details.IsPlayerScav || bot.Info?.Nickname is null
@@ -740,6 +741,7 @@ public sealed partial class PopulationStore(
             }
         }
         foreach (var request in gear) GenerateRequestedGear(request);
+        CompactIfQuiet();
     }
 
     // Bytes and streams keep the large population file out of UTF-16 strings.

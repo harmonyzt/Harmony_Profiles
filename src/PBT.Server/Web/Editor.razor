@@ -558,6 +558,9 @@
                 <label class="fb-field"><span class="fb-label">Offline progression threshold, seconds@(Tip("Minimum server downtime before accounts get simulated progress for the time you were away."))</span><input type="number" min="60" max="86400" @bind="config.ProgressionThresholdSeconds" /></label>
                 <label class="fb-field"><span class="fb-label">Maximum offline days@(Tip("Cap on how many offline days of progress are simulated at server start."))</span><input type="number" min="1" max="365" @bind="config.MaximumOfflineDays" /></label>
             </div></section>
+            <section class="fb-card"><h2>Server memory</h2>
+                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="config.CompactMemory" /><span class="fb-switch-track"></span>Compact memory after raids load@(Tip("Raid starts leave large unused blocks that .NET never gives back. Once the server is quiet, PBT compacts them, at most every 15 minutes. Costs one short pause."))</label></div>
+            </section>
             <div class="fb-savebar"><span>Existing identities and accepted friends remain.</span><button type="button" class="fb-button" disabled="@(!Dirty("settings"))" @onclick="SaveConfig">Save population settings</button></div>
         }
     </main>
