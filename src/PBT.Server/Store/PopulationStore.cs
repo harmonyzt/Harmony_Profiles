@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Reflection;
 using SPTarkov.Server.Core.Generators.Bot;
 using SPTarkov.Server.Core.Services.Bot;
@@ -45,9 +46,15 @@ public sealed partial class PopulationStore(
     private FileStream? ownership;
     private string directory = "";
     private bool dirty;
+    // Routine world-sim churn (raids finishing, careers logging on). Losing a few minutes of it to a crash is harmless.
+    private bool worldDirty;
+    private const int WorldSaveSeconds = 300;
+    private long populationSavedUtc;
     private bool fikaPresent;
     private readonly object saveGate = new();
+    private readonly ArrayBufferWriter<byte> populationBuffer = new(16 * 1024 * 1024);
     private long saveSequence;
+    private long bufferedSequence;
     private long writtenSequence;
     private PbtSettings settings = new();
     public bool Ready { get; private set; }
@@ -346,10 +353,11 @@ public sealed partial class PopulationStore(
         long elapsed = now - population.LastSimulationUtc;
         if (elapsed < settings.ProgressionThresholdSeconds) return;
         double days = Math.Min(elapsed, settings.MaximumOfflineDays * 86400L) / 86400d;
+        var friends = population.Friendships.Values.SelectMany(links => links)
+            .Where(p => p.Value.Accepted && !p.Value.Removed).Select(p => p.Key).ToHashSet();
         foreach (var c in population.Careers.Values.Where(c => !c.Retired))
         {
-            bool friend = population.Friendships.Values.Any(links =>
-                links.TryGetValue(c.Id, out var link) && link.Accepted && !link.Removed);
+            bool friend = friends.Contains(c.Id);
             double seconds = days * c.DailyRaidHours * 3600 * (friend ? settings.FriendActivityMultiplier : 1);
             // Observed raid time is already shown in the career. Simulate only the remaining activity budget.
             seconds = Math.Max(0, seconds - c.Observed.PendingSimulationSeconds - c.PendingLiveSeconds);
@@ -688,7 +696,7 @@ public sealed partial class PopulationStore(
 
     private void Checkpoint()
     {
-        (long Sequence, byte[] Utf8)? snapshot = null;
+        bool snapshot = false;
         List<AssetSnapshot> assets = [];
         List<GearRequest> gear;
         lock (gate)
@@ -703,7 +711,11 @@ public sealed partial class PopulationStore(
                 ProcessProfileEquipment(now);
                 SendDueMessages(now);
                 assets = SnapshotChangedAssets();
-                if (dirty) snapshot = SnapshotPopulation();
+                if (dirty || worldDirty && now - populationSavedUtc >= WorldSaveSeconds)
+                {
+                    SnapshotPopulation();
+                    snapshot = true;
+                }
             }
             catch (Exception ex) { logger.Error($"[PBT] Checkpoint failed; retaining in-memory changes for retry. {ex.Message}"); }
             try { gear = TakeGearRequests(DateTimeOffset.UtcNow.ToUnixTimeSeconds()); }
@@ -716,9 +728,9 @@ public sealed partial class PopulationStore(
             lock (gate) foreach (var asset in assets) Saved(asset);
         }
         catch (Exception ex) { logger.Error($"[PBT] Career file save failed; retaining in-memory changes for retry. {ex.Message}"); }
-        if (snapshot is { } pending)
+        if (snapshot)
         {
-            try { WritePopulation(pending); }
+            try { WritePopulation(); }
             catch (Exception ex)
             {
                 lock (gate) dirty = true;
@@ -735,26 +747,38 @@ public sealed partial class PopulationStore(
         return JsonSerializer.Deserialize<Population>(stream);
     }
 
-    private (long Sequence, byte[] Utf8) SnapshotPopulation()
-    {
-        dirty = false;
-        return (++saveSequence, JsonSerializer.SerializeToUtf8Bytes(population));
-    }
-
-    // Snapshots are taken under the gate, so a higher sequence is always newer. Never let an older one land last.
-    private void WritePopulation((long Sequence, byte[] Utf8) snapshot)
+    // Caller holds the gate. One buffer for every save: a fresh multi-MB array each time fragmented the LOH by ~1 GB.
+    private void SnapshotPopulation()
     {
         lock (saveGate)
         {
-            if (snapshot.Sequence <= writtenSequence) return;
-            AtomicFile.Write(Path.Combine(directory, "population.json"), snapshot.Utf8);
-            writtenSequence = snapshot.Sequence;
+            populationBuffer.ResetWrittenCount();
+            using (var writer = new Utf8JsonWriter(populationBuffer)) JsonSerializer.Serialize(writer, population);
+            bufferedSequence = ++saveSequence;
+        }
+        dirty = false;
+        worldDirty = false;
+        populationSavedUtc = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+    }
+
+    // The buffer always holds the newest snapshot, so a write that lost the race to a newer save has nothing to do.
+    private void WritePopulation()
+    {
+        lock (saveGate)
+        {
+            if (bufferedSequence <= writtenSequence) return;
+            AtomicFile.Write(Path.Combine(directory, "population.json"), populationBuffer.WrittenSpan);
+            writtenSequence = bufferedSequence;
         }
     }
 
     private void SavePopulation()
     {
-        try { WritePopulation(SnapshotPopulation()); }
+        try
+        {
+            SnapshotPopulation();
+            WritePopulation();
+        }
         catch { dirty = true; throw; }
     }
 
@@ -803,7 +827,7 @@ public sealed partial class PopulationStore(
                 AdvanceOnline(now);
                 Simulate(now);
                 SaveChangedAssets();
-                if (dirty) SavePopulation();
+                if (dirty || worldDirty) SavePopulation();
             }
             catch (Exception ex) { logger.Error($"[PBT] Final save failed. {ex}"); }
             ownership?.Dispose();

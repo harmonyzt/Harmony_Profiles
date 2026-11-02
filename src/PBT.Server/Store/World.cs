@@ -287,7 +287,7 @@ public sealed partial class PopulationStore
         ApplySimulation(c, seconds);
         c.PendingLiveSeconds += seconds;
         c.Achievements = EarnedMilestones(c, now);
-        dirty = true;
+        worldDirty = true;
         string map = MapLabel(a.Map), gained = c.PmcKills > kills ? $" with {c.PmcKills - kills} PMC kill{(c.PmcKills - kills == 1 ? "" : "s")}" : "";
         if (c.Raids == raids) { ToMenu(c, a, now); return; }
         if (c.Survived > survived)

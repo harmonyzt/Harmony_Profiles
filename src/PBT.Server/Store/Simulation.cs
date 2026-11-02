@@ -161,7 +161,7 @@ public sealed partial class PopulationStore
             if (c.IsOnline) c.Achievements = EarnedMilestones(c, now);
             c.LastActivityUtc = now;
             c.NextActivityUtc = now + Random.Shared.Next(600, 1801);
-            dirty = true;
+            worldDirty = true;
         }
     }
 

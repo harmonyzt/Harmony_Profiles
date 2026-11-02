@@ -123,7 +123,7 @@ public sealed partial class PopulationStore
         AdvanceHideout(c, CycleHours(c));
         EnsureShowcase(c);
         c.Achievements = EarnedMilestones(c, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-        dirty = true;
+        // No dirty flag here. Callers mark it, so world-sim raids can wait for the slower world save.
     }
 
     // Skill progress only ever grows with cycle hours, so it is computed instead of stored.

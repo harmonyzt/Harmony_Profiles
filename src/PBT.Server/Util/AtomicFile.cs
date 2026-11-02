@@ -9,7 +9,7 @@ internal static class AtomicFile
     public static void Write(string path, string content, bool durable = true, bool backup = true) =>
         Write(path, Encoding.UTF8.GetBytes(content), durable, backup);
 
-    public static void Write(string path, byte[] bytes, bool durable = true, bool backup = true)
+    public static void Write(string path, ReadOnlySpan<byte> bytes, bool durable = true, bool backup = true)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
