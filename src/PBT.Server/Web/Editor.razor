@@ -572,8 +572,20 @@
         "Plus" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>,
         _ => @<svg class="fb-icon fb-icon-sm" viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg> };
 
+    private int noticeId;
+    private void Notify(bool isError, string text)
+    {
+        error = isError; message = text;
+        int id = ++noticeId;
+        _ = Task.Delay(isError ? 10000 : 5000).ContinueWith(_ => InvokeAsync(() =>
+        {
+            if (id != noticeId) return;
+            message = ""; StateHasChanged();
+        }));
+    }
     private void Go(string next)
     {
+        message = ""; noticeId++;
         page = next;
         if (next is "Overview" or "Players") LoadWorld();
         menuOpen = false;
@@ -687,16 +699,16 @@
             foreach (string section in new[] { "personalities", "simulation", "settings" }) baselines[section] = Contents(section);
             selectedIndex = 0; confirmReload = false; error = false; message = "";
         }
-        catch (Exception ex) { error = true; message = ex.Message; }
+        catch (Exception ex) { Notify(true, ex.Message); }
     }
     private void RefreshStatus()
     {
         try
         {
             UpdateStatus(true);
-            error = false; message = "Status refreshed. Unsaved edits are retained.";
+            Notify(false, "Status refreshed. Unsaved edits are retained.");
         }
-        catch (Exception ex) { error = true; message = ex.Message; }
+        catch (Exception ex) { Notify(true, ex.Message); }
     }
     private void UpdateStatus(bool rethrow = false)
     {
@@ -733,9 +745,9 @@
                 "personalities" => snapshot! with { PersonalitiesRevision = saved.PersonalitiesRevision },
                 "simulation" => snapshot! with { PolicyRevision = saved.PolicyRevision },
                 _ => snapshot! with { SettingsRevision = saved.SettingsRevision } };
-            baselines[section] = value; error = false;
-            message = "Saved and applied. Other unsaved sections are unchanged.";
+            baselines[section] = value;
+            Notify(false, "Saved and applied. Other unsaved sections are unchanged.");
         }
-        catch (Exception ex) { error = true; message = ex.Message; }
+        catch (Exception ex) { Notify(true, ex.Message); }
     }
 }
