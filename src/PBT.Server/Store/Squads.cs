@@ -29,6 +29,10 @@ public sealed partial class PopulationStore
     private string[] SquadNames(Career c) => squads.TryGetValue(c.Id, out var members)
         ? members.Where(id => id != c.Id && population.Careers.ContainsKey(id)).Select(id => population.Careers[id].Name).ToArray() : [];
 
+    // Squadmates queueing or playing alongside this career right now.
+    private string[] TeamNames(Career c, Activity a) => a.Party.Length < 2 ? []
+        : a.Party.Where(id => id != c.Id && population.Careers.ContainsKey(id)).Select(id => population.Careers[id].Name).ToArray();
+
     private void EnterMenu(Career c, Activity a, long now, bool died = false)
     {
         Set(a, "Menu", "", now, now);

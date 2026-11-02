@@ -381,12 +381,12 @@ public sealed partial class PopulationStore
         if (a is null || c.Retired || a.State == "Offline")
             return now - c.DiedUtc < 1800 && c.NeedsRegear ? ("Died", "", "", c.DiedUtc) : ("Offline", "", "", a?.Since ?? 0);
         // Status is the detail next to the state label in the editor.
-        string map = MapLabel(a.Map), squad = a.Party.Length > 1 ? $" · squad of {a.Party.Length}" : "";
+        string map = MapLabel(a.Map);
         return a.State switch
         {
-            "Queue" => ("Queue", map + squad, a.Map, a.Since),
+            "Queue" => ("Queue", map, a.Map, a.Since),
             "Raid" when a.Held && observed.Contains(c.Id) => ("Raid", map + " · your raid", a.Map, a.Since),
-            "Raid" => ("Raid", map + squad, a.Map, a.Since),
+            "Raid" => ("Raid", map, a.Map, a.Since),
             "Transit" => ("Transit", "to " + MapLabel(a.Target), a.Target, a.Since),
             _ when c.NeedsRegear => ("Died", "Gearing up again", "", c.DiedUtc),
             _ when a.Doing == "AFK" => ("Afk", "", "", a.Since),
@@ -430,7 +430,7 @@ public sealed partial class PopulationStore
                 var (state, status, map, since) = Describe(c, now, observed);
                 return new WorldPlayerRow(c.Name, c.Side, c.Archetype, Level(c.Experience), c.PrestigeLevel, state, status, map,
                     since > 0 ? now - since : 0, (int)(c.Raids + c.Observed.Raids), Math.Round((double)(c.PmcKills + c.Observed.PmcKills) / Deaths(c), 2), Notable(c),
-                    SquadNames(c));
+                    SquadNames(c), activities.TryGetValue(c.Id, out var a) && a.State is "Queue" or "Raid" or "Transit" ? TeamNames(c, a) : []);
             }).ToList();
         }
     }
