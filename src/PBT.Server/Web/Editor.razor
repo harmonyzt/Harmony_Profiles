@@ -151,9 +151,9 @@
             </section>
 
             <div class="fb-stats fb-stats-6">
-                <article class="fb-card fb-stat"><span class="fb-stat-label">Online@(Tip("Careers playing right now: in the menu, queueing, in a raid or in transit."))</span><strong>@Num("online", world?.Online ?? 0)</strong></article>
-                <article class="fb-card fb-stat"><span class="fb-stat-label">In raid@(Tip("Careers in a raid, including the ones in yours."))</span><strong>@Num("raid", world?.InRaid ?? 0)</strong></article>
-                <article class="fb-card fb-stat"><span class="fb-stat-label">Queueing@(Tip("Careers waiting for a match. Busy maps fill faster."))</span><strong>@Num("queue", world?.Queueing ?? 0)</strong></article>
+                <article class="fb-card fb-stat"><span class="fb-stat-label">Online@(Tip("Accounts playing right now: in the menu, queueing, in a raid or in transit."))</span><strong>@Num("online", world?.Online ?? 0)</strong></article>
+                <article class="fb-card fb-stat"><span class="fb-stat-label">In raid@(Tip("Players in a raid, including the ones in yours."))</span><strong>@Num("raid", world?.InRaid ?? 0)</strong></article>
+                <article class="fb-card fb-stat"><span class="fb-stat-label">Queueing@(Tip("Players waiting for a match. Busy maps fill faster."))</span><strong>@Num("queue", world?.Queueing ?? 0)</strong></article>
                 <article class="fb-card fb-stat"><span class="fb-stat-label">Main menu@(Tip("Online between raids: sorting the stash, regearing, flea."))</span><strong>@Num("menu", world?.InMenu ?? 0)</strong></article>
                 <article class="fb-card fb-stat"><span class="fb-stat-label">In transit@(Tip("Survivors moving to a connected map with their gear."))</span><strong>@Num("transit", world?.InTransit ?? 0)</strong></article>
                 <article class="fb-card fb-stat"><span class="fb-stat-label">Pending stories@(Tip("PMCs from your raids whose outcome is still to come."))</span><strong>@Num("stories", world?.PendingStories ?? 0)</strong></article>
@@ -180,14 +180,14 @@
                     </div>
                 </section>
                 <section class="fb-card">
-                    <div class="fb-card-head"><div><h2>Live activity</h2><p>What careers are doing, newest first.</p></div><span class="fb-live"><span></span>Live</span></div>
+                    <div class="fb-card-head"><div><h2>Live activity</h2><p>What players are doing, newest first.</p></div><span class="fb-live"><span></span>Live</span></div>
                     <ol class="fb-log">
                         @foreach (var item in (world?.Events ?? []).Take(25))
                         {
                             <li @key="item.Id" class="fb-log-@item.Kind"><span class="fb-log-dot"></span><span class="fb-log-text">@item.Text</span><time>@Ago(item.Utc)</time></li>
                         }
                     </ol>
-                    @if (world?.Events.Count is null or 0) { <p class="fb-muted">Nothing yet. Careers come online over the next few minutes.</p> }
+                    @if (world?.Events.Count is null or 0) { <p class="fb-muted">Nothing yet. Players come online over the next few minutes.</p> }
                 </section>
             </div>
         }
@@ -235,7 +235,7 @@
             int total = Math.Max(1, snapshot.Careers);
             <div class="fb-stats">
                 <article class="fb-card fb-stat">
-                    <span class="fb-stat-label">Accounts@(Tip("Persistent PMC careers, one per bot name."))</span><strong>@Num("careers", snapshot.Careers)</strong>
+                    <span class="fb-stat-label">Accounts@(Tip("Persistent PMC Players, one per bot name."))</span><strong>@Num("careers", snapshot.Careers)</strong>
                     <span class="fb-stat-foot">@Icon("Users") Persistent identities</span>
                 </article>
                 <article class="fb-card fb-stat">
@@ -254,7 +254,7 @@
 
             <div class="fb-row fb-row-wide">
                 <section class="fb-card">
-                    <div class="fb-card-head"><div><h2>Accounts by level</h2><p>Active careers in 10-level bands.</p></div><strong class="fb-figure">@insights.LevelBands.Sum().ToString("N0")</strong></div>
+                    <div class="fb-card-head"><div><h2>Accounts by level</h2><p>Active players in 10-level bands.</p></div><strong class="fb-figure">@insights.LevelBands.Sum().ToString("N0")</strong></div>
                     @{ int peak = Math.Max(1, insights.LevelBands.Max()); }
                     <div class="fb-bars" role="img" aria-label="Accounts by level band">
                         @for (int band = 0; band < insights.LevelBands.Length; band++)
@@ -270,7 +270,7 @@
                     <div class="fb-card-foot"><span>Level 1 to 79</span><button type="button" class="fb-link" @onclick="() => Go(simulationPages[0])">Progression settings @Icon("Chevron")</button></div>
                 </section>
                 <section class="fb-card">
-                    <div class="fb-card-head"><div><h2>Factions</h2><p>BEAR and USEC careers.</p></div></div>
+                    <div class="fb-card-head"><div><h2>Factions</h2><p>BEAR and USEC players.</p></div></div>
                     @{ double bear = insights.Bear * 100.0 / Math.Max(1, insights.Bear + insights.Usec); }
                     <div class="fb-donut" style="--fb-share:@(bear.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))" role="img" aria-label="@bear.ToString("0")% BEAR"><span><strong>@bear.ToString("0")%</strong><small>BEAR</small></span></div>
                     <ul class="fb-legend">
@@ -282,7 +282,7 @@
 
             <div class="fb-row fb-row-wide">
                 <section class="fb-card fb-flush">
-                    <div class="fb-card-head fb-padded"><div><h2>Top careers</h2><p>Highest prestige, then highest level.</p></div></div>
+                    <div class="fb-card-head fb-padded"><div><h2>Top players</h2><p>Highest prestige, then highest level.</p></div></div>
                     <div class="fb-table-scroll">
                         <table class="fb-table">
                             <thead><tr><th>Name</th><th>Personality</th><th>Level</th><th title="Prestige">Prest.</th><th>Raids</th><th title="PMC kills per death">K/D</th><th>Status</th></tr></thead>
@@ -300,7 +300,7 @@
                     </div>
                 </section>
                 <section class="fb-card">
-                    <div class="fb-card-head"><div><h2>Personalities</h2><p>Share of active careers.</p></div></div>
+                    <div class="fb-card-head"><div><h2>Personalities</h2><p>Share of active players.</p></div></div>
                     @{ int careers = Math.Max(1, insights.Personalities.Values.Sum()); }
                     <ul class="fb-progress-list">
                         @foreach (var (name, count) in insights.Personalities)
@@ -320,8 +320,8 @@
                 </section>
                 <section class="fb-card">
                     <div class="fb-card-head"><div><h2>APBS bridge</h2><p>@snapshot.GenerationMode</p></div></div>
-                    <dl class="fb-dl"><div><dt>Career selections</dt><dd>@snapshot.ApbsMatched.ToString("N0")</dd></div><div><dt>Unmatched level ranges</dt><dd>@snapshot.ApbsFallback.ToString("N0")</dd></div></dl>
-                    <p class="fb-muted">APBS supplies equipment and appearance. Careers keep their identity, history and friendships between raids.</p>
+                    <dl class="fb-dl"><div><dt>Player selections</dt><dd>@snapshot.ApbsMatched.ToString("N0")</dd></div><div><dt>Unmatched level ranges</dt><dd>@snapshot.ApbsFallback.ToString("N0")</dd></div></dl>
+                    <p class="fb-muted">APBS supplies equipment and appearance. Players keep their identity, history and friendships between raids.</p>
                 </section>
             </div>
         }
@@ -335,7 +335,7 @@
             @if (Current is { } p)
             {
                 <section class="fb-card"><h2>Identity &amp; distribution</h2><div class="fb-grid">
-                    <label class="fb-field"><span class="fb-label">Name@(Tip("Personality ID. Careers store this name, so renaming it moves existing careers to the first personality."))</span><input @bind="p.Id" /></label>
+                    <label class="fb-field"><span class="fb-label">Name@(Tip("Personality ID. Players store this name, so renaming it moves existing players to the first personality."))</span><input @bind="p.Id" /></label>
                     <label class="fb-field"><span class="fb-label">Population weight@(Tip("How often new accounts roll this personality, relative to the other weights."))</span><input type="number" min="1" max="1000" @bind="p.Weight" /></label>
                 </div></section>
                 <section class="fb-card"><h2>Starting experience</h2><p class="fb-muted">Ranges used when a new account is created. Raids, hours and kills are worked out from the level, so they always fit it.</p><div class="fb-grid">
@@ -363,7 +363,7 @@
         else if (page == "Progression")
         {
             <section class="fb-card">
-                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.EnableApbsCareerIntegration" /><span class="fb-switch-track"></span>Select persistent careers within APBS level ranges@(Tip("When APBS spawns a PMC, reuse an existing career whose level fits APBS's level range, so you meet the same players again."))</label></div>
+                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.EnableApbsCareerIntegration" /><span class="fb-switch-track"></span>Select persistent players within APBS level ranges@(Tip("When APBS spawns a PMC, reuse an existing player whose level fits APBS's level range, so you meet the same players again."))</label></div>
             </section>
             <section class="fb-card fb-flush"><div class="fb-card-head fb-padded"><div><h2>Raid history priors</h2><p>Bands must increase and end at level 79. These averages are priors, not identical targets for every account.</p></div></div>
                 <div class="fb-table-scroll"><table class="fb-table"><thead><tr><th>Maximum level</th><th title="Average length of a raid the account survives.">Survived raid min</th><th title="Average length of a raid that ends in death.">Death raid min</th><th title="For an average-skill account. Skill and personality scale it.">PMC kills / raid</th><th title="For an average-skill account. Skill and personality scale it.">Scav kills / raid</th></tr></thead><tbody>
@@ -406,7 +406,7 @@
         else if (page == "Gear")
         {
             <section class="fb-card"><h2>Loadouts</h2><p class="fb-muted">APBS builds every loadout. These control which kit it builds and where it is used.</p>
-                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.RetainProfileGearInRaid" /><span class="fb-switch-track"></span>Careers wear their profile loadout in raid@(Tip("When a career spawns in raid, it wears the loadout its profile shows, plus fresh APBS loot. Off means APBS rolls a new kit for each spawn."))</label></div>
+                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.RetainProfileGearInRaid" /><span class="fb-switch-track"></span>Careers wear their profile loadout in raid@(Tip("When a bot spawns in raid, it wears the loadout its profile shows, plus fresh APBS loot. Off means APBS rolls a new kit for each spawn."))</label></div>
                 <div class="fb-grid">
                     <label class="fb-field"><span class="fb-label">Night kit chance@(Tip("Share (0 to 1) of generated profile loadouts built as night raid kits, which can carry NVGs."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.NightGearChance" /></label>
                 </div>
@@ -446,7 +446,7 @@
         }
         else if (page == "Stories")
         {
-            <section class="fb-card"><h2>Post-raid stories</h2><p class="fb-muted">Every career from your raid that did not die in front of you gets a delayed outcome: it dies, regears, transits or survives. Your killer and the rest of the raid have their own chances, and personality shifts both. Outcomes never rewrite the equipment you saw.</p>
+            <section class="fb-card"><h2>Post-raid stories</h2><p class="fb-muted">Every player from your raid that did not die in front of you gets a delayed outcome: it dies, regears, transits or survives. Your killer and the rest of the raid have their own chances, and personality shifts both. Outcomes never rewrite the equipment you saw.</p>
                 <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.EnablePostRaidStories" /><span class="fb-switch-track"></span>Enable post-raid stories@(Tip("PMCs from your raid may later die, regear or transit, so their profiles change between raids."))</label></div>
                 <div class="fb-grid">
                     <label class="fb-field"><span class="fb-label">Your killer, death chance@(Tip("Chance (0 to 1) that a PMC who killed you dies later."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.PostRaidDeathChance" /></label>
@@ -468,10 +468,10 @@
                 <label class="fb-field"><span class="fb-label">Map name boost@(Tip("How much more players with a map in their name (FactoryRat, CustomsMain) play that map, and how much more often they spawn in your raids there."))</span><input type="number" min="1" max="10" step="0.1" @bind="simulation.World.NameMapBoost" /></label>
                 <label class="fb-field"><span class="fb-label">Queue time multiplier@(Tip("Scales every simulated queue time. 2 doubles them."))</span><input type="number" min="0.1" max="10" step="0.1" @bind="simulation.World.QueueTimeMultiplier" /></label>
                 <label class="fb-field"><span class="fb-label">Transit chance@(Tip("Chance (0 to 1) that a survivor moves on to a connected map with its gear, in the world and after your raids."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.World.TransitChance" /></label>
-                <label class="fb-field"><span class="fb-label">Log off after a raid@(Tip("Chance (0 to 1) that a career logs off after a raid instead of queueing again. Deaths log off a bit more often."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.World.LogOffChance" /></label>
+                <label class="fb-field"><span class="fb-label">Log off after a raid@(Tip("Chance (0 to 1) that a players logs off after a raid instead of queueing again. Deaths log off a bit more often."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.World.LogOffChance" /></label>
             </div></section>
-            <section class="fb-card"><h2>Matching screen</h2><p class="fb-muted">Before a raid the loading screen shows Matching with a timer, then Looking for server (5-15 s), Preparing the game and Awaiting response. The careers queueing for your map are the ones that load into your raid. With Fika the host runs it and the group sees the same status. Not used on transits.</p>
-                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.World.PeakHours" /><span class="fb-switch-track"></span>Peak hours@(Tip("Fewer careers come online late at night (your PC's clock) and more on evenings and weekends, so queues and raids follow the time of day."))</label></div>
+            <section class="fb-card"><h2>Matching screen</h2><p class="fb-muted">Before a raid the loading screen shows Matching with a timer, then Looking for server (5-15 s), Preparing the game and Awaiting response. The players queueing for your map are the ones that load into your raid. With Fika the host runs it and the group sees the same status. Not used on transits.</p>
+                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.World.PeakHours" /><span class="fb-switch-track"></span>Peak hours@(Tip("Fewer players come online late at night (your PC's clock) and more on evenings and weekends, so queues and raids follow the time of day."))</label></div>
                 <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.World.SimulateMatching" /><span class="fb-switch-track"></span>Simulate matching@(Tip("Wait for a match based on the map's simulated queue before the raid starts."))</label></div>
                 <div class="fb-grid fb-grid-3">
                     <label class="fb-field"><span class="fb-label">Longest matching, seconds@(Tip("Cap on the Matching stage. Looking for server still adds 5-15 seconds."))</span><input type="number" min="0" max="600" @bind="simulation.World.MaximumMatchingSeconds" /></label>
@@ -481,9 +481,9 @@
         }
         else if (page == "Messages")
         {
-            <section class="fb-card"><h2>Bot messages</h2><p class="fb-muted">Careers you kill, or that kill you, can message you after the raid. They only speak up after something notable: a squad wipe, a long shot, a kill at an exit or on a full bag, a boss raid, a rampage cut short, an underdog win or an expensive kit. Their tone follows the personality, and streamers talk to their chat.</p>
-                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.BotMessages.Enabled" /><span class="fb-switch-track"></span>Send career messages@(Tip("Let careers message you after notable raid events."))</label></div>
-                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.BotMessages.ReplaceNativeMessages" /><span class="fb-switch-track"></span>Silence SPT's own PMC messages@(Tip("Careers never send SPT's built-in victim and killer messages."))</label></div>
+            <section class="fb-card"><h2>Bot messages</h2><p class="fb-muted">Players you kill, or that kill you, can message you after the raid. They only speak up after something notable: a squad wipe, a long shot, a kill at an exit or on a full bag, a boss raid, a rampage cut short, an underdog win or an expensive kit. Their tone follows the personality, and streamers talk to their chat.</p>
+                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.BotMessages.Enabled" /><span class="fb-switch-track"></span>Send player messages@(Tip("Let bots message you after notable raid events."))</label></div>
+                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.BotMessages.ReplaceNativeMessages" /><span class="fb-switch-track"></span>Silence SPT's own PMC messages@(Tip("Players never send SPT's built-in victim and killer messages."))</label></div>
                 <div class="fb-grid fb-grid-3">
                     <label class="fb-field"><span class="fb-label">Chance per notable event@(Tip("Chance (0 to 1) that a notable event gets a message. A squad wipe counts three times. At most one message per raid."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.BotMessages.Chance" /></label>
                     <label class="fb-field"><span class="fb-label">Delay, minimum seconds@(Tip("Earliest time after the raid that a message arrives."))</span><input type="number" min="0" max="3600" @bind="simulation.BotMessages.MinimumDelaySeconds" /></label>
@@ -597,7 +597,7 @@
     private static string Description(string page) => page switch {
         "Overview" => "Who's online, where they're playing and what just happened. Updates live.",
         "Dashboard" => "A snapshot of your server's persistent population.",
-        "Players" => "Every career: what it's doing right now, who it plays with and how it has done.",
+        "Players" => "Every player: what it's doing right now, who it plays with and how it has done.",
         "World" => "Map popularity, queues, transits and the matching screen.",
         "Personalities" => "Starting ranges and progression targets. Edits affect future simulation without rerolling existing accounts.",
         "Progression" => "Level cohorts guide varied account histories. Native requirements remain in force.",
@@ -606,7 +606,7 @@
         "Notable" => "Better stats and gear for chad and streamer names.",
         "Prestige" => "When simulated accounts prestige, and how many start prestiged.",
         "Stories" => "What happens to the PMCs from your raid after it ends.",
-        "Messages" => "Rare post-raid messages from careers you met.",
+        "Messages" => "Rare post-raid messages from players you met.",
         "Presets" => "Named sets of every setting. Load one, tweak anything, then save it under a new name.",
         _ => "Friendships and activity between server sessions." };
     private static string? Section(string page) => page switch {
