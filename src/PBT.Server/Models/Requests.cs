@@ -57,8 +57,8 @@ public sealed record EditorCareerRow(string Name, string Side, string Personalit
 
 public sealed record PlayerLink(string Id, string Name);
 
-// What the editor shows when you click a player. The same counters as the in-game profile, without gear.
+// What the editor shows when you click a player. The in-game profile counters, plus kit value and gear history.
 public sealed record PlayerProfile(string Id, string Name, string Side, string Personality, int Level, int Prestige, int Experience, bool Notable,
     string State, string Status, long Since, long RegisteredUtc, long InGameSeconds, long Raids, long Survived, long Killed, long MissingInAction,
     long Left, long RunThrough, long PmcKills, long ScavKills, double KillDeath, double SurvivalRate, int CurrentStreak, int BestStreak,
-    int Achievements, int HideoutLevels, double Wealth, List<PlayerLink> Squad, List<WorldEvent> Events);
+    int Achievements, int HideoutLevels, double Wealth, double KitValue, List<PlayerLink> Squad, List<WorldEvent> Events, List<GearEvent> Gear);

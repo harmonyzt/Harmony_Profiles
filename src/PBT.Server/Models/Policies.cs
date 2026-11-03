@@ -78,6 +78,10 @@ public sealed class SimulationPolicy
     public int RackTierBoostMaximum { get; set; } = 3;
     // Share of generated profile loadouts rolled as night raid kits, so some accounts carry NVGs.
     public double NightGearChance { get; set; } = .3;
+    // Survivors keep their kit and buy one better piece at a time. The dead rebuy, often keeping their usual gun.
+    public bool GearProgression { get; set; } = true;
+    public double GearUpgradeChance { get; set; } = .35;
+    public double InsuranceReturnChance { get; set; } = .3;
     // In-raid spawns of a selected career wear the loadout its profile shows instead of a fresh APBS roll.
     public bool RetainProfileGearInRaid { get; set; } = true;
     public bool EnablePostRaidStories { get; set; } = true;
@@ -125,8 +129,10 @@ public sealed class SimulationPolicy
         if (Achievements is null || new[] { Achievements.Common, Achievements.Rare, Achievements.Legendary }.Any(v => !double.IsFinite(v) || v is < 0 or > 1))
             throw new InvalidDataException("Achievement shares must be between 0 and 1.");
         if (RackTierBoostMinimum is < 0 or > 6 || RackTierBoostMaximum < RackTierBoostMinimum || RackTierBoostMaximum > 6
-            || !double.IsFinite(NightGearChance) || NightGearChance is < 0 or > 1)
-            throw new InvalidDataException("Rack tier boost must be a 0-6 range and the night gear chance 0-1.");
+            || !double.IsFinite(NightGearChance) || NightGearChance is < 0 or > 1
+            || !double.IsFinite(GearUpgradeChance) || GearUpgradeChance is < 0 or > 1
+            || !double.IsFinite(InsuranceReturnChance) || InsuranceReturnChance is < 0 or > 1)
+            throw new InvalidDataException("Rack tier boost must be a 0-6 range; night gear, upgrade and insurance chances 0-1.");
         if (!double.IsFinite(MinimumPrestigeCycleHours) || MinimumPrestigeCycleHours is < 10 or > 10000
             || !double.IsFinite(PostRaidDeathChance) || !double.IsFinite(PostRaidRegearChance)
             || PostRaidDeathChance < 0 || PostRaidRegearChance < 0 || PostRaidDeathChance + PostRaidRegearChance > 1

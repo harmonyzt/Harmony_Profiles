@@ -31,12 +31,13 @@ public sealed partial class PopulationStore
             var squad = squads.TryGetValue(c.Id, out var members)
                 ? members.Where(m => m != c.Id && population.Careers.ContainsKey(m)).Select(m => new PlayerLink(m, population.Careers[m].Name)).ToList() : [];
             var events = worldLog.Where(e => MentionsName(e.Text, c.Name)).Take(12).ToList();
+            double kit = c.NeedsRegear ? 0 : KitValue(CareerEquipment(c));
             return new(c.Id, c.Name, c.Side, c.Archetype, Level(c.Experience), c.PrestigeLevel, c.Experience, Notable(c), state, status,
                 since > 0 ? now - since : 0, c.RegisteredUtc, Shown("OnlineTime", (long)OnlineSeconds(c)), raids, survived, killed,
                 Shown("ExitStatus/MissingInAction/Pmc", c.MissingRaids), Shown("ExitStatus/Left/Pmc", c.AwolRaids),
                 Shown("ExitStatus/Runner/Pmc", c.RunThroughRaids), pmcKills, Shown("KilledSavage", c.ScavKills + c.Observed.ScavKills),
                 Math.Round((double)pmcKills / Math.Max(1, killed), 2), raids > 0 ? (double)survived / raids : 0,
-                c.CurrentSurvivalStreak, c.BestSurvivalStreak, c.Achievements.Count, c.AreaLevels.Values.Sum(), c.WealthRubles, squad, events);
+                c.CurrentSurvivalStreak, c.BestSurvivalStreak, c.Achievements.Count, c.AreaLevels.Values.Sum(), c.WealthRubles, kit, squad, events, c.GearHistory.ToList());
         }
     }
 }

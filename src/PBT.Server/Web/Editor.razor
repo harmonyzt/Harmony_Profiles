@@ -270,13 +270,25 @@
             }
             else
             {
-                <section class="fb-card">
-                    <div class="fb-person"><span class="fb-avatar @(p.Side.Equals("Bear", StringComparison.OrdinalIgnoreCase) ? "fb-avatar-bear" : "fb-avatar-usec")">@p.Name[..1].ToUpperInvariant()</span>
-                        <span><span class="fb-name-line">@Star(p.Id, p.Name)<strong>@p.Name</strong></span><small>@p.Side.ToUpperInvariant() · @p.Personality@(p.Notable ? " · streamer" : "")</small></span></div>
-                    <p class="fb-person-state"><span class="fb-state fb-state-@p.State.ToLowerInvariant()"><span class="fb-state-label">@StateLabel(p.State)</span><span class="fb-state-detail">@p.Status</span></span>
-                        @if (p.Since > 0) { <span class="fb-muted">for @Duration(p.Since)</span> }</p>
+                bool bear = p.Side.Equals("Bear", StringComparison.OrdinalIgnoreCase);
+                @* Keyed by player so the entrance plays on each profile, not on every live refresh. *@
+                <div class="fb-profile" @key="p.Id">
+                <section class="fb-card fb-profile-hero @(bear ? "fb-side-bear" : "fb-side-usec")">
+                    <div class="fb-profile-id">
+                        <span class="fb-avatar fb-avatar-lg @(bear ? "fb-avatar-bear" : "fb-avatar-usec")">@p.Name[..1].ToUpperInvariant()</span>
+                        <span>
+                            <span class="fb-name-line">@Star(p.Id, p.Name)<strong class="fb-profile-name">@p.Name</strong></span>
+                            <span class="fb-profile-tags"><span class="fb-tag">@p.Side.ToUpperInvariant()</span><span class="fb-tag">@p.Personality</span>@if (p.Notable) { <span class="fb-tag fb-tag-gold">Streamer</span> }@if (p.Prestige > 0) { <span class="fb-tag fb-tag-gold">Prestige @p.Prestige</span> }</span>
+                            <p class="fb-person-state"><span class="fb-state fb-state-@p.State.ToLowerInvariant()"><span class="fb-state-label">@StateLabel(p.State)</span><span class="fb-state-detail">@p.Status</span></span>
+                                @if (p.Since > 0) { <span class="fb-muted">for @Duration(p.Since)</span> }</p>
+                        </span>
+                    </div>
+                    <div class="fb-purse">
+                        <div><span class="fb-stat-label">Wealth</span>@Rubles(p.Wealth, "fb-money-lg")</div>
+                        <div><span class="fb-stat-label">Kit value</span>@if (p.KitValue > 0) { @Rubles(p.KitValue) } else { <span class="fb-money fb-money-none">No kit</span> }</div>
+                    </div>
                 </section>
-                <div class="fb-stats">
+                <div class="fb-stats fb-profile-stats">
                     <article class="fb-card fb-stat"><span class="fb-stat-label">Level</span><strong>@p.Level</strong><span class="fb-stat-foot">@p.Experience.ToString("N0") XP@(p.Prestige > 0 ? $" · prestige {p.Prestige}" : "")</span></article>
                     <article class="fb-card fb-stat"><span class="fb-stat-label">Raids</span><strong>@p.Raids.ToString("N0")</strong><span class="fb-stat-foot">@p.SurvivalRate.ToString("P0") survived</span></article>
                     <article class="fb-card fb-stat"><span class="fb-stat-label">K/D</span><strong>@p.KillDeath.ToString("0.00")</strong><span class="fb-stat-foot">@p.PmcKills.ToString("N0") PMC kills</span></article>
@@ -294,9 +306,20 @@
                         <tr><td>Survival streak</td><td>@p.CurrentStreak (best @p.BestStreak)</td></tr>
                         <tr><td>Achievements</td><td>@p.Achievements</td></tr>
                         <tr><td>Hideout levels built</td><td>@p.HideoutLevels</td></tr>
-                        <tr><td>Wealth</td><td>@p.Wealth.ToString("N0") ₽</td></tr>
+                        <tr><td>Wealth</td><td>@Rubles(p.Wealth)</td></tr>
                     </tbody></table>
                 </section>
+                @if (p.Gear.Count > 0)
+                {
+                    <section class="fb-card"><h2>Gear history</h2><p class="fb-muted">What they bought, rebought and got back from insurance, newest first.</p>
+                        <ol class="fb-gear-log">
+                            @foreach (var g in p.Gear)
+                            {
+                                <li class="fb-gear-@g.Kind"><span class="fb-gear-icon">@GearIcon(g.Kind)</span><span class="fb-gear-text">@g.Text<time>@Ago(g.Utc)</time></span>@if (g.Rubles != 0) { @Rubles(g.Rubles) }</li>
+                            }
+                        </ol>
+                    </section>
+                }
                 @if (p.Squad.Count > 0)
                 {
                     <section class="fb-card"><h2>Squad</h2><p>
@@ -309,6 +332,7 @@
                         @foreach (var ev in p.Events) { <li><span class="fb-muted">@Ago(ev.Utc)</span> @ev.Text</li> }
                     </ul></section>
                 }
+                </div>
             }
         }
         else if (page == "Dashboard")
@@ -490,7 +514,10 @@
             <section class="fb-card"><h2>Loadouts</h2><p class="fb-muted">APBS builds every loadout. These control which kit it builds and where it is used.</p>
                 <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.RetainProfileGearInRaid" /><span class="fb-switch-track"></span>Careers wear their profile loadout in raid@(Tip("When a bot spawns in raid, it wears the loadout its profile shows, plus fresh APBS loot. Off means APBS rolls a new kit for each spawn."))</label></div>
                 <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.WealthGearTiers" /><span class="fb-switch-track"></span>Gear follows wealth@(Tip("Broke accounts wear one or two APBS tiers below their level and rich ones one above. Anyone sometimes runs a budget kit or goes all in."))</label></div>
+                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.GearProgression" /><span class="fb-switch-track"></span>Gear progression@(Tip("Survivors keep their kit and now and then buy one better piece with their wealth. The dead rebuy, often their usual gun. Off means every raid rolls a whole new kit."))</label></div>
                 <div class="fb-grid">
+                    <label class="fb-field"><span class="fb-label">Upgrade chance@(Tip("Share (0 to 1) of survived raids after which a player shops for one better piece of gear, if they can afford it."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.GearUpgradeChance" /></label>
+                    <label class="fb-field"><span class="fb-label">Insurance return chance@(Tip("Share (0 to 1) of deaths where the player gets their gun and rig back from insurance. Some others rebuy the same loadout."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.InsuranceReturnChance" /></label>
                     <label class="fb-field"><span class="fb-label">Night kit chance@(Tip("Share (0 to 1) of generated profile loadouts built as night raid kits, which can carry NVGs."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.NightGearChance" /></label>
                 </div>
             </section>
@@ -738,7 +765,7 @@
     private static string Description(string page) => page switch {
         "Overview" => "Who's online, where they're playing and what just happened. Updates live.",
         "Dashboard" => "A snapshot of your server's persistent population.",
-        "Player" => "This account's profile stats. Gear is left out. Updates live.",
+        "Player" => "This account's profile stats, wealth and gear history. Updates live.",
         "Players" => "Every player: what it's doing right now, who it plays with and how it has done.",
         "Watching" => "Players you starred: where they are right now and what they've been up to. Updates live.",
         "World" => "Map popularity, queues, transits and the matching screen.",
@@ -755,6 +782,12 @@
     private static string? Section(string page) => page switch {
         "Personalities" => "personalities", "Population" => "settings", "Dashboard" or "Overview" or "Players" or "Watching" or "Presets" => null, _ => "simulation" };
     // preventDefault keeps a click on the icon from toggling or focusing the label's control.
+    private static RenderFragment Rubles(double value, string css = "") => @<span class="fb-money @(value < 0 ? "fb-money-loss" : "") @css">@value.ToString("N0")<span class="fb-money-unit">₽</span></span>;
+    private static RenderFragment GearIcon(string kind) => kind switch {
+        "upgrade" => @<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4 4 11h4v5h4v-5h4Z" /></svg>,
+        "insurance" => @<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5 3.5 5v4.5c0 4 2.8 6.9 6.5 8 3.7-1.1 6.5-4 6.5-8V5Z" /></svg>,
+        _ => @<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 6.5A6.5 6.5 0 1 0 16.4 12h-2.1a4.5 4.5 0 1 1-1-4.3L11 10h6V4Z" /></svg>
+    };
     private static RenderFragment Tip(string text) => @<span class="fb-tip" tabindex="0" @onclick:preventDefault="true"><span aria-hidden="true">?</span><span class="fb-tip-text" role="tooltip">@text</span></span>;
     private static string Percent(int part, int whole) => (part * 100.0 / whole).ToString("0.0") + "%";
     private static RenderFragment SubIcon(string name) => name switch {

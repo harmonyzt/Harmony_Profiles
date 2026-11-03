@@ -84,7 +84,7 @@ public sealed partial class PopulationStore
         career.NextGearAttemptUtc = now + 60;
         try
         {
-            ApplyGear(career, GenerateIsolatedEquipment(career, session), now);
+            ApplyGear(career, GenerateIsolatedEquipment(career, session), now, story);
             return true;
         }
         catch (Exception ex)
@@ -94,9 +94,19 @@ public sealed partial class PopulationStore
         }
     }
 
-    private void ApplyGear(Career career, JsonObject equipment, long now)
+    // A story regear is the kit you saw them change into, so it replaces the whole loadout.
+    private void ApplyGear(Career career, JsonObject equipment, long now, bool story = false)
     {
         if (!ValidEquipment(equipment) || !HasVisibleLoadout(equipment)) throw new InvalidDataException("APBS did not produce a usable equipment tree.");
+        if (policy.GearProgression && !story)
+        {
+            if (career.NeedsRegear) equipment = Rebuy(career, equipment, now);
+            else if (Upgrading(career))
+            {
+                if (UpgradeGear(career, equipment, now) is not { } upgraded) { KeepGear(career, now); return; }
+                equipment = upgraded;
+            }
+        }
         SetEquipment(career, equipment);
         career.EquipmentIsSimulated = true;
         career.NeedsRegear = false;
@@ -170,16 +180,23 @@ public sealed partial class PopulationStore
 
     // One career per checkpoint never caught up with a large online population. Dead careers go first.
     private const int GearBatch = 10;
+    private const int UpgradeSlots = 3;
 
     private void ProcessPendingGear(long now)
     {
         if (GearSession() is not MongoId session) return;
         // The dead regear offline too, or they log back in naked. GearPending can be cleared by a seen loadout while still dead.
-        foreach (var career in population.Careers.Values.Where(c => !c.Retired
+        var due = population.Careers.Values.Where(c => !c.Retired
                 && (c.NeedsRegear ? WantsGear(c, now) : c.IsOnline && c.GearPending)
                 && now >= c.NextGearAttemptUtc && now >= c.StoryHoldUntilUtc && now - c.LastEquipmentGeneratedUtc >= 900
-                && !IsObservedActive(c, now)).OrderByDescending(c => c.NeedsRegear).ThenBy(c => c.LastGearUpdateUtc)
-                .ThenBy(c => c.AccountId).Take(GearBatch))
+                && !IsObservedActive(c, now)).ToList();
+        // Most raids end with nothing worth buying. That costs no APBS roll, so it never waits for a batch slot.
+        foreach (var career in due.Where(Upgrading).ToArray())
+            if (Random.Shared.NextDouble() >= policy.GearUpgradeChance) { KeepGear(career, now); due.Remove(career); }
+        // A backlog of the dead must not starve the shoppers, so a few slots are theirs.
+        var shoppers = due.Where(Upgrading).OrderBy(c => c.LastGearUpdateUtc).ThenBy(c => c.AccountId).Take(UpgradeSlots).ToList();
+        foreach (var career in shoppers.Concat(due.Where(c => !Upgrading(c)).OrderByDescending(c => c.NeedsRegear)
+                .ThenBy(c => c.LastGearUpdateUtc).ThenBy(c => c.AccountId).Take(GearBatch - shoppers.Count)))
             gearRequests.TryAdd(career.Id, session);
     }
 }

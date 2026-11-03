@@ -89,7 +89,11 @@ public sealed class Career
     public int LastGeneratedPrestige { get; set; }
     public JsonObject Customization { get; set; } = new();
     public bool VisibleLoadout { get; set; }
+    // Newest first, for the profile page.
+    public List<GearEvent> GearHistory { get; set; } = new();
 }
+
+public sealed record GearEvent(long Utc, string Kind, string Text, double Rubles);
 
 // The heavy per-career JSON, kept in Data/careers/<id>.json and loaded on demand.
 public sealed class CareerAssets

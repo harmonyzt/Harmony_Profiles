@@ -262,7 +262,8 @@ public sealed partial class PopulationStore(
                 || c.Experience < 0 || c.Customization is null
                 || c.DevelopmentVersion is < 0 or > 2 || !double.IsFinite(c.WealthRubles) || c.WealthRubles < 0
                 || !double.IsFinite(c.HideoutInvestment) || c.HideoutInvestment < 0
-                || c.AreaLevels is null || c.AreaLevels.Any(a => a.Key is < 0 or > 1000 || a.Value is < 1 or > 100))
+                || c.AreaLevels is null || c.AreaLevels.Any(a => a.Key is < 0 or > 1000 || a.Value is < 1 or > 100)
+                || c.GearHistory is null || c.GearHistory.Count > 64 || c.GearHistory.Any(e => e is null || e.Text is null || !double.IsFinite(e.Rubles)))
                 throw new InvalidDataException($"Invalid career {id}; restore a known-good population backup.");
         }
     }
