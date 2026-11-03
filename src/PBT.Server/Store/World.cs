@@ -455,15 +455,17 @@ public sealed partial class PopulationStore
             if (!Ready) throw new InvalidOperationException("PBT has not finished loading.");
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             var observed = ObservedActiveCareers(now);
-            long Deaths(Career c) => Math.Max(1, c.Raids - c.Survived - c.MissingRaids - c.AwolRaids - c.RunThroughRaids + c.Observed.Deaths + c.StoryDeaths);
-            return population.Careers.Values.Where(c => !c.Retired).Select(c =>
-            {
-                var (state, status, map, since) = Describe(c, now, observed);
-                return new WorldPlayerRow(c.Name, c.Side, c.Archetype, Level(c.Experience), c.PrestigeLevel, state, status, map,
-                    since > 0 ? now - since : 0, (int)(c.Raids + c.Observed.Raids), Math.Round((double)(c.PmcKills + c.Observed.PmcKills) / Deaths(c), 2), Notable(c),
-                    SquadNames(c), activities.TryGetValue(c.Id, out var a) && a.State is "Queue" or "Raid" or "Transit" ? TeamNames(c, a) : [], c.Id);
-            }).ToList();
+            return population.Careers.Values.Where(c => !c.Retired).Select(c => PlayerRow(c, now, observed)).ToList();
         }
+    }
+
+    private WorldPlayerRow PlayerRow(Career c, long now, HashSet<string> observed)
+    {
+        var (state, status, map, since) = Describe(c, now, observed);
+        long deaths = Math.Max(1, c.Raids - c.Survived - c.MissingRaids - c.AwolRaids - c.RunThroughRaids + c.Observed.Deaths + c.StoryDeaths);
+        return new WorldPlayerRow(c.Name, c.Side, c.Archetype, Level(c.Experience), c.PrestigeLevel, state, status, map,
+            since > 0 ? now - since : 0, (int)(c.Raids + c.Observed.Raids), Math.Round((double)(c.PmcKills + c.Observed.PmcKills) / deaths, 2), Notable(c),
+            SquadNames(c), activities.TryGetValue(c.Id, out var a) && a.State is "Queue" or "Raid" or "Transit" ? TeamNames(c, a) : [], c.Id);
     }
 
     public Dictionary<string, object> MapIndicators()

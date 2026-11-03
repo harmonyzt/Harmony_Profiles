@@ -1453,6 +1453,62 @@
     margin-top: 16px
 }
 
+.pbt-editor .fb-name-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px
+}
+
+.pbt-editor .fb-star {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: none;
+    color: var(--fb-muted);
+    cursor: pointer;
+    opacity: .55
+}
+
+.pbt-editor .fb-star svg {
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linejoin: round
+}
+
+.pbt-editor .fb-star:hover,
+.pbt-editor .fb-star:focus-visible {
+    opacity: 1;
+    background: var(--fb-surface-2)
+}
+
+.pbt-editor .fb-star.fb-starred {
+    color: #e3a008;
+    opacity: 1
+}
+
+.pbt-editor .fb-star.fb-starred svg {
+    fill: currentColor
+}
+
+.pbt-editor .fb-watch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px
+}
+
+.pbt-editor .fb-watch-team {
+    margin-top: 8px;
+    font-size: 13px
+}
+
 .pbt-editor .fb-state-label {
     display: inline-flex;
     align-items: center;

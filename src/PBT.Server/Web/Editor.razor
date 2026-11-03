@@ -15,7 +15,7 @@
 <PageTitle>PBT - Progressive Bot Profiles</PageTitle>
 <HeadContent><link rel="icon" type="image/png" href="/pbt-assets/icon-128.png" /></HeadContent>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-<link href="/pbt-assets/pbt.css?v=20261103-players" rel="stylesheet" />
+<link href="/pbt-assets/pbt.css?v=20261103-watching" rel="stylesheet" />
 <div class="pbt-editor" data-theme="@(dark ? "dark" : "light")">
     <nav class="fb-topbar">
         <button type="button" class="fb-icon-button fb-menu" aria-label="Toggle navigation" aria-expanded="@(menuOpen ? "true" : "false")" @onclick="() => menuOpen = !menuOpen">
@@ -218,7 +218,7 @@
                             @foreach (var row in rows.Skip(current * PageSize).Take(PageSize))
                             {
                                 <tr>
-                                    <td><span class="fb-person @(row.Team.Length > 0 ? "fb-in-team" : "")" style="@(row.Team.Length > 0 ? $"--fb-team-hue:{TeamHue(row)}" : null)"><span class="fb-avatar @(row.Side.Equals("Bear", StringComparison.OrdinalIgnoreCase) ? "fb-avatar-bear" : "fb-avatar-usec")">@row.Name[..1].ToUpperInvariant()</span><span><button type="button" class="fb-name-link" @onclick="() => OpenPlayer(row.Id)">@row.Name</button>@if (row.Team.Length > 0) { <span class="fb-team-with">with @string.Join(", ", row.Team)</span> }<small>@row.Side.ToUpperInvariant()@(row.Notable ? " · streamer" : "")@if (row.Squad.Length > 0) { <span class="fb-squad" title="Squad with @string.Join(", ", row.Squad)">@Icon("Users") @(row.Squad.Length + 1)</span> }</small></span></span></td>
+                                    <td><span class="fb-person @(row.Team.Length > 0 ? "fb-in-team" : "")" style="@(row.Team.Length > 0 ? $"--fb-team-hue:{TeamHue(row)}" : null)"><span class="fb-avatar @(row.Side.Equals("Bear", StringComparison.OrdinalIgnoreCase) ? "fb-avatar-bear" : "fb-avatar-usec")">@row.Name[..1].ToUpperInvariant()</span><span><span class="fb-name-line">@Star(row.Id, row.Name)<button type="button" class="fb-name-link" @onclick="() => OpenPlayer(row.Id)">@row.Name</button></span>@if (row.Team.Length > 0) { <span class="fb-team-with">with @string.Join(", ", row.Team)</span> }<small>@row.Side.ToUpperInvariant()@(row.Notable ? " · streamer" : "")@if (row.Squad.Length > 0) { <span class="fb-squad" title="Squad with @string.Join(", ", row.Squad)">@Icon("Users") @(row.Squad.Length + 1)</span> }</small></span></span></td>
                                     <td>@row.Personality</td><td>@row.Level</td><td>@row.Prestige</td><td>@row.Raids.ToString("N0")</td><td>@row.KillDeath.ToString("0.00")</td>
                                     <td><span class="fb-state fb-state-@row.State.ToLowerInvariant()"><span class="fb-state-label">@StateLabel(row.State)</span><span class="fb-state-detail">@row.Status</span>@if (row.Team.Length > 0) { <span class="fb-team" style="--fb-team-hue:@TeamHue(row)" title="Playing with @string.Join(", ", row.Team)">@Icon("Users")Team of @(row.Team.Length + 1)</span> }</span></td>
                                     <td class="fb-muted">@(row.Since > 0 ? Duration(row.Since) : "")</td>
@@ -228,6 +228,38 @@
                     </table>
                 </div>
             </section>
+        }
+        else if (page == "Watching")
+        {
+            @if (watched is not { Players.Count: > 0 } w)
+            {
+                <section class="fb-card fb-empty"><h2>Nobody watched yet</h2><p>Star a player in All players or on their profile to follow them here.</p><button type="button" class="fb-button" @onclick='() => Go("Players")'>Browse players</button></section>
+            }
+            else
+            {
+                <div class="fb-watch-grid">
+                    @foreach (var row in w.Players.OrderBy(r => StateOrder(r.State)).ThenBy(r => r.Name))
+                    {
+                        <section class="fb-card fb-watch" @key="row.Id">
+                            <div class="fb-person"><span class="fb-avatar @(row.Side.Equals("Bear", StringComparison.OrdinalIgnoreCase) ? "fb-avatar-bear" : "fb-avatar-usec")">@row.Name[..1].ToUpperInvariant()</span>
+                                <span><span class="fb-name-line">@Star(row.Id, row.Name)<button type="button" class="fb-name-link" @onclick="() => OpenPlayer(row.Id)">@row.Name</button></span><small>Level @row.Level@(row.Prestige > 0 ? $" · prestige {row.Prestige}" : "") · @row.Raids.ToString("N0") raids · K/D @row.KillDeath.ToString("0.00")</small></span></div>
+                            <p class="fb-person-state"><span class="fb-state fb-state-@row.State.ToLowerInvariant()"><span class="fb-state-label">@StateLabel(row.State)</span><span class="fb-state-detail">@row.Status</span></span>
+                                @if (row.Since > 0) { <span class="fb-muted">for @Duration(row.Since)</span> }</p>
+                            @if (row.Team.Length > 0) { <p class="fb-muted fb-watch-team">With @string.Join(", ", row.Team)</p> }
+                        </section>
+                    }
+                </div>
+                <section class="fb-card">
+                    <div class="fb-card-head"><div><h2>Activity</h2><p>What your watched players did, newest first.</p></div><span class="fb-live"><span></span>Live</span></div>
+                    <ol class="fb-log">
+                        @foreach (var item in w.Events)
+                        {
+                            <li @key="item.Id" class="fb-log-@item.Kind"><span class="fb-log-dot"></span><span class="fb-log-text">@item.Text</span><time>@Ago(item.Utc)</time></li>
+                        }
+                    </ol>
+                    @if (w.Events.Count == 0) { <p class="fb-muted">Nothing yet. Their raids, deaths and level-ups show up here.</p> }
+                </section>
+            }
         }
         else if (page == "Player")
         {
@@ -240,7 +272,7 @@
             {
                 <section class="fb-card">
                     <div class="fb-person"><span class="fb-avatar @(p.Side.Equals("Bear", StringComparison.OrdinalIgnoreCase) ? "fb-avatar-bear" : "fb-avatar-usec")">@p.Name[..1].ToUpperInvariant()</span>
-                        <span><strong>@p.Name</strong><small>@p.Side.ToUpperInvariant() · @p.Personality@(p.Notable ? " · streamer" : "")</small></span></div>
+                        <span><span class="fb-name-line">@Star(p.Id, p.Name)<strong>@p.Name</strong></span><small>@p.Side.ToUpperInvariant() · @p.Personality@(p.Notable ? " · streamer" : "")</small></span></div>
                     <p class="fb-person-state"><span class="fb-state fb-state-@p.State.ToLowerInvariant()"><span class="fb-state-label">@StateLabel(p.State)</span><span class="fb-state-detail">@p.Status</span></span>
                         @if (p.Since > 0) { <span class="fb-muted">for @Duration(p.Since)</span> }</p>
                 </section>
@@ -633,10 +665,10 @@
 </div>
 
 @code {
-    private static readonly string[] topPages = ["Overview", "Dashboard", "Players", "Personalities", "Simulation", "Population", "Presets"];
+    private static readonly string[] topPages = ["Overview", "Dashboard", "Players", "Watching", "Personalities", "Simulation", "Population", "Presets"];
     private static readonly string[] simulationPages = ["Progression", "Hideout", "Gear", "Notable", "Prestige", "Stories", "Messages", "World"];
     private static readonly (string Value, string Label)[] statusFilters =
-        [("", "Everyone"), ("Online", "Online"), ("Raid", "In raid"), ("Queue", "Queueing"), ("Menu", "Main menu"), ("Afk", "AFK"), ("Transit", "In transit"), ("Died", "Died"), ("Offline", "Offline"), ("Squad", "In a squad")];
+        [("", "Everyone"), ("Online", "Online"), ("Raid", "In raid"), ("Queue", "Queueing"), ("Menu", "Main menu"), ("Afk", "AFK"), ("Transit", "In transit"), ("Died", "Died"), ("Offline", "Offline"), ("Squad", "In a squad"), ("Favorites", "Watched")];
     private static readonly string[] sortOptions = ["Status", "Name", "Level", "Prestige", "Raids", "K/D"];
     private const int PageSize = 50;
     private EditorSnapshot? snapshot;
@@ -654,6 +686,8 @@
     private bool error, confirmReload, dark = true, menuOpen, simulationOpen = true, sortDescending, animating, slideHeld, slideHover;
     private System.Threading.Timer? live;
     private PlayerProfile? profile;
+    private WatchedPlayers? watched;
+    private HashSet<string> favorites = new();
     private string playerId = "", playerBack = "Players", streamerName = "", streamerSide = "Usec";
 
     private void OpenPlayer(string id)
@@ -668,6 +702,19 @@
     {
         try { profile = Store.GetPlayerProfile(playerId); } catch { profile = null; }
     }
+    private void LoadWatched()
+    {
+        try { watched = Store.GetWatched(40); favorites = Store.GetFavorites(); } catch { }
+    }
+    private void ToggleFavorite(string id)
+    {
+        try { Store.SetFavorite(id, !favorites.Contains(id)); favorites = Store.GetFavorites(); }
+        catch (Exception ex) { Notify(true, "Could not save the watch list: " + ex.Message); return; }
+        if (page == "Watching") LoadWatched();
+    }
+    private RenderFragment Star(string id, string name) => @<button type="button" class="fb-star @(favorites.Contains(id) ? "fb-starred" : "")" aria-pressed="@(favorites.Contains(id) ? "true" : "false")"
+        title="@(favorites.Contains(id) ? $"Stop watching {name}" : $"Watch {name}")" @onclick="() => ToggleFavorite(id)">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m10 2.8 2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L2.8 8.1l5-.7Z" /></svg></button>;
     private void AddStreamer()
     {
         var (ok, restart, text) = Store.CheckStreamerName(streamerName, streamerSide);
@@ -685,7 +732,7 @@
     private RenderFragment SimulationSave => @<div class="fb-savebar"><span>Saves every Simulation page at once.</span><button type="button" class="fb-button" disabled="@(!Dirty("simulation"))" @onclick="SavePolicy">Save simulation policy</button></div>;
 
     private static string Title(string page) => page switch {
-        "Gear" => "Gear & showcases", "Notable" => "Chads & streamers", "Stories" => "Post-raid stories", "Messages" => "Bot messages", "Players" => "All players", "World" => "Maps & matching", "Player" => "Player", _ => page };
+        "Gear" => "Gear & showcases", "Notable" => "Chads & streamers", "Stories" => "Post-raid stories", "Messages" => "Bot messages", "Players" => "All players", "World" => "Maps & matching", "Player" => "Player", "Watching" => "Watching", _ => page };
     private static string Heading(string page) => page switch {
         "Overview" => "Live world", "Dashboard" => "Population dashboard", "Player" => "Player profile", "Population" => "Population settings", _ => Title(page) };
     private static string Description(string page) => page switch {
@@ -693,6 +740,7 @@
         "Dashboard" => "A snapshot of your server's persistent population.",
         "Player" => "This account's profile stats. Gear is left out. Updates live.",
         "Players" => "Every player: what it's doing right now, who it plays with and how it has done.",
+        "Watching" => "Players you starred: where they are right now and what they've been up to. Updates live.",
         "World" => "Map popularity, queues, transits and the matching screen.",
         "Personalities" => "Starting ranges and progression targets. Edits affect future simulation without rerolling existing accounts.",
         "Progression" => "Level cohorts guide varied account histories. Native requirements remain in force.",
@@ -705,7 +753,7 @@
         "Presets" => "Named sets of every setting. Load one, tweak anything, then save it under a new name.",
         _ => "Friendships and activity between server sessions." };
     private static string? Section(string page) => page switch {
-        "Personalities" => "personalities", "Population" => "settings", "Dashboard" or "Overview" or "Players" or "Presets" => null, _ => "simulation" };
+        "Personalities" => "personalities", "Population" => "settings", "Dashboard" or "Overview" or "Players" or "Watching" or "Presets" => null, _ => "simulation" };
     // preventDefault keeps a click on the icon from toggling or focusing the label's control.
     private static RenderFragment Tip(string text) => @<span class="fb-tip" tabindex="0" @onclick:preventDefault="true"><span aria-hidden="true">?</span><span class="fb-tip-text" role="tooltip">@text</span></span>;
     private static string Percent(int part, int whole) => (part * 100.0 / whole).ToString("0.0") + "%";
@@ -722,6 +770,7 @@
         "Dashboard" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v7h7A7 7 0 1 1 10 3Z" /><path d="M13 2.5A5 5 0 0 1 17.5 7H13Z" /></svg>,
         "Overview" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 5.5 7 3.5l6 2 4.5-2v11l-4.5 2-6-2-4.5 2ZM7 3.5v11M13 5.5v11" /></svg>,
         "Players" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h9" /><circle cx="15.5" cy="15" r="1.5" /></svg>,
+        "Watching" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M2 10s3-5.5 8-5.5 8 5.5 8 5.5-3 5.5-8 5.5S2 10 2 10Z" /><circle cx="10" cy="10" r="2.5" /></svg>,
         "Personalities" or "Users" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="7.5" cy="7" r="3" /><path d="M2 17a5.5 5.5 0 0 1 11 0M13 4.2a3 3 0 0 1 0 5.6M15 12a5.5 5.5 0 0 1 3 5" /></svg>,
         "Simulation" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="2.5" /><path d="M10 2v3M10 15v3M2 10h3M15 10h3M4.3 4.3l2.1 2.1M13.6 13.6l2.1 2.1M4.3 15.7l2.1-2.1M13.6 6.4l2.1-2.1" /></svg>,
         "Population" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5" /><path d="M2.5 10h15M10 2.5c2.2 2.2 2.2 12.8 0 15M10 2.5c-2.2 2.2-2.2 12.8 0 15" /></svg>,
@@ -762,6 +811,7 @@
         slideHeld = slideHover = false;
         confirmPreset = confirmDelete = "";
         if (next is "Overview" or "Players") LoadWorld();
+        if (next == "Watching") LoadWatched();
         if (next == "Presets") LoadPresets();
         menuOpen = false;
         if (simulationPages.Contains(next)) simulationOpen = true;
@@ -779,6 +829,7 @@
         Reload();
         LoadWorld();
         try { presets = Store.GetPresets(); } catch { }
+        try { favorites = Store.GetFavorites(); } catch { }
     }
     protected override void OnAfterRender(bool first)
     {
@@ -801,6 +852,7 @@
         if (animating || snapshot is null) return;
         if (page is "Overview" or "Players") LoadWorld();
         else if (page == "Player") LoadProfile();
+        else if (page == "Watching") LoadWatched();
         else if (page == "Dashboard") UpdateStatus();
         else return;
         // A picked slide stays put until the user leaves the page.
@@ -832,6 +884,7 @@
         if (!string.IsNullOrWhiteSpace(playerSearch)) rows = rows.Where(p => p.Name.Contains(playerSearch.Trim(), StringComparison.OrdinalIgnoreCase));
         if (playerFilter == "Online") rows = rows.Where(p => p.State is not ("Offline" or "Died"));
         else if (playerFilter == "Squad") rows = rows.Where(p => p.Squad.Length > 0);
+        else if (playerFilter == "Favorites") rows = rows.Where(p => favorites.Contains(p.Id));
         else if (playerFilter.Length > 0) rows = rows.Where(p => p.State == playerFilter);
         Func<WorldPlayerRow, object> key = playerSort switch {
             "Name" => p => p.Name, "Level" => p => p.Level, "Prestige" => p => p.Prestige, "Raids" => p => p.Raids, "K/D" => p => p.KillDeath,
