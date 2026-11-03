@@ -21,7 +21,7 @@ public sealed partial class PopulationStore
     }
 
     // Solo maps run a private instance for you and your team, with no random PMCs.
-    private sealed record WorldMap(string Id, string Name, double Weight, string[] Transits, int MinimumLevel, int MaximumLevel, bool WeeklyBoss, bool Solo);
+    private sealed record WorldMap(string Id, string Name, double Weight, string[] Transits, int MinimumLevel, int MaximumLevel, bool WeeklyBoss, bool Solo, int MinPlayers, int MaxPlayers);
 
     private static readonly Dictionary<string, double> MapPopularity = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -96,7 +96,8 @@ public sealed partial class PopulationStore
             int minimum = b.RequiredPlayerLevelMin ?? 0, maximum = b.RequiredPlayerLevelMax is > 0 ? b.RequiredPlayerLevelMax.Value : 100;
             // The game sends level 21+ to the high Ground Zero, but its database entry has no lower gate.
             if (id == "sandbox_high") minimum = Math.Max(minimum, 21);
-            next.Add(new(id, name, MapPopularity.GetValueOrDefault(id, solo ? 3 : 5), transits, minimum, maximum, weekly, solo));
+            int minPlayers = Math.Max(1, b.MinPlayers ?? 8), maxPlayers = Math.Max(minPlayers, b.MaxPlayers ?? minPlayers);
+            next.Add(new(id, name, MapPopularity.GetValueOrDefault(id, solo ? 3 : 5), transits, minimum, maximum, weekly, solo, minPlayers, maxPlayers));
         }
         if (next.Count > 0) worldMaps = next;
     }

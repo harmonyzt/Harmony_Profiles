@@ -22,10 +22,7 @@ public sealed partial class PopulationStore
             int seconds = policy.World.SimulateMatching
                 ? Math.Min(policy.World.MaximumMatchingSeconds, (int)(QueueSeconds(map) * (.7 + Random.Shared.NextDouble() * .6))) : 0;
             int looking = seconds > 0 ? Random.Shared.Next(5, 16) : 0;
-            // Solo maps never put strangers in your instance.
-            var queued = FindMap(map)?.Solo == true ? [] : population.Careers.Values
-                .Where(c => !c.Retired && activities.TryGetValue(c.Id, out var a) && a.State == "Queue" && a.Map == key && !a.Held)
-                .Select(c => c.Id).ToHashSet();
+            var queued = FillServer(FindMap(map), session, now);
             // They wait in the queue with you until the raid loads.
             foreach (string id in queued) activities[id].Until = Math.Max(activities[id].Until, now + seconds + looking + 120);
             lobbies[session.ToString()] = new(key, queued, now);
@@ -33,6 +30,53 @@ public sealed partial class PopulationStore
             lastMatch = seconds > 0 ? new(key, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), seconds, looking) : null;
             return (seconds, looking, queued.Count);
         }
+    }
+
+    // Like EFT, you match into a server of MinPlayers..MaxPlayers. Its players are the careers spawns draw from,
+    // so a raid meets the people it queued with. PMC count is still up to the bot spawner.
+    private HashSet<string> FillServer(WorldMap? map, MongoId session, long now)
+    {
+        // Solo maps never put strangers in your instance.
+        if (map is null || map.Solo) return [];
+        int size = Math.Max(0, Random.Shared.Next(map.MinPlayers, map.MaxPlayers + 1) - 1);
+        int level = 1;
+        try { level = saves.GetProfile(session).CharacterData?.PmcData?.Info?.Level ?? 1; }
+        catch { }
+        bool Fits(Career c) => Math.Abs(Level(c.Experience) - level) <= 20;
+        var queued = population.Careers.Values
+            .Where(c => !c.Retired && activities.TryGetValue(c.Id, out var a) && a.State == "Queue" && a.Map == map.Id && !a.Held)
+            .OrderByDescending(Fits).ThenBy(_ => Random.Shared.Next()).ToList();
+        var server = new HashSet<string>();
+        // Parties stay whole, even if that overfills the server by a seat or two.
+        void Take(Career c)
+        {
+            if (!server.Add(c.Id)) return;
+            foreach (string id in activities[c.Id].Party)
+                if (id != c.Id && activities.TryGetValue(id, out var mate) && mate.State == "Queue" && mate.Map == map.Id) server.Add(id);
+        }
+        foreach (var c in queued) { if (server.Count >= size) break; Take(c); }
+        if (server.Count >= size) return server;
+        // A quiet queue pulls in players from the menu who were about to pick this map anyway.
+        var idle = population.Careers.Values.Where(c => !c.Retired && c.IsOnline && !server.Contains(c.Id) && Fits(c)
+                && activities.TryGetValue(c.Id, out var a) && a.State == "Menu" && !a.Held && !a.WantsOffline
+                && a.Doing is not ("AFK" or "Waiting for squad") && !Regearing(c, now))
+            .Select(c => (Career: c, Weight: MapWeight(c, map, Level(c.Experience)) * Random.Shared.NextDouble()))
+            .Where(x => x.Weight > 0).OrderByDescending(x => x.Weight).Select(x => x.Career).ToList();
+        foreach (var c in idle)
+        {
+            if (server.Count >= size) break;
+            if (server.Contains(c.Id)) continue;
+            var party = new List<Career> { c };
+            if (squads.TryGetValue(c.Id, out var members))
+                foreach (string id in members)
+                    if (id != c.Id && Available(id, out var mate, out var mateActivity) && mateActivity.Doing != "AFK" && Fits(mate)) party.Add(mate);
+            if (party.Any(m => Level(m.Experience) < map.MinimumLevel || Level(m.Experience) > map.MaximumLevel)) party = [c];
+            string[] ids = party.Count > 1 ? party.Select(m => m.Id).ToArray() : [];
+            foreach (var m in party) { Set(ActivityOf(m), "Queue", map.Id, now, now, party: ids); server.Add(m.Id); }
+            if (party.Count > 1) Log("squad", $"{JoinNames(party.Select(m => m.Name).ToList())} queued for {map.Name} as a squad", map.Id);
+        }
+        worldDirty = true;
+        return server;
     }
 
     // A Fika client asks where the host's matching is, so its screen follows the same queue.
