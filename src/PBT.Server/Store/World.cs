@@ -293,8 +293,10 @@ public sealed partial class PopulationStore
     private void FinishRaid(Career c, Activity a, long now)
     {
         int raids = c.Raids, survived = c.Survived, missing = c.MissingRaids, awol = c.AwolRaids, runner = c.RunThroughRaids, kills = c.PmcKills;
+        int level = Level(c.Experience), prestige = c.PrestigeLevel;
         double seconds = Math.Max(0, c.TargetRaidSeconds - c.PendingRaidSeconds) + .01;
         ApplySimulation(c, seconds);
+        LogProgress(c, level, prestige);
         c.PendingLiveSeconds += seconds;
         c.Achievements = EarnedMilestones(c, now);
         worldDirty = true;
@@ -322,6 +324,14 @@ public sealed partial class PopulationStore
             return;
         }
         ToMenu(c, a, now);
+    }
+
+    // Every level would flood the log, so only round levels and prestiges.
+    private void LogProgress(Career c, int before, int prestige)
+    {
+        int after = Level(c.Experience);
+        if (c.PrestigeLevel > prestige) Log("level", $"{c.Name} reached prestige {c.PrestigeLevel}");
+        else if (after > before && (after / 10 > before / 10 || after == 79)) Log("level", $"{c.Name} reached level {after}");
     }
 
     // Half the deaths name another career on the same map. The log only, no stats change.

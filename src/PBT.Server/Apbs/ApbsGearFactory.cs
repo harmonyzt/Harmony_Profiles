@@ -80,8 +80,8 @@ internal sealed class ApbsGearFactory
     private static void BoostRaidTier(int level, ref int __result)
     {
         if (ApbsIntegration.Current is not { Career: { } career } scope || scope.Level != level) return;
-        int boost = PopulationStore.Active?.TierBoost(career) ?? 0;
-        if (boost > 0) __result = Math.Min(topTier, __result + boost);
+        int shift = PopulationStore.Active?.TierShift(career, roll: true) ?? 0;
+        if (shift != 0) __result = Math.Clamp(__result + shift, 1, topTier);
     }
 
     private static void Enter(out bool __state) { Monitor.Enter(generationGate); __state = true; }
@@ -93,7 +93,7 @@ internal sealed class ApbsGearFactory
         lock (generationGate)
         {
             using var context = ApbsGenerationContext.Enter(ProfileLocation, level, night);
-            int selectedTier = Math.Min(topTier, (int)tier.Invoke(tierHelper, [level])! + tierBoost);
+            int selectedTier = Math.Clamp((int)tier.Invoke(tierHelper, [level])! + tierBoost, 1, topTier);
             string role = career.Side.Equals("Bear", StringComparison.OrdinalIgnoreCase) ? "pmcbear" : "pmcusec";
             var sourceChances = chances.Invoke(equipmentHelper, [role, selectedTier])
                 ?? throw new InvalidOperationException("APBS returned no equipment chances.");

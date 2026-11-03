@@ -158,7 +158,8 @@ public sealed partial class PopulationStore
         // SPT's own cloner, as its bot generator uses. A JSON round trip of the bot type churned megabytes per regear.
         var isolated = cloner.Clone(source) ?? throw new InvalidDataException("Cannot clone PMC inventory template.");
         var inventory = gearFactory.Generate(inventoryGenerator, inventoryContainers, session, isolated, career, Level(career.Experience),
-            TierBoost(career) + extraTiers, Random.Shared.NextDouble() < policy.NightGearChance);
+            // Rack guns are favourites, not what the account can afford today.
+            extraTiers > 0 ? TierBoost(career) + extraTiers : TierShift(career, roll: true), Random.Shared.NextDouble() < policy.NightGearChance);
         var equipment = EquipmentTree(JsonNode.Parse(json.Serialize(inventory)!)!.AsObject());
         if (!ValidEquipment(equipment)) throw new InvalidDataException("APBS returned an invalid equipment tree.");
         return equipment;

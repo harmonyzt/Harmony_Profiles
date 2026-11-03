@@ -19,14 +19,16 @@ public sealed partial class PopulationStore
         && (notableCache.GetOrAdd(c.Name, IsNotableName) || notableCache.GetOrAdd(c.SourceName, IsNotableName)
             || ExtraStreamers().Contains(c.Name) || ExtraStreamers().Contains(c.SourceName));
 
-    private (List<string> Source, HashSet<string> Names)? extraStreamers;
+    private sealed record StreamerSet(List<string> Source, HashSet<string> Names);
+    private volatile StreamerSet? extraStreamers;
 
-    // Rebuilt only when a saved policy brings a new list.
+    // Rebuilt only when a saved policy brings a new list. One reference swap, since raid spawns read it outside the gate.
     private HashSet<string> ExtraStreamers()
     {
         var list = policy.NotableNames.ExtraNames;
-        if (extraStreamers is not { } cached || !ReferenceEquals(cached.Source, list))
-            extraStreamers = cached = (list, new HashSet<string>(list.Select(x => x.Trim()), StringComparer.OrdinalIgnoreCase));
+        var cached = extraStreamers;
+        if (cached is null || !ReferenceEquals(cached.Source, list))
+            extraStreamers = cached = new(list, new HashSet<string>(list.Select(x => x.Trim()), StringComparer.OrdinalIgnoreCase));
         return cached.Names;
     }
 

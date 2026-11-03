@@ -1422,7 +1422,8 @@
 }
 
 .pbt-editor .fb-log-achievement .fb-log-dot,
-.pbt-editor .fb-log-prestige .fb-log-dot {
+.pbt-editor .fb-log-prestige .fb-log-dot,
+.pbt-editor .fb-log-level .fb-log-dot {
     background: var(--fb-yellow-text)
 }
 

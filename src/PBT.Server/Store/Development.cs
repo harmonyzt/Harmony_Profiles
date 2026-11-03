@@ -193,7 +193,8 @@ public sealed partial class PopulationStore
                 double threshold = firstStageHours * next * next / (focus * policy.Hideout.ConstructionSpeed);
                 if (hours < threshold || !AreaRequirements(area.Requirements, levels)) continue;
                 double cost = StageCost(c, stage, levels) * policy.Hideout.MaterialCostMultiplier;
-                if (!double.IsFinite(cost) || cost > c.WealthRubles) continue;
+                // Players keep money for a few kits instead of spending their last ruble on the hideout.
+                if (!double.IsFinite(cost) || cost > c.WealthRubles - KitCost(c) * 3) continue;
                 c.WealthRubles -= cost;
                 c.HideoutInvestment += cost;
                 levels[type] = next;

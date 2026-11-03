@@ -72,6 +72,8 @@ public sealed class SimulationPolicy
     public InitialPrestigeSettings InitialPrestige { get; set; } = new();
     public bool EnableShowcase { get; set; } = true;
     // Rack guns come from loadouts this many APBS tiers above the account's own, capped at the top tier.
+    // Broke accounts wear cheaper kits and rich ones better, on top of the level's APBS tier.
+    public bool WealthGearTiers { get; set; } = true;
     public int RackTierBoostMinimum { get; set; } = 1;
     public int RackTierBoostMaximum { get; set; } = 3;
     // Share of generated profile loadouts rolled as night raid kits, so some accounts carry NVGs.
