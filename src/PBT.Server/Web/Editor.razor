@@ -241,8 +241,8 @@
                 <section class="fb-card">
                     <div class="fb-person"><span class="fb-avatar @(p.Side.Equals("Bear", StringComparison.OrdinalIgnoreCase) ? "fb-avatar-bear" : "fb-avatar-usec")">@p.Name[..1].ToUpperInvariant()</span>
                         <span><strong>@p.Name</strong><small>@p.Side.ToUpperInvariant() · @p.Personality@(p.Notable ? " · streamer" : "")</small></span></div>
-                    <p><span class="fb-state fb-state-@p.State.ToLowerInvariant()"><span class="fb-state-label">@StateLabel(p.State)</span><span class="fb-state-detail">@p.Status</span></span>
-                        @if (p.Since > 0) { <span class="fb-muted"> for @Duration(p.Since)</span> }</p>
+                    <p class="fb-person-state"><span class="fb-state fb-state-@p.State.ToLowerInvariant()"><span class="fb-state-label">@StateLabel(p.State)</span><span class="fb-state-detail">@p.Status</span></span>
+                        @if (p.Since > 0) { <span class="fb-muted">for @Duration(p.Since)</span> }</p>
                 </section>
                 <div class="fb-stats">
                     <article class="fb-card fb-stat"><span class="fb-stat-label">Level</span><strong>@p.Level</strong><span class="fb-stat-foot">@p.Experience.ToString("N0") XP@(p.Prestige > 0 ? $" · prestige {p.Prestige}" : "")</span></article>

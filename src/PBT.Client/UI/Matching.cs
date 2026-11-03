@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using System.Threading.Tasks;
+using Comfort.Common;
 using EFT;
 using HarmonyLib;
 using Newtonsoft.Json.Linq;
@@ -30,6 +31,9 @@ internal static class Matching
             throw new MissingMethodException("Local game creation hook unavailable.");
         harmony.Patch(create, prefix: new HarmonyMethod(typeof(Matching), nameof(Create)));
         InstallStatus(harmony);
+        var bots = AccessTools.Method(typeof(LocalGame), nameof(LocalGame.vmethod_1));
+        if (bots is null) Plugin.Report("Awaiting players status unavailable.");
+        else harmony.Patch(bots, prefix: new HarmonyMethod(typeof(Matching), nameof(AwaitingPlayers)));
     }
 
     private static void InstallStatus(Harmony harmony)
@@ -75,7 +79,7 @@ internal static class Matching
         try { settings = raidSettings!(__instance); }
         catch { return true; }
         if (settings is null || settings.isInTransition) return true;
-        __result = Queue(__instance, settings.LocationId ?? "", () => (Task)create!.Invoke(__instance, __args));
+        __result = Queue(__instance, settings.LocationId ?? "", () => (Task)create!.Invoke(__instance, __args), forward: true);
         return false;
     }
 
@@ -92,7 +96,7 @@ internal static class Matching
         catch (Exception ex) { Plugin.Report("Fika matching skipped: " + ex.Message); return true; }
     }
 
-    private static async Task Queue(TarkovApplication app, string map, Func<Task> start)
+    private static async Task Queue(TarkovApplication app, string map, Func<Task> start, bool forward = false)
     {
         try
         {
@@ -120,8 +124,42 @@ internal static class Matching
             if (known) Plugin.Trace($"Matched with {response.Value<int>("Matched")} PBT profile(s).");
         }
         catch (Exception ex) { Plugin.Report("Matching simulation skipped: " + ex.Message); }
+        // The previous raid's game can still be the singleton while the next one is being created.
+        var previous = Singleton<AbstractGame>.Instantiated ? Singleton<AbstractGame>.Instance : null;
         passing = true;
-        await start();
+        var game = start();
+        if (forward && onlineWording) await ForwardStatus(app, game, previous);
+        await game;
+    }
+
+    // Offline creation sets one status and never forwards the game's own, so the loading screen
+    // sat on "Connecting to server". Live forwards them (loot loading), so do the same.
+    private static async Task ForwardStatus(TarkovApplication app, Task game, AbstractGame? previous)
+    {
+        Action<string, float?> relay = (status, progress) => app.Matchmaker?.UpdateMatchingStatus(status, progress);
+        LocalGame? local = null;
+        try
+        {
+            while (!game.IsCompleted && local is null)
+            {
+                if (Singleton<AbstractGame>.Instantiated && Singleton<AbstractGame>.Instance is LocalGame created && created != previous)
+                {
+                    local = created;
+                    local.OnMatchingStatusChanged += relay;
+                    Status(app, "Awaiting session start...");
+                }
+                else await Task.WhenAny(game, Task.Delay(100));
+            }
+            await game;
+        }
+        catch { }
+        finally { if (local is not null) local.OnMatchingStatusChanged -= relay; }
+    }
+
+    // Live shows this between loot and the countdown, which is where offline spawns its bots.
+    private static void AwaitingPlayers(LocalGame __instance)
+    {
+        if (onlineWording) __instance.SetMatchmakerStatus("Awaiting players...");
     }
 
     // Fika clients wait for the host anyway. Show the host's matching stages meanwhile instead of a blank wait.

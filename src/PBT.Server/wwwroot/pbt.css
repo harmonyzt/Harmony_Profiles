@@ -1445,6 +1445,14 @@
     white-space: nowrap
 }
 
+.pbt-editor .fb-person-state {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-top: 16px
+}
+
 .pbt-editor .fb-state-label {
     display: inline-flex;
     align-items: center;
