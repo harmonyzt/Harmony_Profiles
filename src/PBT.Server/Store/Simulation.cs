@@ -170,7 +170,7 @@ public sealed partial class PopulationStore
     private bool TryRegear(Career c, bool story = false)
     {
         c.GearPending = true;
-        if ((!story && !c.IsOnline) || gearSession is not SPTarkov.Server.Core.Models.Common.MongoId session) return false;
+        if ((!story && !c.IsOnline) || GearSession() is not SPTarkov.Server.Core.Models.Common.MongoId session) return false;
         return GenerateCareerGear(c, session, DateTimeOffset.UtcNow.ToUnixTimeSeconds(), story);
     }
 

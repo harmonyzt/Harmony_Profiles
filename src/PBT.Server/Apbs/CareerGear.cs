@@ -51,6 +51,9 @@ public sealed partial class PopulationStore
     // A dead account stays naked for a while, then turns up in a new kit.
     private static long RegearDelay(Career c) => 1200 + (long)(Stable(c.Id + ":regear:" + c.DiedUtc) * 2400);
 
+    // The world sim must not wait on APBS: the gear worker lags behind the death rate, and gear is made on view or spawn anyway.
+    private static bool Regearing(Career c, long now) => c.NeedsRegear && now - c.DiedUtc < RegearDelay(c);
+
     private static bool WantsGear(Career c, long now) => !c.Retired
         && (c.GearVersion == 0 && c.LastEquipmentAccount == 0 || c.NeedsRegear && now - c.DiedUtc >= RegearDelay(c));
 
@@ -161,14 +164,18 @@ public sealed partial class PopulationStore
         return equipment;
     }
 
+    // Only a raid spawn or a profile view sets gearSession, so after a restart nobody regeared until then.
+    private MongoId? GearSession() => gearSession ??= saves.GetProfiles().Keys.Select(k => (MongoId?)k).FirstOrDefault();
+
     // One career per checkpoint never caught up with a large online population. Dead careers go first.
     private const int GearBatch = 10;
 
     private void ProcessPendingGear(long now)
     {
-        if (gearSession is not MongoId session) return;
-        foreach (var career in population.Careers.Values.Where(c => !c.Retired && c.IsOnline && c.GearPending
-                && (!c.NeedsRegear || WantsGear(c, now))
+        if (GearSession() is not MongoId session) return;
+        // The dead regear offline too, or they log back in naked. GearPending can be cleared by a seen loadout while still dead.
+        foreach (var career in population.Careers.Values.Where(c => !c.Retired
+                && (c.NeedsRegear ? WantsGear(c, now) : c.IsOnline && c.GearPending)
                 && now >= c.NextGearAttemptUtc && now >= c.StoryHoldUntilUtc && now - c.LastEquipmentGeneratedUtc >= 900
                 && !IsObservedActive(c, now)).OrderByDescending(c => c.NeedsRegear).ThenBy(c => c.LastGearUpdateUtc)
                 .ThenBy(c => c.AccountId).Take(GearBatch))

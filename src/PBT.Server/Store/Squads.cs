@@ -39,7 +39,7 @@ public sealed partial class PopulationStore
     private void EnterMenu(Career c, Activity a, long now, bool died = false)
     {
         Set(a, "Menu", "", now, now);
-        if (died || c.NeedsRegear)
+        if (died || Regearing(c, now))
         {
             a.Doing = "Gearing up";
             a.Until = now + Random.Shared.Next(180, 601);
@@ -66,7 +66,7 @@ public sealed partial class PopulationStore
     private bool Available(string id, out Career mate, out Activity mateActivity)
     {
         mateActivity = null!;
-        if (!population.Careers.TryGetValue(id, out mate!) || mate.Retired || !mate.IsOnline || mate.NeedsRegear) return false;
+        if (!population.Careers.TryGetValue(id, out mate!) || mate.Retired || !mate.IsOnline || Regearing(mate, DateTimeOffset.UtcNow.ToUnixTimeSeconds())) return false;
         mateActivity = ActivityOf(mate);
         return mateActivity.State == "Menu" && !mateActivity.Held && !mateActivity.WantsOffline;
     }

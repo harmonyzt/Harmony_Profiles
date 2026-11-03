@@ -386,7 +386,7 @@ public sealed partial class PopulationStore
 
     private bool ProcessPendingShowcase(long now)
     {
-        if (!policy.EnableShowcase || gearSession is not MongoId session || gearFactory is null) return false;
+        if (!policy.EnableShowcase || GearSession() is not MongoId session || gearFactory is null) return false;
         foreach (var (id, work) in showcaseQueue.OrderBy(p => p.Value.Due).ToArray())
         {
             if (!population.Careers.TryGetValue(id, out var c) || c.Retired || AreaLevel(c, 24) <= 0
