@@ -16,7 +16,19 @@ public sealed partial class PopulationStore
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> notableCache = new();
 
     private bool Notable(Career c) => policy.NotableNames.Enabled
-        && (notableCache.GetOrAdd(c.Name, IsNotableName) || notableCache.GetOrAdd(c.SourceName, IsNotableName));
+        && (notableCache.GetOrAdd(c.Name, IsNotableName) || notableCache.GetOrAdd(c.SourceName, IsNotableName)
+            || ExtraStreamers().Contains(c.Name) || ExtraStreamers().Contains(c.SourceName));
+
+    private (List<string> Source, HashSet<string> Names)? extraStreamers;
+
+    // Rebuilt only when a saved policy brings a new list.
+    private HashSet<string> ExtraStreamers()
+    {
+        var list = policy.NotableNames.ExtraNames;
+        if (extraStreamers is not { } cached || !ReferenceEquals(cached.Source, list))
+            extraStreamers = cached = (list, new HashSet<string>(list.Select(x => x.Trim()), StringComparer.OrdinalIgnoreCase));
+        return cached.Names;
+    }
 
     internal int TierBoost(Career c)
     {

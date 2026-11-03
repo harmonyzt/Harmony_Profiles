@@ -36,7 +36,7 @@ public sealed partial class PopulationStore
         long Deaths(Career c) => Math.Max(1, c.Raids - c.Survived - c.MissingRaids - c.AwolRaids - c.RunThroughRaids + c.Observed.Deaths + c.StoryDeaths);
         var top = active.OrderByDescending(c => c.PrestigeLevel).ThenByDescending(c => c.Experience).Take(8)
             .Select(c => new EditorCareerRow(c.Name, c.Side, c.Archetype, Level(c.Experience), c.PrestigeLevel, (int)(c.Raids + c.Observed.Raids),
-                Math.Round((double)(c.PmcKills + c.Observed.PmcKills) / Deaths(c), 2), c.IsOnline)).ToList();
+                Math.Round((double)(c.PmcKills + c.Observed.PmcKills) / Deaths(c), 2), c.IsOnline, c.Id)).ToList();
         var owners = active.Where(c => AreaLevel(c, 24) > 0).ToList();
         return new(bands, active.Count(c => c.Side.Equals("Bear", StringComparison.OrdinalIgnoreCase)),
             active.Count(c => c.Side.Equals("Usec", StringComparison.OrdinalIgnoreCase)),

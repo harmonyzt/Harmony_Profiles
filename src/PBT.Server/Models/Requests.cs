@@ -25,7 +25,7 @@ public sealed record WorldEvent(long Id, long Utc, string Kind, string Text, str
 public sealed record WorldMapStatus(string Id, string Name, int InRaid, int Queueing, int QueueSeconds, double Share, bool WeeklyBoss, bool Solo, int[] History);
 
 public sealed record WorldPlayerRow(string Name, string Side, string Personality, int Level, int Prestige, string State, string Status,
-    string Map, long Since, int Raids, double KillDeath, bool Notable, string[] Squad, string[] Team);
+    string Map, long Since, int Raids, double KillDeath, bool Notable, string[] Squad, string[] Team, string Id);
 
 public sealed record WorldSnapshot(int Online, int InRaid, int Queueing, int InMenu, int InTransit, int PendingStories,
     List<WorldMapStatus> Maps, List<WorldEvent> Events);
@@ -53,4 +53,12 @@ public sealed record EditorSnapshot(string PersonalitiesJson, string Personaliti
 public sealed record EditorInsights(int[] LevelBands, int Bear, int Usec, Dictionary<string, int> Personalities,
     List<EditorCareerRow> TopCareers, int RacksFilled, int RackOwners);
 
-public sealed record EditorCareerRow(string Name, string Side, string Personality, int Level, int Prestige, int Raids, double KillDeath, bool Online);
+public sealed record EditorCareerRow(string Name, string Side, string Personality, int Level, int Prestige, int Raids, double KillDeath, bool Online, string Id);
+
+public sealed record PlayerLink(string Id, string Name);
+
+// What the editor shows when you click a player. The same counters as the in-game profile, without gear.
+public sealed record PlayerProfile(string Id, string Name, string Side, string Personality, int Level, int Prestige, int Experience, bool Notable,
+    string State, string Status, long Since, long RegisteredUtc, long InGameSeconds, long Raids, long Survived, long Killed, long MissingInAction,
+    long Left, long RunThrough, long PmcKills, long ScavKills, double KillDeath, double SurvivalRate, int CurrentStreak, int BestStreak,
+    int Achievements, int HideoutLevels, double Wealth, List<PlayerLink> Squad, List<WorldEvent> Events);

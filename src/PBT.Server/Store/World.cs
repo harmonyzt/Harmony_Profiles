@@ -451,7 +451,7 @@ public sealed partial class PopulationStore
                 var (state, status, map, since) = Describe(c, now, observed);
                 return new WorldPlayerRow(c.Name, c.Side, c.Archetype, Level(c.Experience), c.PrestigeLevel, state, status, map,
                     since > 0 ? now - since : 0, (int)(c.Raids + c.Observed.Raids), Math.Round((double)(c.PmcKills + c.Observed.PmcKills) / Deaths(c), 2), Notable(c),
-                    SquadNames(c), activities.TryGetValue(c.Id, out var a) && a.State is "Queue" or "Raid" or "Transit" ? TeamNames(c, a) : []);
+                    SquadNames(c), activities.TryGetValue(c.Id, out var a) && a.State is "Queue" or "Raid" or "Transit" ? TeamNames(c, a) : [], c.Id);
             }).ToList();
         }
     }

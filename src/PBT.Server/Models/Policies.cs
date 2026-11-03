@@ -197,9 +197,13 @@ public sealed class NotableNameSettings
     public double SkillBonus { get; set; } = .3;
     public int TierBoostMinimum { get; set; } = 1;
     public int TierBoostMaximum { get; set; } = 2;
+    // Streamers named in the editor, on top of the chad and TTV/YT/TV tags.
+    public List<string> ExtraNames { get; set; } = new();
 
     public void Validate()
     {
+        if (ExtraNames is null || ExtraNames.Count > 500 || ExtraNames.Any(n => string.IsNullOrWhiteSpace(n) || n.Length > 32))
+            throw new InvalidDataException("Streamer names need 1-32 characters each, 500 at most.");
         if (!double.IsFinite(SkillBonus) || SkillBonus is < 0 or > 1 || TierBoostMinimum is < 0 or > 6
             || TierBoostMaximum < TierBoostMinimum || TierBoostMaximum > 6)
             throw new InvalidDataException("Notable names need a 0-1 skill bonus and a 0-6 tier boost range.");

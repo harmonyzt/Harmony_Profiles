@@ -1791,3 +1791,53 @@
         animation: none !important
     }
 }
+/* Player names open their profile */
+.pbt-editor .fb-name-link {
+    border: 0;
+    background: none;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer
+}
+
+.pbt-editor .fb-name-link:hover,
+.pbt-editor .fb-name-link:focus-visible {
+    color: var(--fb-link);
+    text-decoration: underline
+}
+
+.pbt-editor .fb-link-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 8px 8px 0;
+    padding: 4px 10px;
+    border: 1px solid var(--fb-border);
+    border-radius: 999px;
+    background: var(--fb-surface-2)
+}
+
+.pbt-editor .fb-chip-remove {
+    border: 0;
+    background: none;
+    padding: 0;
+    color: var(--fb-muted);
+    font: inherit;
+    cursor: pointer
+}
+
+.pbt-editor .fb-chip-remove:hover {
+    color: var(--fb-red, #e02424)
+}
+
+.pbt-editor .fb-plain-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px
+}
