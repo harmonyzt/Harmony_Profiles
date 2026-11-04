@@ -30,7 +30,7 @@ namespace PBT.Server;
 public sealed partial class PopulationStore(
     BotTable bots, GlobalTable globals, TemplateTable templates, HideoutTable hideout, TradersTable traders,
     ProfileHelper profileHelper, NotificationSendHelper notifications, HttpResponseUtil responses,
-    SaveServer saves, JsonUtil json, ModHelper modHelper, ItemHelper itemHelper, PresetHelper presetHelper, BotInventoryGenerator inventoryGenerator, BotInventoryContainerService inventoryContainers, LocaleService locales, LocationTable locations, ICloner cloner, SPTarkov.Server.Core.Services.Commerce.MailSendService mail, ISptLogger<PopulationStore> logger) : IOnLoad, IDisposable
+    SaveServer saves, JsonUtil json, ModHelper modHelper, ItemHelper itemHelper, PresetHelper presetHelper, BotInventoryGenerator inventoryGenerator, BotInventoryContainerService inventoryContainers, LocaleService locales, LocationTable locations, ICloner cloner, SPTarkov.Server.Core.Services.Commerce.MailSendService mail, SPTarkov.Server.Core.Helpers.Bot.BotGeneratorHelper botGeneratorHelper, ISptLogger<PopulationStore> logger) : IOnLoad, IDisposable
 {
     private readonly object gate = new();
     private int startupPrestiges;

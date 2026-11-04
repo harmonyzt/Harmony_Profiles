@@ -59,7 +59,7 @@ public sealed partial class PopulationStore
         // A quiet queue pulls in players from the menu who were about to pick this map anyway.
         var idle = population.Careers.Values.Where(c => !c.Retired && c.IsOnline && !server.Contains(c.Id) && Fits(c)
                 && activities.TryGetValue(c.Id, out var a) && a.State == "Menu" && !a.Held && !a.WantsOffline
-                && a.Doing is not ("AFK" or "Waiting for squad") && !Regearing(c, now))
+                && a.Doing is not ("AFK" or "Waiting for squad") && !WaitingForGear(c, now))
             .Select(c => (Career: c, Weight: MapWeight(c, map, Level(c.Experience)) * Random.Shared.NextDouble()))
             .Where(x => x.Weight > 0).OrderByDescending(x => x.Weight).Select(x => x.Career).ToList();
         foreach (var c in idle)

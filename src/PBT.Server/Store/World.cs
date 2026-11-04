@@ -254,7 +254,7 @@ public sealed partial class PopulationStore
                 case "Menu":
                     if (a.WantsOffline || !c.IsOnline) { GoOffline(c, a, now); break; }
                     // Dead and naked: wait for the regear, and some give up for the day.
-                    if (Regearing(c, now))
+                    if (WaitingForGear(c, now))
                     {
                         if (Random.Shared.NextDouble() < .1) GoOffline(c, a, now);
                         else { a.Until = now + Random.Shared.Next(60, 181); a.Doing = "Gearing up"; }
@@ -419,7 +419,7 @@ public sealed partial class PopulationStore
             "Raid" when a.Held && observed.Contains(c.Id) => ("Raid", map + " · your raid", a.Map, a.Since),
             "Raid" => ("Raid", map, a.Map, a.Since),
             "Transit" => ("Transit", "to " + MapLabel(a.Target), a.Target, a.Since),
-            _ when Regearing(c, now) => ("Died", "Gearing up again", "", c.DiedUtc),
+            _ when WaitingForGear(c, now) => ("Died", "Gearing up again", "", c.DiedUtc),
             _ when a.Doing == "AFK" => ("Afk", "", "", a.Since),
             _ => ("Menu", a.Doing.Length > 0 ? a.Doing : "Main menu", "", a.Since)
         };

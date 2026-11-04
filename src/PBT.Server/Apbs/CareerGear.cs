@@ -51,8 +51,8 @@ public sealed partial class PopulationStore
     // A dead account stays naked for a while, then turns up in a new kit.
     private static long RegearDelay(Career c) => 1200 + (long)(Stable(c.Id + ":regear:" + c.DiedUtc) * 2400);
 
-    // The world sim must not wait on APBS: the gear worker lags behind the death rate, and gear is made on view or spawn anyway.
-    private static bool Regearing(Career c, long now) => c.NeedsRegear && now - c.DiedUtc < RegearDelay(c);
+    // Out of the menu only once the new kit exists, or a profile in a raid shows up naked. The cap covers a stalled gear worker.
+    private static bool WaitingForGear(Career c, long now) => c.NeedsRegear && now - c.DiedUtc < RegearDelay(c) + 7200;
 
     private static bool WantsGear(Career c, long now) => !c.Retired
         && (c.GearVersion == 0 && c.LastEquipmentAccount == 0 || c.NeedsRegear && now - c.DiedUtc >= RegearDelay(c));
