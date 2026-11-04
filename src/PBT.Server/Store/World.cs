@@ -256,7 +256,8 @@ public sealed partial class PopulationStore
                     // Dead and naked: wait for the regear, and some give up for the day.
                     if (WaitingForGear(c, now))
                     {
-                        if (Random.Shared.NextDouble() < .1) GoOffline(c, a, now);
+                        // Checked every few minutes, so this is about a third giving up per hour of waiting.
+                        if (Random.Shared.NextDouble() < .015) GoOffline(c, a, now);
                         else { a.Until = now + Random.Shared.Next(60, 181); a.Doing = "Gearing up"; }
                         break;
                     }
@@ -297,6 +298,7 @@ public sealed partial class PopulationStore
         double seconds = Math.Max(0, c.TargetRaidSeconds - c.PendingRaidSeconds) + .01;
         ApplySimulation(c, seconds);
         LogProgress(c, level, prestige);
+        if (Level(c.Experience) != level || c.PrestigeLevel != prestige) UpdateQuests(c, log: true);
         c.PendingLiveSeconds += seconds;
         c.Achievements = EarnedMilestones(c, now);
         worldDirty = true;
@@ -304,6 +306,7 @@ public sealed partial class PopulationStore
         if (c.Raids == raids) { ToMenu(c, a, now); return; }
         if (c.Survived > survived)
         {
+            AfterSurvival(c);
             var target = TransitTargets(c, a.Map).ToArray();
             if (target.Length > 0 && Random.Shared.NextDouble() < policy.World.TransitChance)
             {
@@ -349,13 +352,19 @@ public sealed partial class PopulationStore
     {
         bool wanted = a.WantsOffline;
         EnterMenu(c, a, now, died);
-        a.WantsOffline = wanted || Random.Shared.NextDouble() < policy.World.LogOffChance * (died ? 1.3 : 1);
+        bool quit = died && AfterDeath(c, now);
+        // Near the end of a session one more raid is rarely worth it. Now and then something comes up anyway.
+        a.WantsOffline = wanted || quit || now >= c.SessionEndUtc - 900 && !Tilted(c)
+            || Random.Shared.NextDouble() < policy.World.LogOffChance * .12;
         c.IsOnline = true;
     }
 
     private void GoOnline(Career c, Activity a, long now, bool withSquad = true)
     {
         c.IsOnline = true;
+        if (c.SessionEndUtc <= now) c.SessionEndUtc = RollSessionEnd(c, now);
+        // A night's sleep resets the mood.
+        if (now - c.LastOfflineUtc > 4 * 3600) { c.DeathStreak = 0; c.TiltUntilUtc = 0; }
         EnterMenu(c, a, now);
         a.WantsOffline = false;
         Log("online", $"{c.Name} came online");
@@ -365,6 +374,8 @@ public sealed partial class PopulationStore
     private void GoOffline(Career c, Activity a, long now)
     {
         c.IsOnline = false;
+        c.SessionEndUtc = Math.Min(c.SessionEndUtc, now);
+        c.LastOfflineUtc = now;
         Set(a, "Offline", "", now, 0);
         a.WantsOffline = false;
         Log("offline", $"{c.Name} logged off");
@@ -375,6 +386,8 @@ public sealed partial class PopulationStore
     {
         var a = ActivityOf(c);
         c.IsOnline = true;
+        long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        if (c.SessionEndUtc <= now) c.SessionEndUtc = Math.Max(until, RollSessionEnd(c, now));
         Set(a, "Raid", MapKey(map), DateTimeOffset.UtcNow.ToUnixTimeSeconds(), until, held: true);
     }
 
@@ -420,6 +433,7 @@ public sealed partial class PopulationStore
             "Raid" => ("Raid", map, a.Map, a.Since),
             "Transit" => ("Transit", "to " + MapLabel(a.Target), a.Target, a.Since),
             _ when WaitingForGear(c, now) => ("Died", "Gearing up again", "", c.DiedUtc),
+            _ when Tilted(c) && a.Doing.Length == 0 => ("Menu", "Tilted", "", a.Since),
             _ when a.Doing == "AFK" => ("Afk", "", "", a.Since),
             _ => ("Menu", a.Doing.Length > 0 ? a.Doing : "Main menu", "", a.Since)
         };

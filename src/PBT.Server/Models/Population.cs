@@ -109,6 +109,11 @@ public sealed class Career
     public JsonObject Customization { get; set; } = new();
     public bool VisibleLoadout { get; set; }
     public bool Cheater { get; set; }
+    public long SessionEndUtc { get; set; }
+    public long LastOfflineUtc { get; set; }
+    public int DeathStreak { get; set; }
+    public long TiltUntilUtc { get; set; }
+    public int QuestsDone { get; set; }
     public long BannedUtc { get; set; }
     // Newest first, for the profile page.
     public List<GearEvent> GearHistory { get; set; } = new();

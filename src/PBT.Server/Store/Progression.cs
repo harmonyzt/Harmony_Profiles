@@ -21,7 +21,7 @@ public sealed partial class PopulationStore
         return Notable(c) ? roll + (1 - roll) * policy.NotableNames.SkillBonus : roll;
     }
 
-    private double Aggression(Career c) => (IsCheater(c) ? policy.Cheaters.KillMultiplier : 1) * c.Archetype switch
+    private double Aggression(Career c) => (IsCheater(c) ? policy.Cheaters.KillMultiplier : 1) * (Tilted(c) ? 1.3 : 1) * c.Archetype switch
     {
         "Timmy" => .6, "Aggressive" => 1.35, "Survivor" => .75, _ => 1
     };

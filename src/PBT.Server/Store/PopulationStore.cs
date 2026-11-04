@@ -143,6 +143,7 @@ public sealed partial class PopulationStore(
                     developing.Step();
                     Develop(career);
                     TryPrestige(career, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                    UpdateQuests(career, log: false);
                 }
                 developing.Finish();
                 InitializeWorld(DateTimeOffset.UtcNow.ToUnixTimeSeconds());

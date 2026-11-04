@@ -171,6 +171,7 @@ public sealed partial class PopulationStore
 
     private string Tone(Career c)
     {
+        if (Tilted(c)) return "salty";
         if (Notable(c))
             return c.Name.Contains("chad", StringComparison.OrdinalIgnoreCase) ? (Stable(c.Id + ":tone") < .5 ? "salty" : "chill") : "streamer";
         return c.Archetype switch

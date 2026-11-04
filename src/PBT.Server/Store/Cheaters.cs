@@ -26,7 +26,8 @@ public sealed partial class PopulationStore
 
     private bool IsCheater(Career c) => policy.Cheaters.Enabled && c.Cheater && c.BannedUtc == 0;
 
-    private double Survival(Career c) => IsCheater(c) ? policy.Cheaters.Survival : c.SurvivalChance;
+    // Tilted players take worse fights.
+    private double Survival(Career c) => IsCheater(c) ? policy.Cheaters.Survival : c.SurvivalChance * (Tilted(c) ? .8 : 1);
 
     private void ProcessCheaters(long now)
     {

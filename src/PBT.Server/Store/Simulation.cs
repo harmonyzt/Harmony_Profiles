@@ -127,28 +127,6 @@ public sealed partial class PopulationStore
     private bool IsObservedActive(Career c, long now) => population.RaidObservations.Values.Any(o => !o.Finished
         && now - o.LastReportUtc < 180 && encounters.TryGetValue(o.AccountId, out var active) && active.CareerId == c.Id);
 
-    private bool RollOnline(Career c)
-    {
-        if (c.Retired || c.DailyRaidHours <= 0) return false;
-        bool friend = population.Friendships.Values.Any(links => links.TryGetValue(c.Id, out var f) && f.Accepted && !f.Removed);
-        return Random.Shared.NextDouble() < Math.Min(.85,
-            c.DailyRaidHours / 24 * settings.OnlineRateMultiplier * (friend ? settings.FriendActivityMultiplier : 1) * (policy.World.PeakHours ? PeakFactor(DateTime.Now) : 1));
-    }
-
-    private static readonly (double Hour, double Factor)[] PeakCurve =
-        [(0, .9), (3, .5), (6, .35), (9, .55), (13, .85), (17, 1.15), (21, 1.4), (24, .9)];
-
-    private static double PeakFactor(DateTime local)
-    {
-        double hour = local.TimeOfDay.TotalHours;
-        int i = 1;
-        while (PeakCurve[i].Hour < hour) i++;
-        var (h0, f0) = PeakCurve[i - 1];
-        var (h1, f1) = PeakCurve[i];
-        double factor = f0 + (f1 - f0) * (hour - h0) / (h1 - h0);
-        return local.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? factor * 1.15 : factor;
-    }
-
     private void AdvanceOnline(long now)
     {
         foreach (var c in population.Careers.Values.Where(c => !c.Retired && now >= c.NextActivityUtc))
@@ -156,13 +134,20 @@ public sealed partial class PopulationStore
             if (IsObservedActive(c, now) || now < c.StoryHoldUntilUtc) continue;
             // Raid time itself is earned raid by raid in the world tick. This only decides who plays.
             var a = ActivityOf(c);
-            bool wants = RollOnline(c);
-            if (wants && a.State == "Offline") GoOnline(c, a, now);
-            else if (!wants && a.State == "Menu" && !a.Held) GoOffline(c, a, now);
-            else a.WantsOffline = !wants;
+            int interval = Random.Shared.Next(600, 1801);
+            if (a.State == "Offline")
+            {
+                if (Random.Shared.NextDouble() < SessionStartChance(c, interval)) GoOnline(c, a, now);
+            }
+            // A session ends when its time is up, finishing the raid it is in first.
+            else if (SessionOver(c, now))
+            {
+                if (a.State == "Menu" && !a.Held) GoOffline(c, a, now);
+                else a.WantsOffline = true;
+            }
             if (c.IsOnline) c.Achievements = EarnedMilestones(c, now);
             c.LastActivityUtc = now;
-            c.NextActivityUtc = now + Random.Shared.Next(600, 1801);
+            c.NextActivityUtc = c.IsOnline ? Math.Min(now + interval, Math.Max(now + 60, c.SessionEndUtc)) : now + interval;
             worldDirty = true;
         }
     }

@@ -61,4 +61,5 @@ public sealed record PlayerLink(string Id, string Name);
 public sealed record PlayerProfile(string Id, string Name, string Side, string Personality, int Level, int Prestige, int Experience, bool Notable,
     string State, string Status, long Since, long RegisteredUtc, long InGameSeconds, long Raids, long Survived, long Killed, long MissingInAction,
     long Left, long RunThrough, long PmcKills, long ScavKills, double KillDeath, double SurvivalRate, int CurrentStreak, int BestStreak,
-    int Achievements, int HideoutLevels, double Wealth, double KitValue, List<PlayerLink> Squad, List<WorldEvent> Events, List<GearEvent> Gear);
+    int Achievements, int HideoutLevels, double Wealth, double KitValue, List<PlayerLink> Squad, List<WorldEvent> Events, List<GearEvent> Gear,
+    int QuestsDone, int QuestsInReach, List<string> RecentQuests, List<string> ActiveQuests, string Schedule, string Mood);
