@@ -72,7 +72,7 @@ public sealed partial class PopulationStore
             {
                 if (!Ready || !policy.Cheaters.Enabled || !encounters.TryGetValue(killer, out var e) || !CanAccess(e, session)) return;
                 var insured = new HashSet<string>((request!.LostInsuredItems ?? []).Select(i => i.Id.ToString()));
-                var all = JsonNode.Parse(json.Serialize(items)!)!.AsArray();
+                var all = ToNode(items).AsArray();
                 string root = equipment.ToString();
                 var kept = new HashSet<string>();
                 foreach (var top in all.OfType<JsonObject>().Where(i => i["parentId"]?.ToString() == root && KeptOnDeath.Contains(i["slotId"]?.ToString())))
@@ -111,6 +111,8 @@ public sealed partial class PopulationStore
         {
             if (!Ready || !policy.Cheaters.Enabled || !encounters.TryGetValue(account, out var e) || !CanAccess(e, session)
                 || !population.Careers.TryGetValue(e.CareerId, out var career)) return;
+            // Already banned. Each new report used to pay the reward again.
+            if (career.BannedUtc > 0) return;
             string sid = session.ToString();
             if (population.CheaterReports.Values.Any(r => r.SessionId == sid && r.CareerId == career.Id)) return;
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -144,6 +146,10 @@ public sealed partial class PopulationStore
                 c.BannedUtc = now;
                 c.Retired = true;
                 c.IsOnline = false;
+                // The world tick skips retired careers, so a raid left running would count on its map forever.
+                if (activities.TryGetValue(c.Id, out var a)) Set(a, "Offline", "", now, 0);
+                if (bots.Types.TryGetValue(c.Side.ToLowerInvariant(), out var type))
+                    type?.FirstNames?.RemoveAll(n => NameKey(c.Side, n) == NameKey(c.Side, c.SourceName));
                 Log("ban", $"{c.Name} was banned for cheating");
             }
             try { SendBanReward(report); }

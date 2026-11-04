@@ -170,7 +170,7 @@ public sealed partial class PopulationStore
         var inventory = gearFactory.Generate(inventoryGenerator, inventoryContainers, session, isolated, career, Level(career.Experience),
             // Rack guns are favourites, not what the account can afford today.
             extraTiers > 0 ? TierBoost(career) + extraTiers : TierShift(career, roll: true), Random.Shared.NextDouble() < policy.NightGearChance);
-        var equipment = EquipmentTree(JsonNode.Parse(json.Serialize(inventory)!)!.AsObject());
+        var equipment = EquipmentTree(ToNode(inventory).AsObject());
         if (!ValidEquipment(equipment)) throw new InvalidDataException("APBS returned an invalid equipment tree.");
         if (extraTiers == 0 && IsCheater(career) && Random.Shared.NextDouble() < policy.Cheaters.HelmetChance)
         {

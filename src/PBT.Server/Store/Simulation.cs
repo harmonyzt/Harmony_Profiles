@@ -124,8 +124,24 @@ public sealed partial class PopulationStore
         return survived ? earned : earned * .3;
     }
 
-    private bool IsObservedActive(Career c, long now) => population.RaidObservations.Values.Any(o => !o.Finished
-        && now - o.LastReportUtc < 180 && encounters.TryGetValue(o.AccountId, out var active) && active.CareerId == c.Id);
+    private HashSet<string>? observedActive;
+    private long observedActiveUtc = -1;
+    private object? observedActiveSource;
+    private int observedActiveCount;
+
+    // Scanning every receipt per career ran careers x receipts on each checkpoint. One set per second covers it.
+    private bool IsObservedActive(Career c, long now)
+    {
+        var receipts = population.RaidObservations;
+        if (observedActive is null || observedActiveUtc != now || !ReferenceEquals(observedActiveSource, receipts) || observedActiveCount != receipts.Count)
+        {
+            observedActive = ObservedActiveCareers(now);
+            observedActiveUtc = now;
+            observedActiveSource = receipts;
+            observedActiveCount = receipts.Count;
+        }
+        return observedActive.Contains(c.Id);
+    }
 
     private void AdvanceOnline(long now)
     {

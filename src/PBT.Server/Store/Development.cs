@@ -300,6 +300,15 @@ public sealed partial class PopulationStore
         }
     }
 
-    private static double Stable(string key) =>
-        BitConverter.ToUInt32(SHA256.HashData(Encoding.UTF8.GetBytes(key)), 0) / (double)uint.MaxValue;
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, double> stableCache = new();
+
+    // A SHA256 per call added up on the world tick and server counts. Keys with timestamps keep coming, so the cache is capped.
+    private static double Stable(string key)
+    {
+        if (stableCache.TryGetValue(key, out double value)) return value;
+        if (stableCache.Count > 200_000) stableCache.Clear();
+        value = BitConverter.ToUInt32(SHA256.HashData(Encoding.UTF8.GetBytes(key)), 0) / (double)uint.MaxValue;
+        stableCache.TryAdd(key, value);
+        return value;
+    }
 }

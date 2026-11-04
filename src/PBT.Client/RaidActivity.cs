@@ -123,7 +123,7 @@ internal static class RaidActivity
                 catch (Exception ex) { Plugin.Trace("Kill context unavailable: " + ex.Message); }
             }
         }
-        if (bots.TryGetValue(aggressor.ProfileId, out var killer))
+        if (aggressor != null && bots.TryGetValue(aggressor.ProfileId, out var killer))
         {
             if (victim.IsYourPlayer) killer.KilledPlayer = true;
             if (victim.Profile.Side == EPlayerSide.Savage) killer.ScavKills++;

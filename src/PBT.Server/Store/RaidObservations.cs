@@ -102,10 +102,11 @@ public sealed partial class PopulationStore
             }
             try
             {
-                // Cumulative receipts and lifetime totals commit together, so retries cannot double-count.
+                // Receipts and lifetime totals live in the same snapshot, so retries cannot double-count.
+                // The checkpoint writes it: a full save here ran under the gate on every client's minute report.
                 foreach (string id in updates.Keys)
                     population.Careers[id].Achievements = EarnedMilestones(population.Careers[id], now);
-                SavePopulation();
+                dirty = true;
             }
             catch
             {

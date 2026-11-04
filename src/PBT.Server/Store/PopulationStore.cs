@@ -299,6 +299,9 @@ public sealed partial class PopulationStore(
             }
         }
         progress.Finish();
+        // Banned names leave the pool, or SPT keeps rolling them as nameless strangers.
+        foreach (var (side, type, _) in pools)
+            type.FirstNames?.RemoveAll(n => known.TryGetValue(NameKey(side, n), out var k) && k.BannedUtc > 0);
         RetireNameVariants(pools.Where(p => p.Type.FirstNames is not null).Select(p => (p.Side, p.Type.FirstNames!)));
     }
 
@@ -430,7 +433,8 @@ public sealed partial class PopulationStore(
                 && byBaseName.TryGetValue(NameKey(bot.Info.Side, BaseName(bot.Info.Nickname)), out var holder)) career = holder;
             // A retired name variant plays as the player who kept the name.
             if (career is { Retired: true, BannedUtc: 0 } && byBaseName.TryGetValue(NameKey(career.Side, BaseName(career.SourceName)), out var kept)) career = kept;
-            if (career is { Retired: true, BannedUtc: 0 }) return;
+            // Banned or a variant nobody kept. Either way it no longer plays.
+            if (career is { Retired: true }) return;
             if (career is null)
             {
                 // Covers names added by mods after startup.
@@ -452,8 +456,8 @@ public sealed partial class PopulationStore(
                 ApplyAccountIdentity(career, bot.Info);
 
             // Only the parts we keep, not the whole bot profile.
-            var inventory = JsonNode.Parse(json.Serialize(bot.Inventory)!)!.AsObject();
-            var customization = JsonNode.Parse(json.Serialize(bot.Customization)!)!.AsObject();
+            var inventory = ToNode(bot.Inventory).AsObject();
+            var customization = ToNode(bot.Customization).AsObject();
             var equipment = EquipmentTree(inventory);
             if (!ValidEquipment(equipment))
                 throw new InvalidDataException("Generated equipment graph is not safe for profile viewing.");
@@ -821,6 +825,10 @@ public sealed partial class PopulationStore(
         return new JsonObject { ["Id"] = id, ["Items"] = new JsonArray(new JsonObject
             { ["_id"] = id, ["_tpl"] = "55d7217a4bdc2d86028b456d" }) };
     }
+
+    // JsonUtil's own options, without the multi-KB string in between. Used on every PMC spawn.
+    private JsonNode ToNode<T>(T value) => JsonUtil.JsonSerializerOptionsNoIndent is { } options
+        ? JsonSerializer.SerializeToNode(value, options)! : JsonNode.Parse(json.Serialize(value)!)!;
 
     public void Report(Exception ex) => logger.Error($"[PBT] Operation failed; native fallback retained. {ex}");
 
