@@ -1131,6 +1131,15 @@
     color: var(--fb-yellow-text)
 }
 
+.pbt-editor .fb-badge-red {
+    background: var(--fb-red-soft);
+    color: var(--fb-red-text)
+}
+
+.pbt-editor .fb-server-load {
+    min-width: 140px
+}
+
 .pbt-editor .fb-alert {
     display: flex;
     justify-content: space-between;

@@ -174,6 +174,12 @@ public sealed class WorldSettings
     // The client shows Matching / Looking for server before a raid, capped at this many seconds.
     public bool SimulateMatching { get; set; } = true;
     public int MaximumMatchingSeconds { get; set; } = 45;
+    // Where you play from (EU, US or Asia). Sets your ping to each server and which ones you match into.
+    public string Location { get; set; } = "EU";
+    // Ping and packet loss in raid, from the server you matched into.
+    public bool SimulateConnection { get; set; } = true;
+    // Bad servers can drop you from the raid (Server connection lost, MIA).
+    public bool ConnectionLossEvents { get; set; }
 
     public void Validate()
     {
@@ -182,6 +188,7 @@ public sealed class WorldSettings
             || !double.IsFinite(NameMapBoost) || NameMapBoost is < 1 or > 10
             || !double.IsFinite(QueueTimeMultiplier) || QueueTimeMultiplier is < .1 or > 10 || MaximumMatchingSeconds is < 0 or > 600)
             throw new InvalidDataException("World chances must be 0-1, boosts 1-5 (streamer and name boosts 1-10), queue multiplier 0.1-10 and matching 0-600 seconds.");
+        if (!PopulationStore.Regions.Contains(Location)) throw new InvalidDataException("Location must be EU, US or Asia.");
     }
 }
 

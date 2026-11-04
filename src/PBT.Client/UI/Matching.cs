@@ -106,6 +106,7 @@ internal static class Matching
             int seconds = known ? response.Value<int>("Seconds") : 0;
             matched = known;
             onlineWording = seconds > 0;
+            Connection.Matched(known ? response["Server"] : null);
             if (seconds > 0)
             {
                 var random = new Random();
@@ -165,6 +166,7 @@ internal static class Matching
     // Fika clients wait for the host anyway. Show the host's matching stages meanwhile instead of a blank wait.
     private static async Task FollowHost(TarkovApplication app, string map, Func<Task> start)
     {
+        Connection.Matched(null);
         passing = true;
         var game = start();
         try

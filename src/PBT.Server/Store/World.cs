@@ -234,6 +234,7 @@ public sealed partial class PopulationStore
     private void WorldTick(long now)
     {
         RefreshMaps(now);
+        TickServers(now);
         HashSet<string>? observed = null, storied = null;
         foreach (var c in population.Careers.Values)
         {
@@ -439,7 +440,7 @@ public sealed partial class PopulationStore
         };
     }
 
-    public WorldSnapshot GetWorld(int events = 40)
+    public WorldSnapshot GetWorld(int events = 40, bool servers = true)
     {
         lock (gate)
         {
@@ -458,7 +459,7 @@ public sealed partial class PopulationStore
             }).OrderByDescending(m => m.InRaid + m.Queueing).ThenBy(m => m.Name).ToList();
             return new(live.Count(a => a.State != "Offline"), live.Count(a => a.State == "Raid"), live.Count(a => a.State == "Queue"),
                 live.Count(a => a.State == "Menu"), live.Count(a => a.State == "Transit"), population.PendingStories.Count, maps,
-                worldLog.Take(Math.Clamp(events, 0, LogSize)).ToList());
+                worldLog.Take(Math.Clamp(events, 0, LogSize)).ToList(), servers ? ServerStatuses(now) : []);
         }
     }
 
@@ -484,7 +485,7 @@ public sealed partial class PopulationStore
 
     public Dictionary<string, object> MapIndicators()
     {
-        var world = GetWorld(0);
+        var world = GetWorld(0, servers: false);
         return world.Maps.ToDictionary(m => m.Id, m => (object)new { m.InRaid, m.Queueing, m.Share, m.QueueSeconds, m.WeeklyBoss, m.Solo });
     }
 }

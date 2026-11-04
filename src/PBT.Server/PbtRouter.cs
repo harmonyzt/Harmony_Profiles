@@ -35,10 +35,10 @@ public sealed class PbtRouter(JsonUtil json, PopulationStore store) : StaticRout
     new RouteAction<MatchingRequest>("/pbt/world/matching",
         (url, request, session, output, token) =>
         {
-            (int Seconds, int Looking, int Matched) matching = (0, 0, 0);
+            (int Seconds, int Looking, int Matched, MatchedServer? Server) matching = (0, 0, 0, null);
             try { matching = store.Matching(request.Map, session); }
             catch (Exception ex) { store.Report(ex); }
-            return new ValueTask<string>(json.Serialize(new { ProtocolVersion = 1, matching.Seconds, matching.Looking, matching.Matched })!);
+            return new ValueTask<string>(json.Serialize(new { ProtocolVersion = 1, matching.Seconds, matching.Looking, matching.Matched, matching.Server })!);
         }),
     new RouteAction<MatchingRequest>("/pbt/world/matching/host",
         (url, request, session, output, token) =>

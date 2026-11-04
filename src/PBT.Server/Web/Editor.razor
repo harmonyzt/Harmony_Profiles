@@ -190,6 +190,27 @@
                     @if (world?.Events.Count is null or 0) { <p class="fb-muted">Nothing yet. Players come online over the next few minutes.</p> }
                 </section>
             </div>
+
+            <section class="fb-card fb-flush">
+                <div class="fb-card-head fb-padded"><div><h2>Servers</h2><p>Where players are queueing and playing. Ping is from your location (@(simulation?.World.Location ?? "EU")).</p></div></div>
+                <div class="fb-table-scroll">
+                    <table class="fb-table">
+                        <thead><tr><th>Server</th><th>Region</th><th>Status</th><th>Players</th><th>Load</th><th>Ping</th></tr></thead>
+                        <tbody>
+                            @foreach (var server in world?.Servers ?? [])
+                            {
+                                <tr @key="server.Name">
+                                    <td><strong>@server.Name</strong></td><td>@server.Region</td>
+                                    <td><span class="fb-badge @(server.Status switch { "Unstable" => "fb-badge-red", "Full" or "Busy" => "fb-badge-yellow", _ => "fb-badge-green" })">@server.Status</span></td>
+                                    <td>@Num("server-" + server.Name, server.Players) <span class="fb-muted">/ @server.Capacity.ToString("N0")</span></td>
+                                    <td class="fb-server-load"><span class="fb-progress" title="@((server.Load * 100).ToString("0"))% full"><span style="width:@((server.Load * 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></span></span></td>
+                                    <td>~@server.Ping ms</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         }
         else if (page == "Players")
         {
@@ -600,6 +621,13 @@
                 <div class="fb-grid fb-grid-3">
                     <label class="fb-field"><span class="fb-label">Longest matching, seconds@(Tip("Cap on the Matching stage. Looking for server still adds 5-15 seconds."))</span><input type="number" min="0" max="600" @bind="simulation.World.MaximumMatchingSeconds" /></label>
                 </div>
+            </section>
+            <section class="fb-card"><h2>Servers and connection</h2><p class="fb-muted">Players are spread over six servers: EU, EU-2, EU-3, US-1, US-2 and Asia. Matching mostly puts you on a server near you with room, sometimes on a far, full or unstable one. In raid the game's own ping and packet loss icons show that connection: about 120 ms on a server in your region, a spike to 170-250 ms when the countdown starts, and packet loss in fights on a bad server. Fika clients show their real ping to the host instead.</p>
+                <div class="fb-grid fb-grid-3">
+                    <label class="fb-field"><span class="fb-label">Your location@(Tip("Where you play from. Servers in your region give the lowest ping and are the ones you usually match into."))</span><select @bind="simulation.World.Location">@foreach (var region in PopulationStore.Regions) { <option value="@region">@region</option> }</select></label>
+                </div>
+                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.World.SimulateConnection" /><span class="fb-switch-track"></span>Simulate ping and packet loss@(Tip("Show ping and packet loss from your matched server in raid, using the game's own connection icons."))</label></div>
+                <div class="fb-switch-row"><label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.World.ConnectionLossEvents" /><span class="fb-switch-track"></span>Connection lost events@(Tip("Off by default. On a bad server, a fight can end in Server connection lost. Closing the message, or waiting out its timer, ends the raid as missing in action. At most once per raid, not on Fika."))</label></div>
             </section>
             @SimulationSave
         }

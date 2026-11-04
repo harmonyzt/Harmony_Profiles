@@ -5,30 +5,31 @@ namespace PBT.Server;
 // The careers queueing for your map when you match. Raid spawns pick them first, and squadmates of a picked career right after it.
 public sealed partial class PopulationStore
 {
-    private sealed record Lobby(string Map, HashSet<string> Careers, long Utc);
+    private sealed record Lobby(string Map, HashSet<string> Careers, long Utc, string Server);
     private sealed record MatchTimeline(string Map, long StartedMs, int Seconds, int Looking);
 
     private readonly Dictionary<string, Lobby> lobbies = new();
     private readonly Dictionary<string, HashSet<string>> squadNext = new();
     private MatchTimeline? lastMatch;
 
-    public (int Seconds, int Looking, int Matched) Matching(string map, MongoId session)
+    public (int Seconds, int Looking, int Matched, MatchedServer? Server) Matching(string map, MongoId session)
     {
         lock (gate)
         {
-            if (!Ready) return (0, 0, 0);
+            if (!Ready) return (0, 0, 0, null);
             string key = MapKey(map);
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             int seconds = policy.World.SimulateMatching
                 ? Math.Min(policy.World.MaximumMatchingSeconds, (int)(QueueSeconds(map) * (.7 + Random.Shared.NextDouble() * .6))) : 0;
             int looking = seconds > 0 ? Random.Shared.Next(5, 16) : 0;
+            var server = PickServer(now);
             var queued = FillServer(FindMap(map), session, now);
             // They wait in the queue with you until the raid loads.
             foreach (string id in queued) activities[id].Until = Math.Max(activities[id].Until, now + seconds + looking + 120);
-            lobbies[session.ToString()] = new(key, queued, now);
+            lobbies[session.ToString()] = new(key, queued, now, server.Name);
             squadNext.Remove(session.ToString());
             lastMatch = seconds > 0 ? new(key, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), seconds, looking) : null;
-            return (seconds, looking, queued.Count);
+            return (seconds, looking, queued.Count, server);
         }
     }
 

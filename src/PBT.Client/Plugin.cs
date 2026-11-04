@@ -67,6 +67,8 @@ public sealed class Plugin : BaseUnityPlugin
                 else Matching.Install(harmony);
             }
             catch (Exception ex) { Logger.LogWarning("Matching simulation disabled. " + ex.Message); }
+            try { Connection.Install(harmony); }
+            catch (Exception ex) { Logger.LogWarning("Connection simulation fight detection disabled. " + ex.Message); }
             activityHarmony = new Harmony("com.local.pbt.activity");
             try { RaidActivity.Install(activityHarmony); }
             catch (Exception ex)
@@ -76,6 +78,8 @@ public sealed class Plugin : BaseUnityPlugin
                 Logger.LogWarning("Raid observation disabled; killer capture remains available. " + ex.Message);
             }
             headless = BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey("com.fika.headless");
+            Connection.Fika = BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey("com.fika.core");
+            Connection.Allowed = !headless;
             fikaPlayer = AccessTools.TypeByName("Fika.Core.Main.Players.FikaPlayer");
             if (fikaPlayer is not null && AccessTools.Field(fikaPlayer, "IsObservedAI")?.FieldType == typeof(bool))
                 observedAi = AccessTools.FieldRefAccess<bool>(fikaPlayer, "IsObservedAI");
@@ -220,6 +224,8 @@ public sealed class Plugin : BaseUnityPlugin
         catch (Exception ex) { Report("Raid observation checkpoint failed: " + ex.Message); }
         try { MapIndicators.Tick(); }
         catch (Exception ex) { Report("Map online indicator update failed: " + ex.Message); }
+        try { Connection.Tick(); }
+        catch (Exception ex) { Report("Connection simulation failed: " + ex.Message); }
     }
 
     private void OnDestroy()

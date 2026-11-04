@@ -28,7 +28,7 @@ public sealed record WorldPlayerRow(string Name, string Side, string Personality
     string Map, long Since, int Raids, double KillDeath, bool Notable, string[] Squad, string[] Team, string Id);
 
 public sealed record WorldSnapshot(int Online, int InRaid, int Queueing, int InMenu, int InTransit, int PendingStories,
-    List<WorldMapStatus> Maps, List<WorldEvent> Events);
+    List<WorldMapStatus> Maps, List<WorldEvent> Events, List<WorldServerStatus> Servers);
 
 public sealed class KillerLookup : IRequestData
 {
