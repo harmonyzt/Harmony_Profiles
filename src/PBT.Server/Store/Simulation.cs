@@ -65,7 +65,7 @@ public sealed partial class PopulationStore
         var prior = Cohort(c);
         double pace = c.Archetype == "Aggressive" ? .85 : c.Archetype == "Survivor" ? 1.15 : 1;
         // Survived raids run long and deaths end early, so the average follows the survival rate.
-        double mean = (c.SurvivalChance * prior.SurvivedMinutes + (1 - c.SurvivalChance) * prior.DeathMinutes)
+        double mean = (Survival(c) * prior.SurvivedMinutes + (1 - Survival(c)) * prior.DeathMinutes)
             * pace * (.85 + Stable(c.Id + ":raid-duration") * .3);
         double minutes = mean * (random ? .5 + Random.Shared.NextDouble() : 1);
         return Math.Clamp(minutes, lower, upper) * 60;

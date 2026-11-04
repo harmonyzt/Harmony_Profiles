@@ -17,10 +17,11 @@ public sealed partial class PopulationStore
     private double Skill(Career c)
     {
         double roll = Stable(c.Id + ":skill");
+        if (IsCheater(c)) return .97 + roll * .03;
         return Notable(c) ? roll + (1 - roll) * policy.NotableNames.SkillBonus : roll;
     }
 
-    private static double Aggression(Career c) => c.Archetype switch
+    private double Aggression(Career c) => (IsCheater(c) ? policy.Cheaters.KillMultiplier : 1) * c.Archetype switch
     {
         "Timmy" => .6, "Aggressive" => 1.35, "Survivor" => .75, _ => 1
     };
@@ -46,7 +47,7 @@ public sealed partial class PopulationStore
     // Expected raids for this account's survival rate to earn the given experience, level by level.
     private double RaidsToReach(Career c, int experience)
     {
-        double raids = 0, p = c.SurvivalChance;
+        double raids = 0, p = Survival(c);
         for (int level = 1; level < 80; level++)
         {
             int start = profileHelper.GetExperience(level) ?? 0;

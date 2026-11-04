@@ -172,6 +172,12 @@ public sealed partial class PopulationStore
             extraTiers > 0 ? TierBoost(career) + extraTiers : TierShift(career, roll: true), Random.Shared.NextDouble() < policy.NightGearChance);
         var equipment = EquipmentTree(JsonNode.Parse(json.Serialize(inventory)!)!.AsObject());
         if (!ValidEquipment(equipment)) throw new InvalidDataException("APBS returned an invalid equipment tree.");
+        if (extraTiers == 0 && IsCheater(career) && Random.Shared.NextDouble() < policy.Cheaters.HelmetChance)
+        {
+            var plain = equipment.DeepClone().AsObject();
+            ApplyCheaterHelmet(equipment);
+            if (!ValidEquipment(equipment)) equipment = plain;
+        }
         return equipment;
     }
 

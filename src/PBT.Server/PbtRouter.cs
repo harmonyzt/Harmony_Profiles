@@ -1,5 +1,6 @@
 using SPTarkov.DI.Annotations;
 using SPTarkov.Server.Core.DI;
+using SPTarkov.Server.Core.Models.Eft.Match;
 using SPTarkov.Server.Core.Utils;
 
 namespace PBT.Server;
@@ -65,13 +66,21 @@ public sealed class PbtRouter(JsonUtil json, PopulationStore store) : StaticRout
                 return new ValueTask<object>(json.Serialize(new { ProtocolVersion = 1, Maps = new { } })!);
             }
         }),
-    new RouteAction("/client/match/local/end",
+    new RouteAction<EndLocalRaidRequestData>("/client/match/local/end",
         (url, request, session, output, token) =>
         {
             store.ResetReservations(session);
-            return new ValueTask<object>(output ?? "");
+            store.RecordRaidLoss(request, session);
+            return new ValueTask<string>(output ?? "");
+        }),
+    new RouteAction<CheatReportRequest>("/client/report/send",
+        (url, request, session, output, token) =>
+        {
+            try { store.ReportCheater(request, session); }
+            catch (Exception ex) { store.Report(ex); }
+            return new ValueTask<string>(output ?? "");
         }),
     new RouteAction("/pbt/status",
         (url, request, session, output, token) =>
-            new ValueTask<object>(json.Serialize(new { ProtocolVersion = 1, ActivityProtocolVersion = 1, HideoutAccessProtocolVersion = 1, Ready = store.Ready, GenerationMode = store.GenerationMode, ApbsMatched = store.ApbsMatched, ApbsFallback = store.ApbsFallback })!))
+            new ValueTask<object>(json.Serialize(new { ProtocolVersion = 1, ActivityProtocolVersion = 1, HideoutAccessProtocolVersion = 1, Ready = store.Ready, GenerationMode = store.GenerationMode, ApbsMatched = store.ApbsMatched, ApbsFallback = store.ApbsFallback, CheatReports = store.CheatReports })!))
 ]) { }

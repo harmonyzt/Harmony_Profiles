@@ -30,6 +30,7 @@ public sealed class Plugin : BaseUnityPlugin
     private static string pendingProfile = "";
     internal static string KillerProfileId => pendingProfile;
     internal static string KillerAccount => pendingAccount;
+    internal static bool CheatReports { get; private set; }
     // The Fika headless has no main player, but it hosts every raid it runs.
     private static bool headless;
     // Fika clients see bots as observed players with no AI brain, flagged by this field instead.
@@ -95,6 +96,7 @@ public sealed class Plugin : BaseUnityPlugin
             var status = JObject.Parse(await RequestHandler.GetJsonAsync("/pbt/status"));
             compatible = status.Value<int>("ProtocolVersion") == 1 && status.Value<bool>("Ready");
             RaidActivity.Supported = compatible && RaidActivity.Installed && status.Value<int>("ActivityProtocolVersion") == 1;
+            CheatReports = compatible && status.Value<bool?>("CheatReports") == true;
             if (!compatible) log?.LogWarning("PBT server is unavailable or incompatible; capture disabled.");
             else log?.LogInfo("Connected to the PBT server.");
         }

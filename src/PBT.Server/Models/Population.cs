@@ -18,6 +18,25 @@ public sealed class Population
     public Dictionary<int, PendingStory> PendingStories { get; set; } = new();
     public Dictionary<string, Career> Careers { get; set; } = new();
     public Dictionary<string, Dictionary<string, Friendship>> Friendships { get; set; } = new();
+    public Dictionary<string, CheaterReport> CheaterReports { get; set; } = new();
+    // Last death per player session, so a report can hand back what that raid cost.
+    public Dictionary<string, RaidLoss> RaidLosses { get; set; } = new();
+}
+
+public sealed class CheaterReport
+{
+    public string CareerId { get; set; } = "";
+    public string SessionId { get; set; } = "";
+    public long ReportedUtc { get; set; }
+    public long DueUtc { get; set; }
+    public JsonArray LostGear { get; set; } = new();
+}
+
+public sealed class RaidLoss
+{
+    public int KillerAccountId { get; set; }
+    public long Utc { get; set; }
+    public JsonArray Items { get; set; } = new();
 }
 
 public sealed class Career
@@ -89,6 +108,8 @@ public sealed class Career
     public int LastGeneratedPrestige { get; set; }
     public JsonObject Customization { get; set; } = new();
     public bool VisibleLoadout { get; set; }
+    public bool Cheater { get; set; }
+    public long BannedUtc { get; set; }
     // Newest first, for the profile page.
     public List<GearEvent> GearHistory { get; set; } = new();
 }

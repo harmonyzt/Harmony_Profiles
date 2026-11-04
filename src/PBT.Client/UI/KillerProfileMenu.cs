@@ -82,10 +82,11 @@ public sealed class KillerProfileMenu : MonoBehaviour
         content = prototype.transform.parent as RectTransform;
         if (content == null) throw new MissingMemberException("Native report-menu content unavailable.");
 
-        // Show the native affordance without enabling report RPCs in an offline SPT session.
+        // Offline SPT has no report RPCs. Only the cheat report is kept, PBT answers it.
         if (!session.ReportAvailable)
         {
-            Reports.SetValue(owner, Enum.ToObject(Reports.FieldType, 0));
+            bool career = long.TryParse(account, out long aid) && aid >= 1500000000 && aid < 2000000000;
+            Reports.SetValue(owner, Enum.ToObject(Reports.FieldType, Plugin.CheatReports && career ? (int)EReportType.Cheat : 0));
             owner.Show(session, account);
         }
         owner.gameObject.SetActive(true);

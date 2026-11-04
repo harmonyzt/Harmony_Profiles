@@ -95,9 +95,12 @@ public sealed class SimulationPolicy
     public int StoryVisibilitySeconds { get; set; } = 900;
     public BotMessageSettings BotMessages { get; set; } = new();
     public WorldSettings World { get; set; } = new();
+    public CheaterSettings Cheaters { get; set; } = new();
 
     public void Validate()
     {
+        if (Cheaters is null) throw new InvalidDataException("Cheater policy is missing.");
+        Cheaters.Validate();
         if (World is null) throw new InvalidDataException("World policy is missing.");
         World.Validate();
         if (Hideout is null) throw new InvalidDataException("Hideout policy is missing.");
@@ -177,6 +180,52 @@ public sealed class WorldSettings
             || !double.IsFinite(NameMapBoost) || NameMapBoost is < 1 or > 10
             || !double.IsFinite(QueueTimeMultiplier) || QueueTimeMultiplier is < .1 or > 10 || MaximumMatchingSeconds is < 0 or > 600)
             throw new InvalidDataException("World chances must be 0-1, boosts 1-5 (streamer and name boosts 1-10), queue multiplier 0.1-10 and matching 0-600 seconds.");
+    }
+}
+
+public sealed class CheaterHelmet
+{
+    public string Tpl { get; set; } = "";
+    public int Weight { get; set; } = 10;
+}
+
+// Rare blatant cheaters with ordinary names. Turning this off makes them play like everyone else again.
+public sealed class CheaterSettings
+{
+    public bool Enabled { get; set; } = true;
+    // Share of active careers that cheat.
+    public double Share { get; set; } = .01;
+    public double Survival { get; set; } = .92;
+    public double KillMultiplier { get; set; } = 4;
+    public int TierBoost { get; set; } = 4;
+    public double HelmetChance { get; set; } = .6;
+    public List<CheaterHelmet> Helmets { get; set; } =
+    [
+        new() { Tpl = "5c0e874186f7745dc7616606", Weight = 30 }, // Maska (Killa)
+        new() { Tpl = "5c091a4e0db834001d5addc8", Weight = 10 }, // Maska OD
+        new() { Tpl = "60a7ad2a2198820d95707a2e", Weight = 10 }, // Tagilla UBEY
+        new() { Tpl = "60a7ad3a0c5cb24b0134664a", Weight = 10 }, // Tagilla Gorilla
+        new() { Tpl = "678f84bb9e85556ca60f0362", Weight = 8 }, // Tagilla ZABEY
+        new() { Tpl = "5aa7e276e5b5b000171d0647", Weight = 12 }, // Altyn
+        new() { Tpl = "5f60c74e3b85f6263c145586", Weight = 10 }, // Rys-T
+        new() { Tpl = "5ca20ee186f774799474abc2", Weight = 10 } // Vulkan-5
+    ];
+    public double BanChance { get; set; } = .75;
+    public double BanMinimumHours { get; set; } = 1;
+    public double BanMaximumHours { get; set; } = 6;
+    public bool ReturnLostGear { get; set; } = true;
+    public int RewardRubles { get; set; } = 150000;
+
+    public void Validate()
+    {
+        if (!double.IsFinite(Share) || Share is < 0 or > .2 || !double.IsFinite(Survival) || Survival is < 0 or > 1
+            || !double.IsFinite(KillMultiplier) || KillMultiplier is < 1 or > 20 || TierBoost is < 0 or > 6
+            || !double.IsFinite(HelmetChance) || HelmetChance is < 0 or > 1 || !double.IsFinite(BanChance) || BanChance is < 0 or > 1
+            || !double.IsFinite(BanMinimumHours) || BanMinimumHours is < 0 or > 720
+            || !double.IsFinite(BanMaximumHours) || BanMaximumHours < BanMinimumHours || BanMaximumHours > 720
+            || RewardRubles is < 0 or > 50_000_000 || Helmets is null || Helmets.Count > 100
+            || Helmets.Any(h => h is null || h.Tpl is null || h.Tpl.Length != 24 || h.Weight is < 0 or > 1000))
+            throw new InvalidDataException("Cheaters need a 0-0.2 share, 0-1 chances, 1-20 kill multiplier, 0-6 tier boost, 0-720 ban hours and 24-character helmet ids.");
     }
 }
 

@@ -30,7 +30,7 @@ namespace PBT.Server;
 public sealed partial class PopulationStore(
     BotTable bots, GlobalTable globals, TemplateTable templates, HideoutTable hideout, TradersTable traders,
     ProfileHelper profileHelper, NotificationSendHelper notifications, HttpResponseUtil responses,
-    SaveServer saves, JsonUtil json, ModHelper modHelper, ItemHelper itemHelper, PresetHelper presetHelper, BotInventoryGenerator inventoryGenerator, BotInventoryContainerService inventoryContainers, LocaleService locales, LocationTable locations, ICloner cloner, ISptLogger<PopulationStore> logger) : IOnLoad, IDisposable
+    SaveServer saves, JsonUtil json, ModHelper modHelper, ItemHelper itemHelper, PresetHelper presetHelper, BotInventoryGenerator inventoryGenerator, BotInventoryContainerService inventoryContainers, LocaleService locales, LocationTable locations, ICloner cloner, SPTarkov.Server.Core.Services.Commerce.MailSendService mail, ISptLogger<PopulationStore> logger) : IOnLoad, IDisposable
 {
     private readonly object gate = new();
     private int startupPrestiges;
@@ -292,7 +292,7 @@ public sealed partial class PopulationStore(
                     population.Careers.Add(career.Id, career);
                     known.Add(key, career);
                 }
-                career.Retired = false;
+                career.Retired = career.BannedUtc > 0;
             }
         }
         progress.Finish();
@@ -385,7 +385,7 @@ public sealed partial class PopulationStore(
         {
             c.PendingRaidSeconds -= c.TargetRaidSeconds;
             c.Raids++;
-            bool survived = Random.Shared.NextDouble() < c.SurvivalChance;
+            bool survived = Random.Shared.NextDouble() < Survival(c);
             double outcome = Random.Shared.NextDouble();
             if (survived && outcome >= .015)
             {
@@ -714,6 +714,7 @@ public sealed partial class PopulationStore(
                 Simulate(now);
                 ProcessProfileEquipment(now);
                 SendDueMessages(now);
+                ProcessCheaters(now);
                 assets = SnapshotChangedAssets();
                 if (dirty || worldDirty && now - populationSavedUtc >= WorldSaveSeconds)
                 {
