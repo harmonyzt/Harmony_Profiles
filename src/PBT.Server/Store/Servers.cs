@@ -99,10 +99,10 @@ public sealed partial class PopulationStore
         string home = RegionOf(policy.World.Location);
         int ping = (home, s.Region) switch
         {
-            _ when home == s.Region => 120,
-            ("EU", "US") or ("US", "EU") => 175,
-            ("US", "Asia") or ("Asia", "US") => 195,
-            _ => 260
+            _ when home == s.Region => 45,
+            ("EU", "US") or ("US", "EU") => 120,
+            ("US", "Asia") or ("Asia", "US") => 160,
+            _ => 230
         };
         return ping + s.PingOffset;
     }
