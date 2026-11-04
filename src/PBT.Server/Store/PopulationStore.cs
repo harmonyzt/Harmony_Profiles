@@ -299,6 +299,7 @@ public sealed partial class PopulationStore(
             }
         }
         progress.Finish();
+        RetireNameVariants(pools.Where(p => p.Type.FirstNames is not null).Select(p => (p.Side, p.Type.FirstNames!)));
     }
 
     private Career NewCareer(string side, string name, BotType type)
@@ -425,15 +426,21 @@ public sealed partial class PopulationStore(
             Career? career = selected is not null && selected.Side.Equals(bot.Info.Side, StringComparison.OrdinalIgnoreCase)
                 && selected.Name == bot.Info.Nickname ? selected : null;
             string key = NameKey(bot.Info.Side, bot.Info.Nickname);
-            if (career is null && !bySourceName.TryGetValue(key, out career) && !byName.TryGetValue(key, out career))
+            if (career is null && !bySourceName.TryGetValue(key, out career) && !byName.TryGetValue(key, out career)
+                && byBaseName.TryGetValue(NameKey(bot.Info.Side, BaseName(bot.Info.Nickname)), out var holder)) career = holder;
+            // A retired name variant plays as the player who kept the name.
+            if (career is { Retired: true, BannedUtc: 0 } && byBaseName.TryGetValue(NameKey(career.Side, BaseName(career.SourceName)), out var kept)) career = kept;
+            if (career is { Retired: true, BannedUtc: 0 }) return;
+            if (career is null)
             {
-                // Covers names added by mods after startup. Never guess a match by stripping characters.
+                // Covers names added by mods after startup.
                 if (!bots.Types.TryGetValue(bot.Info.Side.ToLowerInvariant(), out var type) || type is null) return;
                 career = NewCareer(bot.Info.Side, bot.Info.Nickname, type);
                 career.Experience = bot.Info.Experience ?? career.Experience;
                 population.Careers.Add(career.Id, career);
                 byName.Add(NameKey(career.Side, career.Name), career);
                 bySourceName.Add(NameKey(career.Side, career.SourceName), career);
+                byBaseName.TryAdd(NameKey(career.Side, BaseName(career.SourceName)), career);
                 byAccount.Add(career.AccountId, career);
                 EnsureDevelopment(career);
                 Develop(career);

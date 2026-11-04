@@ -6,6 +6,31 @@ public sealed partial class PopulationStore
 {
     private readonly HashSet<string> occupiedNicknames = new(StringComparer.Ordinal);
     private Dictionary<string, Career> bySourceName = new();
+    private Dictionary<string, Career> byBaseName = new();
+    private static readonly char[] VariantTail = "0123456789-_. ".ToCharArray();
+
+    // RamRanch5-0 and RamRanch6-0 read as the same player, so names compare without trailing numbers.
+    // Short stems ("555", "Bo1") keep the whole name.
+    private static string BaseName(string name)
+    {
+        string trimmed = name.Normalize(System.Text.NormalizationForm.FormC).TrimEnd(VariantTail);
+        return (trimmed.Length >= 3 ? trimmed : name).ToUpperInvariant();
+    }
+
+    // Caller holds the gate. One player per base name and side: the most played keeps it, the rest retire
+    // and leave the bot name pool so SPT stops generating them. Both sides share SPT's pool, so sides stay apart.
+    private void RetireNameVariants(IEnumerable<(string Side, List<string> Names)> pools)
+    {
+        var variants = population.Careers.Values.Where(c => !c.Retired).GroupBy(c => NameKey(c.Side, BaseName(c.SourceName)))
+            .Where(g => g.Count() > 1)
+            .SelectMany(g => g.OrderByDescending(c => c.Raids + c.Observed.Raids).ThenBy(c => c.AccountId).Skip(1)).ToList();
+        if (variants.Count == 0) return;
+        foreach (var c in variants) c.Retired = true;
+        var dropped = variants.Select(c => NameKey(c.Side, c.SourceName)).ToHashSet();
+        foreach (var (side, names) in pools) names.RemoveAll(n => dropped.Contains(NameKey(side, n)));
+        dirty = true;
+        logger.Info($"[PBT] Retired {variants.Count} careers whose names only differ by trailing numbers.");
+    }
 
     private static string SourceName(Career career) => string.IsNullOrWhiteSpace(career.SourceName)
         ? career.Name : career.SourceName;
@@ -53,5 +78,7 @@ public sealed partial class PopulationStore
     {
         byName = population.Careers.Values.ToDictionary(c => NameKey(c.Side, c.Name));
         bySourceName = population.Careers.Values.ToDictionary(c => NameKey(c.Side, c.SourceName));
+        byBaseName = population.Careers.Values.Where(c => !c.Retired).GroupBy(c => NameKey(c.Side, BaseName(c.SourceName)))
+            .ToDictionary(g => g.Key, g => g.First());
     }
 }
