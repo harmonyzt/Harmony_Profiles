@@ -134,6 +134,8 @@ public sealed partial class PopulationStore(
                 population.TemplateFingerprint = fingerprint;
                 EnsureCareerCoverage();
                 SeedMissingLoadouts();
+                if (!settings.OfflineProgression && population.LastSimulationUtc > 0)
+                    population.LastSimulationUtc = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 Simulate(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
                 var developing = new LoadProgress(logger, "Developing careers", population.Careers.Count);
                 foreach (var career in population.Careers.Values)

@@ -11,6 +11,8 @@ public sealed class PbtSettings
     public double FriendActivityMultiplier { get; set; } = 1.4;
     public double OnlineRateMultiplier { get; set; } = 1;
     public int ProgressionThresholdSeconds { get; set; } = 3600;
+    // Off: careers pause while the server is down instead of catching up on start.
+    public bool OfflineProgression { get; set; } = true;
     public int MaximumOfflineDays { get; set; } = 14;
     // Hands the server's free large-object memory back once raids have finished loading.
     public bool CompactMemory { get; set; } = true;
