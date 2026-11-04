@@ -81,7 +81,6 @@ public sealed partial class PopulationStore
     private Dictionary<string, long> EarnedMilestones(Career career, long now)
     {
         var result = new Dictionary<string, long>(career.Achievements);
-        // Fictional history has a stable faction split. Unclassified observed PMC kills stay unclassified.
         long modeledUsec = (long)Math.Floor(career.PmcKills * (.35 + .3 * Stable(career.Id + ":kill-side")));
         foreach (var milestone in milestones)
         {

@@ -4,7 +4,6 @@ namespace PBT.Server;
 
 public sealed partial class PopulationStore
 {
-    // Personality decides how a raid you left tends to end for them.
     private double DeathFactor(Career c) => (Notable(c) ? .7 : 1) * c.Archetype switch
     {
         "Timmy" => 1.35, "Aggressive" => 1.2, "Survivor" => .6, _ => 1

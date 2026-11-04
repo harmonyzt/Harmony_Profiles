@@ -6,8 +6,7 @@ using HarmonyLib;
 
 namespace PBT.Client;
 
-// Visiting a hideout from the raid-end screens loads the scene before the main menu has rebuilt the player,
-// and Player.InitVisuals throws on the missing camera. The load never finishes, so block it until the menu is back.
+// Visiting a hideout from the raid-end screens throws in Player.InitVisuals until the menu has rebuilt the player.
 internal static class HideoutVisitGuard
 {
     private const string Reason = "Return to the main menu to visit hideouts.";

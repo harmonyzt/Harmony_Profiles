@@ -24,7 +24,6 @@ public sealed partial class PopulationStore
             int looking = seconds > 0 ? Random.Shared.Next(5, 16) : 0;
             var server = PickServer(now);
             var queued = FillServer(FindMap(map), session, now);
-            // They wait in the queue with you until the raid loads.
             foreach (string id in queued) activities[id].Until = Math.Max(activities[id].Until, now + seconds + looking + 120);
             lobbies[session.ToString()] = new(key, queued, now, server.Name);
             squadNext.Remove(session.ToString());
@@ -33,11 +32,9 @@ public sealed partial class PopulationStore
         }
     }
 
-    // Like EFT, you match into a server of MinPlayers..MaxPlayers. Its players are the careers spawns draw from,
-    // so a raid meets the people it queued with. PMC count is still up to the bot spawner.
+    // Like EFT, a server of MinPlayers..MaxPlayers. Its players are the careers spawns draw from.
     private HashSet<string> FillServer(WorldMap? map, MongoId session, long now)
     {
-        // Solo maps never put strangers in your instance.
         if (map is null || map.Solo) return [];
         int size = Math.Max(0, Random.Shared.Next(map.MinPlayers, map.MaxPlayers + 1) - 1);
         int level = 1;

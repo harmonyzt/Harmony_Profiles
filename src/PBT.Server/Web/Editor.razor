@@ -780,7 +780,6 @@
             streamerName = "";
         }
         Notify(!ok, text);
-        // A restart warning stays up longer than a plain success.
         if (ok && restart) { noticeTimer?.Cancel(); error = false; message = text; }
     }
 
@@ -916,10 +915,8 @@
         else if (page == "Watching") LoadWatched();
         else if (page == "Dashboard") UpdateStatus();
         else return;
-        // A picked slide stays put until the user leaves the page.
         if (page == "Overview" && !slideHeld && !slideHover && ++ticks % 2 == 0 && world?.Maps.Count > 1) slide = (slide + 1) % world.Maps.Count;
         StateHasChanged();
-        // Ease shown numbers toward the values the last render asked for.
         animating = true;
         try
         {
@@ -953,7 +950,6 @@
         var sorted = sortDescending ? rows.OrderByDescending(key) : rows.OrderBy(key);
         return sorted.ThenByDescending(p => p.Level).ThenBy(p => p.Name);
     }
-    // Same color on every member's row, so teams stand out in the list.
     private static int TeamHue(WorldPlayerRow row) => Hue(string.Join("|", row.Team.Append(row.Name).Order(StringComparer.Ordinal)));
     private static string StateLabel(string state) => state switch {
         "Raid" => "In raid", "Queue" => "Queueing", "Transit" => "Transit", "Menu" => "Online", "Afk" => "AFK", "Died" => "Dead", _ => "Offline" };

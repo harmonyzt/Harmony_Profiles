@@ -117,7 +117,6 @@ public sealed class KillerProfileMenu : MonoBehaviour
 
     internal void EnableMenuInteraction()
     {
-        // Native logic only counts report rows. The profile action remains available independently.
         if (!Bound || entry == null || canvas == null) return;
         canvas.alpha = 1;
         canvas.interactable = true;
@@ -194,7 +193,6 @@ public sealed class KillerProfileMenu : MonoBehaviour
                 "/pbt/killer/resolve", request.ToString(Formatting.None)));
             if (this == null || !isActiveAndEnabled || revision != currentRevision) return;
             string? target = resolved.Value<int?>("AccountId")?.ToString();
-            // Preserve ordinary native/Fika account viewing when the killer is a real player.
             if (target == null && long.TryParse(fallback, out long realAccount) && realAccount > 0
                 && (realAccount < 1500000000 || realAccount >= 2000000000)) target = fallback;
             if (target == null)

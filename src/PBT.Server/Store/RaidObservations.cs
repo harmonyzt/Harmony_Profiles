@@ -102,8 +102,7 @@ public sealed partial class PopulationStore
             }
             try
             {
-                // Receipts and lifetime totals live in the same snapshot, so retries cannot double-count.
-                // The checkpoint writes it: a full save here ran under the gate on every client's minute report.
+                // Receipts and totals share one snapshot, so retries cannot double-count.
                 foreach (string id in updates.Keys)
                     population.Careers[id].Achievements = EarnedMilestones(population.Careers[id], now);
                 dirty = true;
@@ -123,7 +122,6 @@ public sealed partial class PopulationStore
                 dirty = previousDirty;
                 throw;
             }
-            // Your raid is over for these PMCs. What happens to them next is a pending story.
             foreach (var (encounter, observation) in finished)
             {
                 try { AfterRaid(encounter, observation, report.Map, killer: false, now); }

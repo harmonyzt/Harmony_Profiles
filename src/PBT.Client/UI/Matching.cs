@@ -10,7 +10,6 @@ using SPT.Common.Http;
 namespace PBT.Client;
 
 // Live-style matching before a raid: Matching, Looking for server, Preparing the game, Awaiting response.
-// Runs after map loading and caching, before the local game is created.
 internal static class Matching
 {
     private static MethodInfo? create;
@@ -18,9 +17,7 @@ internal static class Matching
     private static Func<bool>? fikaHost;
     private static AccessTools.FieldRef<TarkovApplication, RaidSettings>? raidSettings;
     private static bool passing;
-    // Set when this game ran the matching, so raid start can say how many careers actually loaded in.
     private static bool matched;
-    // Set while a raid loads after a simulated queue.
     private static bool onlineWording;
 
     internal static void Install(Harmony harmony)
@@ -49,8 +46,7 @@ internal static class Matching
         if (onlineWording && status == "Local game starting...") status = "Connecting to server";
     }
 
-    // Fika replaces LocalGameCreate, so wait inside its game creation instead. Only the host waits:
-    // clients join once the host is ready, so the whole group sits through the same queue.
+    // Fika replaces LocalGameCreate. Only the host waits, clients join once it is ready.
     internal static void InstallFika(Harmony harmony)
     {
         var backend = AccessTools.TypeByName("Fika.Core.Main.Utils.FikaBackendUtils");
@@ -58,7 +54,6 @@ internal static class Matching
         var isTransit = AccessTools.PropertyGetter(backend, "IsTransit");
         if (isServer is null || isTransit is null) throw new MissingMethodException("Fika host state unavailable.");
         fikaHost = () => (bool)isServer.Invoke(null, null) && !(bool)isTransit.Invoke(null, null);
-        // Players and the headless each have their own copy.
         foreach (var name in new[] { "Fika.Core.Main.Patches.LocalGame.TarkovApplication_LocalGameCreator_Patch", "Fika.Headless.Patches.GameMode.Headless_LocalGameCreator_Patch" })
         {
             var method = AccessTools.TypeByName(name) is { } type ? AccessTools.Method(type, "CreateFikaGame") : null;
@@ -133,8 +128,7 @@ internal static class Matching
         await game;
     }
 
-    // Offline creation sets one status and never forwards the game's own, so the loading screen
-    // sat on "Connecting to server". Live forwards them (loot loading), so do the same.
+    // Offline creation never forwards the game's own statuses, so loading sat on "Connecting to server".
     private static async Task ForwardStatus(TarkovApplication app, Task game, AbstractGame? previous)
     {
         Action<string, float?> relay = (status, progress) => app.Matchmaker?.UpdateMatchingStatus(status, progress);
@@ -163,7 +157,7 @@ internal static class Matching
         if (onlineWording) __instance.SetMatchmakerStatus("Awaiting players...");
     }
 
-    // Fika clients wait for the host anyway. Show the host's matching stages meanwhile instead of a blank wait.
+    // Fika clients mirror the host's matching stages while they wait.
     private static async Task FollowHost(TarkovApplication app, string map, Func<Task> start)
     {
         Connection.Matched(null);
@@ -171,7 +165,6 @@ internal static class Matching
         var game = start();
         try
         {
-            // The host may still be loading, so keep asking until its matching starts.
             for (int tries = 0; !game.IsCompleted && tries < 60; tries++)
             {
                 var response = JObject.Parse(await RequestHandler.PostJsonAsync("/pbt/world/matching/host",
@@ -213,7 +206,6 @@ internal static class Matching
         catch (Exception ex) { Plugin.Report("Raid profile count unavailable: " + ex.Message); }
     }
 
-    // A headless host has no matchmaker screen.
     private static void Status(TarkovApplication app, string text)
     {
         try { app.Matchmaker?.UpdateMatchingStatus(text); }

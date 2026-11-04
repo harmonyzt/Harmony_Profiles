@@ -48,17 +48,14 @@ public sealed partial class PopulationStore
         c.NextGearAttemptUtc = 0;
     }
 
-    // A dead account stays naked for a while, then turns up in a new kit.
     private static long RegearDelay(Career c) => 1200 + (long)(Stable(c.Id + ":regear:" + c.DiedUtc) * 2400);
 
-    // Only the regear delay holds a career in the menu. Waiting for APBS too stranded thousands for hours, since the world
-    // dies faster than the worker can roll kits. A profile view or raid spawn makes the kit on demand anyway.
+    // Only the delay, not the kit: the world dies faster than APBS can regear it. Views and spawns make it on demand.
     private static bool WaitingForGear(Career c, long now) => c.NeedsRegear && now - c.DiedUtc < RegearDelay(c);
 
     private static bool WantsGear(Career c, long now) => !c.Retired
         && (c.GearVersion == 0 && c.LastEquipmentAccount == 0 || c.NeedsRegear && now - c.DiedUtc >= RegearDelay(c));
 
-    // Gear used to be queued on the first look, so every never-viewed or long-dead profile opened naked.
     // APBS runs outside the gate so a profile view never stalls bot spawns.
     private void GearForView(int accountId, MongoId session)
     {
@@ -166,7 +163,7 @@ public sealed partial class PopulationStore
     {
         if (gearFactory is null || !bots.Types.TryGetValue(career.Side.ToLowerInvariant(), out var source))
             throw new InvalidOperationException("APBS PMC equipment services are unavailable.");
-        // SPT's own cloner, as its bot generator uses. A JSON round trip of the bot type churned megabytes per regear.
+        // SPT's own cloner. A JSON round trip churned megabytes per regear.
         var isolated = cloner.Clone(source) ?? throw new InvalidDataException("Cannot clone PMC inventory template.");
         var inventory = gearFactory.Generate(inventoryGenerator, inventoryContainers, session, isolated, career, Level(career.Experience),
             // Rack guns are favourites, not what the account can afford today.
@@ -182,10 +179,9 @@ public sealed partial class PopulationStore
         return equipment;
     }
 
-    // Only a raid spawn or a profile view sets gearSession, so after a restart nobody regeared until then.
+    // Nothing sets gearSession after a restart until the first spawn or view.
     private MongoId? GearSession() => gearSession ??= saves.GetProfiles().Keys.Select(k => (MongoId?)k).FirstOrDefault();
 
-    // One career per checkpoint never caught up with a large online population. Dead careers go first.
     private const int GearBatch = 10;
     private const int UpgradeSlots = 3;
 
@@ -196,7 +192,7 @@ public sealed partial class PopulationStore
     private void ProcessPendingGear(long now)
     {
         if (GearSession() is not MongoId session) { if (now - gearStatsUtc >= 1800) { gearStatsUtc = now; logger.Warning("[PBT] Gear worker idle: no profile session to generate with."); } return; }
-        // The dead regear offline too, or they log back in naked. GearPending can be cleared by a seen loadout while still dead.
+        // The dead regear offline too, or they log back in naked.
         var due = population.Careers.Values.Where(c => !c.Retired
                 && (c.NeedsRegear ? WantsGear(c, now) : c.IsOnline && c.GearPending)
                 && now >= c.NextGearAttemptUtc && now >= c.StoryHoldUntilUtc && now - c.LastEquipmentGeneratedUtc >= 900

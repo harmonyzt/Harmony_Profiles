@@ -4,7 +4,6 @@ namespace PBT.Server;
 
 public sealed record WorldServerStatus(string Name, string Region, int Players, int Capacity, double Load, string Status, int Ping);
 
-// What the client needs to fake a connection to the server it matched into.
 public sealed record MatchedServer(string Name, string Region, int Ping, int Jitter, double Loss, bool Bad, bool Simulate, bool LossEvents);
 
 // The game servers careers play on. Made once per Data folder, so every install gets its own good and flaky ones.
@@ -18,7 +17,6 @@ public sealed partial class PopulationStore
         public double Weight { get; set; } = 1;
         // How rarely it has connection trouble, 0 to 1.
         public double Stability { get; set; } = .95;
-        // Small per-server ping offset, so two EU servers don't read the same.
         public int PingOffset { get; set; }
         [System.Text.Json.Serialization.JsonIgnore] public long DegradedUntil;
     }
@@ -107,7 +105,7 @@ public sealed partial class PopulationStore
         return ping + s.PingOffset;
     }
 
-    // Caller holds the gate. Servers have bad spells now and then, the flaky ones more often.
+    // Caller holds the gate.
     private void TickServers(long now)
     {
         foreach (var s in Servers())
@@ -136,7 +134,7 @@ public sealed partial class PopulationStore
         }).ToList();
     }
 
-    // Caller holds the gate. Mostly a server near you with room, now and then a far or struggling one.
+    // Caller holds the gate.
     private MatchedServer PickServer(long now)
     {
         string home = RegionOf(policy.World.Location);

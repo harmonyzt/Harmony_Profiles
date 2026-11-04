@@ -243,7 +243,6 @@ public sealed partial class PopulationStore
             if (candidates.Length == 0) { ApbsFallback++; return false; }
             (Career Career, int Level, double Weight)[] nearest;
             var mates = squadNext.TryGetValue(session, out var next) ? candidates.Where(c => next.Contains(c.Career.Id)).ToArray() : [];
-            // Your server's players fill the raid before anyone from the wider world.
             var matched = candidates.Where(c => MatchBoost(session, map, c.Career.Id) > 1).ToArray();
             if (mates.Length > 0 && Random.Shared.NextDouble() < .85)
                 nearest = mates.Select(c => (c.Career, c.Level, c.Weight)).ToArray();
@@ -253,7 +252,7 @@ public sealed partial class PopulationStore
             {
                 int rolled = sampler(minimum, maximum, 1, 1.15);
                 int distance = candidates.Min(c => Math.Abs(c.Level - rolled));
-                // A couple of levels of slack lets queueing and transiting careers win over an exact level match. Your match ignores the roll.
+                // Slack lets queueing and transiting careers beat an exact level match.
                 nearest = candidates.Where(c => Math.Abs(c.Level - rolled) <= distance + 2 || MatchBoost(session, map, c.Career.Id) > 1)
                     .Select(c => (c.Career, c.Level, Weight: c.Weight / (1 + Math.Max(0, Math.Abs(c.Level - rolled) - distance)))).ToArray();
             }

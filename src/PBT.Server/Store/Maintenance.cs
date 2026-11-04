@@ -27,7 +27,6 @@ public sealed partial class PopulationStore
         _ => double.PositiveInfinity
     };
 
-    // Chance grows with level towards the rarity's share; skill and a per-achievement difficulty scale it.
     // The roll per account and achievement is fixed, so levelling up only ever adds achievements.
     private double StoryChance(Career c, string id, string rarity)
     {
@@ -49,7 +48,6 @@ public sealed partial class PopulationStore
             if (milestones.Any(m => m.Id == id) || result.ContainsKey(id)
                 || story.Side is not ("All" or "Pmc") && story.Side != c.Side
                 || Stable(c.Id + ":badge:" + id) >= StoryChance(c, id, story.Rarity)) continue;
-            // Fictional account history only. Never invoke native reward, quest, or achievement-grant controllers.
             result.Add(id, now);
         }
     }
@@ -112,7 +110,6 @@ public sealed partial class PopulationStore
         var shape = new JsonObject { ["Id"] = root.DeepClone(), ["Items"] = items.DeepClone() };
         var repaired = RepairEquipment(shape);
         if (repaired["Items"]!.ToJsonString() == items.ToJsonString()) return;
-        // A broken carried stash falls back to a freshly rolled one.
         if (repaired["Id"]?.ToString() != root.ToString()) assets.Stash = null;
         else assets.Stash["items"] = repaired["Items"]!.DeepClone();
         assets.Changed();

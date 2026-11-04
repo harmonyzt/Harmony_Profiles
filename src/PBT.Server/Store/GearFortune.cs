@@ -23,6 +23,5 @@ public sealed partial class PopulationStore
         return shift;
     }
 
-    // Everything that moves a kit away from its level's APBS tier.
     internal int TierShift(Career c, bool roll) => TierBoost(c) + FortuneTiers(c, roll);
 }

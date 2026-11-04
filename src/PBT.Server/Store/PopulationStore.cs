@@ -87,7 +87,6 @@ public sealed partial class PopulationStore(
                 if (allocatedAccounts.Overlaps(playerAccounts))
                     throw new InvalidDataException("A population account collides with a real player account.");
                 allocatedAccounts.UnionWith(playerAccounts);
-                // Reserve persisted aliases before allocating new careers.
                 ReserveEncounterAccounts();
                 LoadPersonalities();
                 LoadFeatures();
@@ -101,7 +100,6 @@ public sealed partial class PopulationStore(
                 RestoreLatestEquipment();
                 foreach (var encounter in encounters.Values) TrimEncounter(encounter);
                 LoadMilestones();
-                // Receipts expire only after the corresponding alias is no longer accepted.
                 foreach (int account in population.RaidObservations.Keys.Where(a => !encounters.ContainsKey(a)).ToArray())
                 {
                     population.RaidObservations.Remove(account);
@@ -335,9 +333,8 @@ public sealed partial class PopulationStore(
         c.LifeVersion = 2;
         c.FeatureVersion = 1;
         AddPrestigeBackstory(c);
-        // History follows from the level: the raids this account needed to earn its experience.
         AddRaids(c, RaidsToReach(c, c.Experience) * (.85 + Random.Shared.NextDouble() * .35) * RaidDuration(c, false));
-        // A death in the backstory is long over. Leaving the flag kept these accounts naked until they came online.
+        // A backstory death is long over.
         c.NeedsRegear = false;
         c.RegisteredUtc = now - AccountAge(c, now);
         DatePrestigeBackstory(c, now);
@@ -433,7 +430,6 @@ public sealed partial class PopulationStore(
                 && byBaseName.TryGetValue(NameKey(bot.Info.Side, BaseName(bot.Info.Nickname)), out var holder)) career = holder;
             // A retired name variant plays as the player who kept the name.
             if (career is { Retired: true, BannedUtc: 0 } && byBaseName.TryGetValue(NameKey(career.Side, BaseName(career.SourceName)), out var kept)) career = kept;
-            // Banned or a variant nobody kept. Either way it no longer plays.
             if (career is { Retired: true }) return;
             if (career is null)
             {
@@ -455,7 +451,6 @@ public sealed partial class PopulationStore(
             if (selected?.Id == career.Id)
                 ApplyAccountIdentity(career, bot.Info);
 
-            // Only the parts we keep, not the whole bot profile.
             var inventory = ToNode(bot.Inventory).AsObject();
             var customization = ToNode(bot.Customization).AsObject();
             var equipment = EquipmentTree(inventory);
@@ -526,7 +521,6 @@ public sealed partial class PopulationStore(
                     || !population.Careers.TryGetValue(encounter.CareerId, out career)) return null;
             }
             EnsureShowcase(career);
-            // Drops rack guns the current loadout now carries.
             RepairShowcase(career);
             QueueShowcase(career);
             var equipment = encounter is not null
@@ -623,8 +617,7 @@ public sealed partial class PopulationStore(
                 if (id is not null && parent is not null && included.Contains(parent) && included.Add(id)) changed = true;
             }
         } while (changed);
-        // Native bot inventories contain stash/quest/sorting/customization roots as well as equipment.
-        // Validate and publish only the equipment subtree; leave the generated inventory untouched.
+        // Native bot inventories also hold stash and quest roots. Only the equipment subtree is published.
         return new JsonObject { ["Id"] = root, ["Items"] = new JsonArray(items.OfType<JsonObject>()
             .Where(item => included.Contains(item["_id"]!.GetValue<string>())
                 && (item["_id"]!.GetValue<string>() == root
@@ -767,7 +760,7 @@ public sealed partial class PopulationStore(
         return JsonSerializer.Deserialize<Population>(stream);
     }
 
-    // Caller holds the gate. One buffer for every save: a fresh multi-MB array each time fragmented the LOH by ~1 GB.
+    // Caller holds the gate. One reused buffer, fresh multi-MB arrays fragmented the LOH.
     private void SnapshotPopulation()
     {
         lock (saveGate)
@@ -802,8 +795,7 @@ public sealed partial class PopulationStore(
         catch { dirty = true; throw; }
     }
 
-    // Under Fika the headless generates every bot, so its session never matches a player's.
-    // The runtime profile ID checks still prove the reporter saw that bot in raid.
+    // Under Fika the headless generates every bot. The runtime profile ID checks still prove the reporter saw it.
     private bool EncounterDied(Encounter e) =>
         population.RaidObservations.TryGetValue(e.AccountId, out var observation) && observation.Died
         || population.AppliedStories.GetValueOrDefault(e.AccountId) is "Died" or "DiedUncounted" or "ConfirmedDeath";
@@ -826,7 +818,7 @@ public sealed partial class PopulationStore(
             { ["_id"] = id, ["_tpl"] = "55d7217a4bdc2d86028b456d" }) };
     }
 
-    // JsonUtil's own options, without the multi-KB string in between. Used on every PMC spawn.
+    // JsonUtil's own options, without the string in between.
     private JsonNode ToNode<T>(T value) => JsonUtil.JsonSerializerOptionsNoIndent is { } options
         ? JsonSerializer.SerializeToNode(value, options)! : JsonNode.Parse(json.Serialize(value)!)!;
 

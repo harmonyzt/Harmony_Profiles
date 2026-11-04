@@ -49,7 +49,6 @@ public sealed partial class PopulationStore
         return s.Hours[local.Hour] * (weekend ? s.Weekend : s.Weekday) / s.Mean;
     }
 
-    // Hours of play per day, the same figure raid time and online time are simulated from.
     private double DailyOnlineHours(Career c)
     {
         bool friend = population.Friendships.Values.Any(links => links.TryGetValue(c.Id, out var f) && f.Accepted && !f.Removed);
@@ -61,7 +60,6 @@ public sealed partial class PopulationStore
     private long RollSessionEnd(Career c, long now, bool midway = false)
     {
         double hours = SessionHours(c) * (.5 + Random.Shared.NextDouble() * 1.1);
-        // Weekend sessions run long.
         if (DateTime.Now.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday) hours *= 1.3;
         if (midway) hours *= Random.Shared.NextDouble();
         return now + (long)(Math.Max(.25, hours) * 3600);
@@ -77,7 +75,6 @@ public sealed partial class PopulationStore
         return Math.Clamp(rate, 0, .9);
     }
 
-    // On load: who is mid-session right now.
     private bool RollOnline(Career c)
     {
         if (c.Retired || c.DailyRaidHours <= 0) return false;
@@ -90,7 +87,6 @@ public sealed partial class PopulationStore
 
     private bool SessionOver(Career c, long now) => now >= c.SessionEndUtc;
 
-    // --- Tilt -----------------------------------------------------------------------------------
 
     private bool Tilted(Career c) => DateTimeOffset.UtcNow.ToUnixTimeSeconds() < c.TiltUntilUtc;
 
@@ -127,7 +123,6 @@ public sealed partial class PopulationStore
     private static void AfterSurvival(Career c)
     {
         c.DeathStreak = 0;
-        // One good raid calms most people down.
         if (Random.Shared.NextDouble() < .6) c.TiltUntilUtc = 0;
     }
 

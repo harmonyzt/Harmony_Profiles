@@ -11,7 +11,7 @@ public sealed partial class PopulationStore
 
     private readonly Dictionary<string, string[]> squads = new();
 
-    // About a third of careers have a steady squad. Membership comes from stable rolls on career ids, so restarts keep it.
+    // About a third of careers have a steady squad, from stable rolls so restarts keep it.
     // Squads keep to one side so they can spawn as one group in your raid.
     private void FormSquads()
     {
@@ -32,7 +32,6 @@ public sealed partial class PopulationStore
     private string[] SquadNames(Career c) => squads.TryGetValue(c.Id, out var members)
         ? members.Where(id => id != c.Id && population.Careers.ContainsKey(id)).Select(id => population.Careers[id].Name).ToArray() : [];
 
-    // Squadmates queueing or playing alongside this career right now.
     private string[] TeamNames(Career c, Activity a) => a.Party.Length < 2 ? []
         : a.Party.Where(id => id != c.Id && population.Careers.ContainsKey(id)).Select(id => population.Careers[id].Name).ToArray();
 
@@ -50,7 +49,6 @@ public sealed partial class PopulationStore
 
     private void NextErrand(Career c, Activity a, long now)
     {
-        // Casual players drift off more, sweaty ones barely leave the queue.
         double afk = c.Archetype switch { "Casual" => 1.6, "Aggressive" => .5, _ => 1 };
         double total = Errands.Sum(e => e.Doing == "AFK" ? e.Weight * afk : e.Weight), roll = Random.Shared.NextDouble() * total;
         var pick = Errands[0];
@@ -71,7 +69,6 @@ public sealed partial class PopulationStore
         return mateActivity.State == "Menu" && !mateActivity.Held && !mateActivity.WantsOffline;
     }
 
-    // Online squadmates in the menu queue together. One short wait for a friend who is nearly done.
     private bool TryQueueSquad(Career c, Activity a, long now)
     {
         if (!squads.TryGetValue(c.Id, out var members)) return false;
@@ -101,7 +98,6 @@ public sealed partial class PopulationStore
         return true;
     }
 
-    // The whole squad loads in together and plays the same raid length.
     private void StartRaid(Career c, Activity a, long now)
     {
         long until = now + RaidLength(c);

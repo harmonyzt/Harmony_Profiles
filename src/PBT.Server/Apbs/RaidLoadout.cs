@@ -217,7 +217,7 @@ public sealed partial class PopulationStore
                 if (botGeneratorHelper.AddItemWithChildrenToEquipmentSlot(botId, [EquipmentSlots.TacticalVest, EquipmentSlots.Pockets],
                         copy.Id, copy.Template, set, inventory) != ItemAddedResult.SUCCESS) break;
             }
-            // Spares for the main gun only. The next slot is a fallback for PMCs without one.
+            // Spares for the main gun only.
             break;
         }
     }

@@ -121,7 +121,6 @@ internal sealed class ApbsGearFactory
         }
     }
 
-    // Called during a real raid spawn, so APBS's raid context is the live one.
     internal void AddLoot(MongoId botId, MongoId session, BotType template, BotGenerationDetails details, BotBaseInventory inventory)
     {
         int selectedTier = details.ExtensionData?.TryGetValue("Tier", out var value) == true && value is int t ? t : 1;

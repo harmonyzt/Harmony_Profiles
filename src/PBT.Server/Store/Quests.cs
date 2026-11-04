@@ -39,7 +39,6 @@ public sealed partial class PopulationStore
         return questCatalog;
     }
 
-    // Share of the quests within reach that this account bothers with.
     private double QuestDrive(Career c)
     {
         double share = c.Archetype switch { "Timmy" => .35, "Aggressive" => .45, "Survivor" => .75, _ => .55 };
@@ -53,7 +52,6 @@ public sealed partial class PopulationStore
         return QuestCatalog().Count(q => q.Level <= level);
     }
 
-    // The order this account did them in: whatever is unlocked, lowest level first, with its own taste mixed in.
     private List<QuestNode> QuestOrder(Career c, int count)
     {
         int level = Level(c.Experience);

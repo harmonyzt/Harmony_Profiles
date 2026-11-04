@@ -91,7 +91,6 @@ internal static class Connection
         }
         double rtt = ping + (UnityEngine.Random.value * 2 - 1) * jitter;
         if (random < .03f) rtt += UnityEngine.Random.Range(30, 91);
-        // Settles from the countdown spike over a few seconds.
         float settle = now - startedAt;
         if (spike > 0 && settle < 4f) rtt = Mathf.Lerp(spike, (float)rtt, settle / 4f);
         int lost = 0;

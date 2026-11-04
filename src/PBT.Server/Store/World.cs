@@ -1,6 +1,5 @@
 namespace PBT.Server;
 
-// What every online career is doing right now: main menu, queueing, in raid or in transit.
 // Online careers earn their raids here one at a time, so profiles, maps and the activity log agree.
 public sealed partial class PopulationStore
 {
@@ -14,7 +13,6 @@ public sealed partial class PopulationStore
         // In your raid or waiting on a post-raid story. Stories and observations move it, not the world tick.
         public bool Held;
         public bool WantsOffline;
-        // What a career in the menu is busy with, e.g. Selling on the flea or AFK.
         public string Doing = "";
         // Careers queueing and playing together, including this one.
         public string[] Party = [];
@@ -117,7 +115,6 @@ public sealed partial class PopulationStore
             "Survivor" => map.Id is "woods" or "shoreline" or "lighthouse" or "rezervbase" ? 1.3 : 1,
             _ => 1
         };
-        // Everyone has a couple of favourite maps.
         return weight * (.6 + Stable(c.Id + ":map:" + map.Id) * .8);
     }
 
@@ -147,10 +144,8 @@ public sealed partial class PopulationStore
         .Where(o => !o.Finished && now - o.LastReportUtc < 180 && encounters.ContainsKey(o.AccountId))
         .Select(o => encounters[o.AccountId].CareerId).ToHashSet();
 
-    // Busy maps fill a lobby fast. Quiet ones keep you waiting.
     private int QueueSeconds(string map, Dictionary<string, int>? counts = null)
     {
-        // No lobby to fill on a solo map, so the match is found almost at once.
         if (FindMap(map)?.Solo == true) return (int)Math.Clamp(5 * policy.World.QueueTimeMultiplier, 3, 600);
         var playing = counts ?? PlayingCounts();
         double average = worldMaps.Count == 0 ? 1 : (double)playing.Where(p => worldMaps.Any(m => m.Id == p.Key)).Sum(p => p.Value) / worldMaps.Count;
@@ -262,7 +257,6 @@ public sealed partial class PopulationStore
                         else { a.Until = now + Random.Shared.Next(60, 181); a.Doing = "Gearing up"; }
                         break;
                     }
-                    // Another errand now and then before the next raid.
                     if (a.Doing is not ("AFK" or "Waiting for squad") && Random.Shared.NextDouble() < .25) { NextErrand(c, a, now); break; }
                     if (TryQueueSquad(c, a, now)) break;
                     if (PickMap(c) is not { } map) { a.Until = now + 120; break; }
@@ -354,7 +348,6 @@ public sealed partial class PopulationStore
         bool wanted = a.WantsOffline;
         EnterMenu(c, a, now, died);
         bool quit = died && AfterDeath(c, now);
-        // Near the end of a session one more raid is rarely worth it. Now and then something comes up anyway.
         a.WantsOffline = wanted || quit || now >= c.SessionEndUtc - 900 && !Tilted(c)
             || Random.Shared.NextDouble() < policy.World.LogOffChance * .12;
         c.IsOnline = true;
@@ -364,7 +357,6 @@ public sealed partial class PopulationStore
     {
         c.IsOnline = true;
         if (c.SessionEndUtc <= now) c.SessionEndUtc = RollSessionEnd(c, now);
-        // A night's sleep resets the mood.
         if (now - c.LastOfflineUtc > 4 * 3600) { c.DeathStreak = 0; c.TiltUntilUtc = 0; }
         EnterMenu(c, a, now);
         a.WantsOffline = false;
@@ -392,7 +384,6 @@ public sealed partial class PopulationStore
         Set(a, "Raid", MapKey(map), DateTimeOffset.UtcNow.ToUnixTimeSeconds(), until, held: true);
     }
 
-    // Preference when APBS spawns a PMC into your raid on this map.
     private double RaidWeight(Career c, string map)
     {
         if (!activities.TryGetValue(c.Id, out var a)) return 1;
@@ -425,7 +416,6 @@ public sealed partial class PopulationStore
         var a = activities.GetValueOrDefault(c.Id);
         if (a is null || c.Retired || a.State == "Offline")
             return now - c.DiedUtc < 1800 && c.NeedsRegear ? ("Died", "", "", c.DiedUtc) : ("Offline", "", "", a?.Since ?? 0);
-        // Status is the detail next to the state label in the editor.
         string map = MapLabel(a.Map);
         return a.State switch
         {

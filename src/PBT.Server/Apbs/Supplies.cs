@@ -39,7 +39,6 @@ public sealed partial class PopulationStore
         }
         string[] allKits = [Ai2, Car, Salewa, Ifak, Afak, Grizzly];
         Want(allKits, Pick(Medkits[tier]));
-        // Rich players run two kits.
         if (tier >= 3 && Roll(.4)) plan.Add((Pick(Medkits[tier]), MedSlots));
         Want([Bandage, Esmarch, Cat, Calok], Pick(Bleeds[tier]));
         if (Roll(.7)) Want([Splint, AluSplint], tier >= 3 ? AluSplint : Splint);
@@ -58,7 +57,7 @@ public sealed partial class PopulationStore
         return plan;
     }
 
-    // Caller holds no locks. Ammo stays in the container, the AI reloads from it.
+    // Caller holds no locks. The AI reloads from the container ammo.
     internal void StockSupplies(Career c, BotBaseInventory inventory, MongoId botId)
     {
         if (!policy.RealisticSupplies || inventory.Items is null || inventory.Equipment is null) return;
@@ -88,7 +87,6 @@ public sealed partial class PopulationStore
                 var upd = itemHelper.GenerateUpdForItem(template) ?? new Upd();
                 upd.StackObjectsCount = 1;
                 var item = new Item { Id = new MongoId(), Template = template.Id, Upd = upd };
-                // No room means the player left it at home.
                 botGeneratorHelper.AddItemWithChildrenToEquipmentSlot(botId, slots, item.Id, item.Template, [item], inventory);
             }
         }

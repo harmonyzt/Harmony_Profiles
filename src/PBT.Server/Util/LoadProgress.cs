@@ -15,7 +15,6 @@ internal sealed class LoadProgress(ISptLogger<PopulationStore> logger, string la
     {
         done++;
         int step = done * 4 / Math.Max(1, total);
-        // Phases that finish within a couple of seconds stay silent.
         if (step == lastStep || clock.ElapsedMilliseconds < 5000) return;
         lastStep = step;
         reported = true;

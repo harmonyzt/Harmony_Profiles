@@ -85,7 +85,6 @@ public sealed partial class PopulationStore
                     if (!IsId(id) || !templates.Quests.ContainsKey(new MongoId(id))
                         || condition["status"] is not JsonArray statuses || !statuses.Any(s => s?.GetValue<int>() == 4)
                         || CycleHours(c) < policy.MinimumPrestigeCycleHours * (1 + c.PrestigeLevel * .25)) return false;
-                    // These accounts have fictional quest histories. No player quest controller is invoked.
                     break;
                 case "HasItem":
                     if (condition["target"] is not JsonArray { Count: 1 } targets || targets[0]?.ToString() != "5449016a4bdc2d6f028b456f"
@@ -134,7 +133,6 @@ public sealed partial class PopulationStore
             c.SkillCarry = carry;
             c.PrestigeLevel = i + 1;
             c.PrestigeCycleStartSeconds = TotalSeconds(c);
-            // Dated once the account's registration is known.
             c.PrestigeHistory.Add(new(c.PrestigeLevel, definition["id"]!.ToString(), 0, TotalSeconds(c) / 3600, experience, 0));
         }
     }
@@ -196,7 +194,6 @@ public sealed partial class PopulationStore
         if (IsId(definitionId) && PrestigeHelper.PrestigeAchievements.TryGetValue(new MongoId(definitionId), out var achievement))
             next.Achievements[achievement.ToString()] = now;
         next.PrestigeHistory.Add(new(next.PrestigeLevel, definitionId, now, TotalSeconds(next) / 3600, oldXp, carried.Sum(t => t.Count)));
-        // All eligibility/reset work is staged before replacing the live fictional career fields.
         foreach (var property in typeof(Career).GetProperties()) property.SetValue(c, property.GetValue(next));
         SetEquipment(c, EmptyEquipment());
         var assets = Assets(c);

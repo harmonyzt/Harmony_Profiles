@@ -4,7 +4,7 @@ namespace PBT.Server;
 
 public sealed record WatchedPlayers(List<WorldPlayerRow> Players, List<WorldEvent> Events);
 
-// Players starred in the editor. Kept next to the population, so a wiped Data folder clears them with the careers.
+// Kept in Data, so a wipe clears them with the careers.
 public sealed partial class PopulationStore
 {
     private HashSet<string>? favorites;
@@ -31,7 +31,6 @@ public sealed partial class PopulationStore
             if (!Ready || !population.Careers.ContainsKey(id)) return;
             var set = Favorites();
             if (!(favorite ? set.Add(id) : set.Remove(id))) return;
-            // Drop careers that are gone so the file doesn't collect dead ids.
             set.RemoveWhere(f => !population.Careers.TryGetValue(f, out var c) || c.Retired);
             AtomicFile.Write(FavoritesPath, JsonSerializer.Serialize(set), durable: false, backup: false);
         }

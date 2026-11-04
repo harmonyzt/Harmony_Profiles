@@ -17,8 +17,7 @@ public sealed partial class PopulationStore
         return (trimmed.Length >= 3 ? trimmed : name).ToUpperInvariant();
     }
 
-    // Caller holds the gate. One player per base name and side: the most played keeps it, the rest retire
-    // and leave the bot name pool so SPT stops generating them. Both sides share SPT's pool, so sides stay apart.
+    // Caller holds the gate. The most played keeps a base name, the rest retire and leave SPT's name pool.
     private void RetireNameVariants(IEnumerable<(string Side, List<string> Names)> pools)
     {
         var variants = population.Careers.Values.Where(c => !c.Retired).GroupBy(c => NameKey(c.Side, BaseName(c.SourceName)))
@@ -45,7 +44,6 @@ public sealed partial class PopulationStore
         var players = saves.GetProfiles().Values.Select(p => p.CharacterData?.PmcData?.Info?.Nickname)
             .Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => NameKey("", n!)).ToHashSet();
         occupiedNicknames.UnionWith(players);
-        // Reserve every existing public name before allocating suffixes. Retired accounts keep theirs.
         foreach (var group in groups) occupiedNicknames.Add(group.Key);
         int changed = 0;
         foreach (var group in groups)
@@ -61,7 +59,6 @@ public sealed partial class PopulationStore
     private string AllocateNickname(string source)
     {
         if (occupiedNicknames.Add(NameKey("", source))) return source;
-        // Only generated collision names are shortened. Existing unique mod names stay intact.
         for (int index = 2; index < int.MaxValue; index++)
         {
             string suffix = "_" + index.ToString(CultureInfo.InvariantCulture);

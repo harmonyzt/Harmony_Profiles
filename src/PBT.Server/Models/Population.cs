@@ -96,7 +96,7 @@ public sealed class Career
     public ObservedCareer Observed { get; set; } = new();
     public double WealthRubles { get; set; }
     public double HideoutInvestment { get; set; }
-    // Hideout area type to built level. Zero levels are left out.
+    // Zero levels are left out.
     public Dictionary<int, int> AreaLevels { get; set; } = new();
     public string CustomizationStashId { get; set; } = "";
     public Dictionary<string, long> Achievements { get; set; } = new();
@@ -115,7 +115,6 @@ public sealed class Career
     public long TiltUntilUtc { get; set; }
     public int QuestsDone { get; set; }
     public long BannedUtc { get; set; }
-    // Newest first, for the profile page.
     public List<GearEvent> GearHistory { get; set; } = new();
 }
 

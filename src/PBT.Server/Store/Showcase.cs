@@ -343,7 +343,7 @@ public sealed partial class PopulationStore
 
     private bool RackFull(Career c) => c.ShowcaseAreas.Count(p => p.Value == 24) >= ShowcaseTarget(c, 24);
 
-    // The checkpoint queue handles one career every 30 seconds, so viewed racks used to stay empty. Fill them on view.
+    // The checkpoint queue is too slow for viewed racks, so fill them on view.
     private void ShowcaseForView(int accountId, MongoId session)
     {
         Career? career;

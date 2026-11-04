@@ -27,7 +27,6 @@ public sealed partial class PopulationStore
 
     private int DesiredHideoutLevel(Career c, int type, double hours, int maximum)
     {
-        // Edition privileges are applied separately. Events and wall history are never fabricated here.
         if (type == 3) return maximum;
         var cohort = HideoutCohorts.Value.First(b => Level(c.Experience) <= b.MaximumLevel);
         if (!cohort.Modules.TryGetValue(type, out var prior)) return maximum;

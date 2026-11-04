@@ -16,7 +16,6 @@ public sealed record RaidObservation
     public int ScavKills { get; set; }
     public int UsecKills { get; set; }
     public int BearKills { get; set; }
-    // Context for bot messages, from the reporting player's point of view.
     public bool KilledByPlayer { get; set; }
     public bool KilledPlayer { get; set; }
     public bool NearExtract { get; set; }

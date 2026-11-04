@@ -38,7 +38,6 @@ public sealed partial class PopulationStore
             int deaths = Math.Max(0, c.Raids - c.Survived);
             c.WealthRubles = Math.Clamp(100000 + c.Survived * RaidIncome(c, level, true) - deaths * RaidIncome(c, level, false), 100000, MaximumWealth);
         }
-        // Edition migration raises native starting privileges without resetting existing construction.
         foreach (var baseline in native["Hideout"]!["Areas"]!.AsArray().OfType<JsonObject>())
         {
             int type = baseline["type"]!.GetValue<int>(), level = baseline["level"]!.GetValue<int>();
@@ -176,7 +175,6 @@ public sealed partial class PopulationStore
         var allAreas = HideoutAreas();
         var levels = new Dictionary<int, int>(c.AreaLevels);
         foreach (var area in allAreas) levels.TryAdd((int)area.Type!.Value, 0);
-        // Advance one stage at a time until all admitted dependencies settle. Unknown requirements block locally.
         bool upgraded;
         do
         {
@@ -205,7 +203,7 @@ public sealed partial class PopulationStore
             if (level > 0) c.AreaLevels[type] = level;
     }
 
-    // The profile view's hideout, built from the stored area levels. Root IDs are stable per career.
+    // Root IDs are stable per career.
     private (JsonObject Hideout, JsonObject AreaStashes, JsonArray Items) BuildHideout(Career c)
     {
         var result = NativeCharacter(c.Side, c.Edition)["Hideout"]!.DeepClone().AsObject();
@@ -257,7 +255,6 @@ public sealed partial class PopulationStore
                     if (r.AreaType is not int type || levels.GetValueOrDefault(type) < (r.RequiredLevel ?? 0)) return double.PositiveInfinity;
                     break;
                 case "Skill":
-                    // A conservative progress threshold for the low native Hideout skill requirements.
                     if (SkillProgress(c, r.SkillName) < (r.SkillLevel ?? 0) * 100) return double.PositiveInfinity;
                     break;
                 case "TraderLoyalty":
@@ -266,7 +263,7 @@ public sealed partial class PopulationStore
                     break;
                 case "Item":
                     if (!templates.Items.ContainsKey(r.TemplateId) || r.Count is not int count || count < 0) return double.PositiveInfinity;
-                    // Money has no flea price. The old 10k fallback made every rouble cost 10k.
+                    // Money has no flea price.
                     double price = templates.Prices.TryGetValue(r.TemplateId, out double flea) ? flea
                         : HandbookPrices().GetValueOrDefault(r.TemplateId.ToString(), 10000);
                     cost += Math.Max(1, price) * count;
@@ -302,7 +299,7 @@ public sealed partial class PopulationStore
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, double> stableCache = new();
 
-    // A SHA256 per call added up on the world tick and server counts. Keys with timestamps keep coming, so the cache is capped.
+    // Cached, the hash added up on the world tick. Timestamped keys keep coming, so it is capped.
     private static double Stable(string key)
     {
         if (stableCache.TryGetValue(key, out double value)) return value;

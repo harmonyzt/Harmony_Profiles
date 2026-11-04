@@ -129,7 +129,7 @@ public sealed partial class PopulationStore
     private object? observedActiveSource;
     private int observedActiveCount;
 
-    // Scanning every receipt per career ran careers x receipts on each checkpoint. One set per second covers it.
+    // One set per second instead of a receipt scan per career.
     private bool IsObservedActive(Career c, long now)
     {
         var receipts = population.RaidObservations;
@@ -155,7 +155,6 @@ public sealed partial class PopulationStore
             {
                 if (Random.Shared.NextDouble() < SessionStartChance(c, interval)) GoOnline(c, a, now);
             }
-            // A session ends when its time is up, finishing the raid it is in first.
             else if (SessionOver(c, now))
             {
                 if (a.State == "Menu" && !a.Held) GoOffline(c, a, now);

@@ -30,7 +30,6 @@ public sealed partial class PopulationStore
         return GearItems(equipment).FirstOrDefault(i => i["parentId"]?.ToString() == root && i["slotId"]?.ToString() == slot)?["_tpl"]?.ToString();
     }
 
-    // The slot items and everything inside them.
     private static List<JsonObject> Subtree(JsonObject equipment, IEnumerable<string> slots)
     {
         string root = equipment["Id"]!.ToString();
@@ -63,7 +62,7 @@ public sealed partial class PopulationStore
         });
     }
 
-    // What the worn kit would cost to buy. The secure container and dogtag are not for sale.
+    // The secure container and dogtag are not for sale.
     private double KitValue(JsonObject equipment) => ValidEquipment(equipment)
         ? GearValue(Subtree(equipment, ["FirstPrimaryWeapon", "SecondPrimaryWeapon", "Holster", "Scabbard", "TacticalVest", "ArmorVest",
             "Pockets", "Backpack", "Headwear", "Earpiece", "FaceCover", "Eyewear", "ArmBand"])) : 0;
@@ -75,7 +74,6 @@ public sealed partial class PopulationStore
     private string[] GroupSlots(GearGroup group, JsonObject a, JsonObject b) =>
         group.Name == "weapon" && (BlocksArmor(a) || BlocksArmor(b)) ? [.. group.Slots, "ArmorVest"] : group.Slots;
 
-    // Replaces the slots in the target kit with the source's, under fresh ids.
     private static JsonObject SwapGroup(JsonObject target, JsonObject source, string[] slots)
     {
         string root = target["Id"]!.ToString();
@@ -127,7 +125,6 @@ public sealed partial class PopulationStore
         if (c.GearHistory.Count > GearHistorySize) c.GearHistory.RemoveRange(GearHistorySize, c.GearHistory.Count - GearHistorySize);
     }
 
-    // Nothing worth buying this time: keep the kit and look again after the next raids.
     private void KeepGear(Career c, long now)
     {
         c.GearPending = false;
@@ -136,7 +133,7 @@ public sealed partial class PopulationStore
         dirty = true;
     }
 
-    // Caller holds the gate. One group from the fresh APBS roll replaces the worn one if it is better and affordable.
+    // Caller holds the gate.
     private JsonObject? UpgradeGear(Career c, JsonObject candidate, long now)
     {
         var current = CareerEquipment(c);
@@ -179,7 +176,6 @@ public sealed partial class PopulationStore
         string gun = ValidEquipment(previous) ? GearName(previous, "FirstPrimaryWeapon") : "";
         double roll = Random.Shared.NextDouble();
         bool insured = roll < policy.InsuranceReturnChance;
-        // Those who can afford it buy the loadout they know.
         bool usual = !insured && roll < policy.InsuranceReturnChance + .25 && FortuneTiers(c, false) >= 0;
         if (gun.Length > 0 && (insured || usual))
         {

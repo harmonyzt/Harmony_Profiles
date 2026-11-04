@@ -14,7 +14,7 @@ public sealed partial class PopulationStore
             ClearLobby(session.ToString());
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             population.SessionEndedUtc[session.ToString()] = now;
-            // Not seen in this raid yet. The client's last report can still arrive, so the world tick releases them in a minute and a half.
+            // The client's last report can still arrive, so the world tick releases them in 90 s.
             foreach (var e in encounters.Values.Where(e => e.SessionId == session.ToString() && now - e.GeneratedUtc < 10800
                 && !population.RaidObservations.ContainsKey(e.AccountId) && !population.PendingStories.ContainsKey(e.AccountId)))
             {

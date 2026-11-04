@@ -26,7 +26,6 @@ public sealed partial class PopulationStore
 
     private bool IsCheater(Career c) => policy.Cheaters.Enabled && c.Cheater && c.BannedUtc == 0;
 
-    // Tilted players take worse fights.
     private double Survival(Career c) => IsCheater(c) ? policy.Cheaters.Survival : c.SurvivalChance * (Tilted(c) ? .8 : 1);
 
     private void ProcessCheaters(long now)
@@ -111,7 +110,7 @@ public sealed partial class PopulationStore
         {
             if (!Ready || !policy.Cheaters.Enabled || !encounters.TryGetValue(account, out var e) || !CanAccess(e, session)
                 || !population.Careers.TryGetValue(e.CareerId, out var career)) return;
-            // Already banned. Each new report used to pay the reward again.
+            // Already banned, or every new report pays again.
             if (career.BannedUtc > 0) return;
             string sid = session.ToString();
             if (population.CheaterReports.Values.Any(r => r.SessionId == sid && r.CareerId == career.Id)) return;
@@ -138,7 +137,6 @@ public sealed partial class PopulationStore
         {
             population.CheaterReports.Remove(id);
             dirty = true;
-            // Reports on legit players simply go nowhere, like the real thing.
             if (!population.Careers.TryGetValue(report.CareerId, out var c) || !c.Cheater) continue;
             if (c.BannedUtc == 0)
             {

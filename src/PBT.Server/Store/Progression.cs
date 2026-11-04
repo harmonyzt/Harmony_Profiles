@@ -44,7 +44,6 @@ public sealed partial class PopulationStore
         return survived ? earned : earned * x.DeathShare;
     }
 
-    // Expected raids for this account's survival rate to earn the given experience, level by level.
     private double RaidsToReach(Career c, int experience)
     {
         double raids = 0, p = Survival(c);

@@ -78,13 +78,11 @@ public sealed class SimulationPolicy
     public int RackTierBoostMaximum { get; set; } = 3;
     // Share of generated profile loadouts rolled as night raid kits, so some accounts carry NVGs.
     public double NightGearChance { get; set; } = .3;
-    // Survivors keep their kit and buy one better piece at a time. The dead rebuy, often keeping their usual gun.
     public bool GearProgression { get; set; } = true;
     public double GearUpgradeChance { get; set; } = .35;
     public double InsuranceReturnChance { get; set; } = .3;
     // In-raid spawns of a selected career wear the loadout its profile shows instead of a fresh APBS roll.
     public bool RetainProfileGearInRaid { get; set; } = true;
-    // Careers carry meds and grenades that fit their wallet in rig and pockets, not SPT's ten secure-container AFAKs.
     public bool RealisticSupplies { get; set; } = true;
     public bool EnablePostRaidStories { get; set; } = true;
     public double PostRaidDeathChance { get; set; } = .35;
@@ -158,15 +156,12 @@ public sealed class InitialPrestigeSettings
 
 public sealed class WorldSettings
 {
-    // Survivors left in a raid that move on to a connected map with their gear.
     public double TransitChance { get; set; } = .15;
     // Accounts that log off after a raid instead of queueing again. Deaths log off a bit more.
     public double LogOffChance { get; set; } = .25;
     // Popularity of a map whose headline boss is guaranteed (a weekly boss rotation sets it to 100%).
     public double WeeklyBossBoost { get; set; } = 1.6;
-    // Streamers and chads crowd Labs, Streets and Customs and turn up in your raids there more.
     public double StreamerMapBoost { get; set; } = 2.5;
-    // Names like FactoryRat or CustomsMain play that map more and spawn there more.
     public double NameMapBoost { get; set; } = 4;
     public double QueueTimeMultiplier { get; set; } = 1;
     // Fewer careers online late at night (your local time), more on evenings and weekends.
@@ -176,9 +171,7 @@ public sealed class WorldSettings
     public int MaximumMatchingSeconds { get; set; } = 45;
     // Where you play from (EU, US or Asia). Sets your ping to each server and which ones you match into.
     public string Location { get; set; } = "EU";
-    // Ping and packet loss in raid, from the server you matched into.
     public bool SimulateConnection { get; set; } = true;
-    // Bad servers can drop you from the raid (Server connection lost, MIA).
     public bool ConnectionLossEvents { get; set; }
 
     public void Validate()
@@ -202,7 +195,6 @@ public sealed class CheaterHelmet
 public sealed class CheaterSettings
 {
     public bool Enabled { get; set; } = true;
-    // Share of active careers that cheat.
     public double Share { get; set; } = .01;
     public double Survival { get; set; } = .92;
     public double KillMultiplier { get; set; } = 4;
@@ -243,7 +235,6 @@ public sealed class BotMessageSettings
     public bool Enabled { get; set; } = true;
     // Chance per notable event. A squad wipe counts three times.
     public double Chance { get; set; } = .05;
-    // Careers never send SPT's own repetitive victim and killer messages.
     public bool ReplaceNativeMessages { get; set; } = true;
     public int MinimumDelaySeconds { get; set; } = 30;
     public int MaximumDelaySeconds { get; set; } = 240;
@@ -263,7 +254,6 @@ public sealed class NotableNameSettings
     public double SkillBonus { get; set; } = .3;
     public int TierBoostMinimum { get; set; } = 1;
     public int TierBoostMaximum { get; set; } = 2;
-    // Streamers named in the editor, on top of the chad and TTV/YT/TV tags.
     public List<string> ExtraNames { get; set; } = new();
 
     public void Validate()

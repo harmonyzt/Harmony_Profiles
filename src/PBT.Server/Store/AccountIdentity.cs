@@ -10,7 +10,6 @@ public sealed partial class PopulationStore
     private void EnsureAccountIdentity(Career career)
     {
         if (career.Edition.Length > 0) return;
-        // Stable account identity, separate from member badges and fictional progression.
         double roll = Stable(career.Id + ":edition");
         string edition = roll < .38 ? editions[0] : roll < .48 ? editions[1] : roll < .58 ? editions[2]
             : roll < .83 ? editions[3] : editions[4];

@@ -12,7 +12,7 @@ public sealed partial class PopulationStore
         || name.StartsWith("ttv", StringComparison.OrdinalIgnoreCase)
         || NameWords.Matches(name).Any(m => m.Value.ToLowerInvariant() is "ttv" or "yt" or "tv");
 
-    // Names never change, and the regex ran for every career on every PMC pick.
+    // Cached, the regex ran for every career on every PMC pick.
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> notableCache = new();
 
     private bool Notable(Career c) => policy.NotableNames.Enabled
@@ -22,7 +22,7 @@ public sealed partial class PopulationStore
     private sealed record StreamerSet(List<string> Source, HashSet<string> Names);
     private volatile StreamerSet? extraStreamers;
 
-    // Rebuilt only when a saved policy brings a new list. One reference swap, since raid spawns read it outside the gate.
+    // One reference swap, since raid spawns read it outside the gate.
     private HashSet<string> ExtraStreamers()
     {
         var list = policy.NotableNames.ExtraNames;

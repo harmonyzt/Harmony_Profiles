@@ -135,7 +135,7 @@ public sealed class Plugin : BaseUnityPlugin
             || killer.Profile.Side is not (EPlayerSide.Bear or EPlayerSide.Usec)) return;
         try
         {
-            // ProfileDescriptor owns the native item serialization. Never serialize live Unity item objects directly.
+            // Never serialize live Unity item objects directly.
             var descriptor = new ProfileDescriptor(killer.Profile, VisualsOnlySearchController.Instance);
             var profile = descriptor.ToUnparsedData(Array.Empty<JsonConverter>()).JObject;
             if (profile["Inventory"] is not JObject inventory
@@ -202,7 +202,6 @@ public sealed class Plugin : BaseUnityPlugin
         ClientBackendSession session, string account, Task upload)
     {
         await upload;
-        // The upload is now complete, so the prefix permits this native request.
         return await session.GetOtherPlayerProfile(account);
     }
 

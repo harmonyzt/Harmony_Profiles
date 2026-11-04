@@ -91,7 +91,6 @@ public sealed partial class PopulationStore
         }
     }
 
-    // Saves the editor's values as the live settings and as a preset, then selects it.
     public void SavePreset(string name, bool overwrite, string personalitiesJson, string simulationJson, string settingsJson, string[] revisions)
     {
         lock (gate)
