@@ -29,6 +29,8 @@ public sealed partial class PopulationStore
             || ApbsIntegration.Current is not { LevelConfirmed: true, Career: { } career }) return;
         try { store.WearProfileLoadout(career, __result, botId, sessionId, botJsonTemplate, botGenerationDetails); }
         catch (Exception ex) { store.Report(ex); }
+        try { store.StockSupplies(career, __result, botId); }
+        catch (Exception ex) { store.Report(ex); }
     }
 
     // Profile loadouts are only weapons and gear, so simulated ones get APBS loot added on top.

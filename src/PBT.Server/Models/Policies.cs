@@ -84,6 +84,8 @@ public sealed class SimulationPolicy
     public double InsuranceReturnChance { get; set; } = .3;
     // In-raid spawns of a selected career wear the loadout its profile shows instead of a fresh APBS roll.
     public bool RetainProfileGearInRaid { get; set; } = true;
+    // Careers carry meds and grenades that fit their wallet in rig and pockets, not SPT's ten secure-container AFAKs.
+    public bool RealisticSupplies { get; set; } = true;
     public bool EnablePostRaidStories { get; set; } = true;
     public double PostRaidDeathChance { get; set; } = .35;
     public double PostRaidRegearChance { get; set; } = .3;
