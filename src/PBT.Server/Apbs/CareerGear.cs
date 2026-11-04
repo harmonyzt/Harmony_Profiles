@@ -51,8 +51,9 @@ public sealed partial class PopulationStore
     // A dead account stays naked for a while, then turns up in a new kit.
     private static long RegearDelay(Career c) => 1200 + (long)(Stable(c.Id + ":regear:" + c.DiedUtc) * 2400);
 
-    // Out of the menu only once the new kit exists, or a profile in a raid shows up naked. The cap covers a stalled gear worker.
-    private static bool WaitingForGear(Career c, long now) => c.NeedsRegear && now - c.DiedUtc < RegearDelay(c) + 7200;
+    // Only the regear delay holds a career in the menu. Waiting for APBS too stranded thousands for hours, since the world
+    // dies faster than the worker can roll kits. A profile view or raid spawn makes the kit on demand anyway.
+    private static bool WaitingForGear(Career c, long now) => c.NeedsRegear && now - c.DiedUtc < RegearDelay(c);
 
     private static bool WantsGear(Career c, long now) => !c.Retired
         && (c.GearVersion == 0 && c.LastEquipmentAccount == 0 || c.NeedsRegear && now - c.DiedUtc >= RegearDelay(c));
@@ -133,7 +134,7 @@ public sealed partial class PopulationStore
         {
             gearRequests.Remove(id);
             if (!Ready || !population.Careers.TryGetValue(id, out var career)
-                || now < career.NextGearAttemptUtc || GearBlocked(career, now, false)) continue;
+                || now < career.NextGearAttemptUtc || GearBlocked(career, now, false)) { gearStats[1]++; continue; }
             career.NextGearAttemptUtc = now + 60;
             result.Add(new(career, session, career.LastEquipmentOrder, career.LastGearUpdateUtc));
         }
@@ -147,7 +148,7 @@ public sealed partial class PopulationStore
         try { equipment = GenerateIsolatedEquipment(request.Career, request.Session); }
         catch (Exception ex)
         {
-            lock (gate) GearFailed(request.Career, ex);
+            lock (gate) { gearStats[2]++; GearFailed(request.Career, ex); }
             return;
         }
         lock (gate)
@@ -155,9 +156,9 @@ public sealed partial class PopulationStore
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             // An encounter may have replaced the loadout while APBS was running. Keep the newer one.
             if (!Ready || request.Career.LastEquipmentOrder != request.Order || request.Career.LastGearUpdateUtc != request.UpdatedUtc
-                || GearBlocked(request.Career, now, false)) return;
-            try { ApplyGear(request.Career, equipment, now); }
-            catch (Exception ex) { GearFailed(request.Career, ex); }
+                || GearBlocked(request.Career, now, false)) { gearStats[3]++; return; }
+            try { ApplyGear(request.Career, equipment, now); gearStats[4]++; }
+            catch (Exception ex) { gearStats[5]++; GearFailed(request.Career, ex); }
         }
     }
 
@@ -188,9 +189,13 @@ public sealed partial class PopulationStore
     private const int GearBatch = 10;
     private const int UpgradeSlots = 3;
 
+    // queued, skipped at take, APBS failed, stale after APBS, applied, apply failed
+    private readonly long[] gearStats = new long[6];
+    private long gearStatsUtc;
+
     private void ProcessPendingGear(long now)
     {
-        if (GearSession() is not MongoId session) return;
+        if (GearSession() is not MongoId session) { if (now - gearStatsUtc >= 1800) { gearStatsUtc = now; logger.Warning("[PBT] Gear worker idle: no profile session to generate with."); } return; }
         // The dead regear offline too, or they log back in naked. GearPending can be cleared by a seen loadout while still dead.
         var due = population.Careers.Values.Where(c => !c.Retired
                 && (c.NeedsRegear ? WantsGear(c, now) : c.IsOnline && c.GearPending)
@@ -202,7 +207,14 @@ public sealed partial class PopulationStore
         // A backlog of the dead must not starve the shoppers, so a few slots are theirs.
         var shoppers = due.Where(Upgrading).OrderBy(c => c.LastGearUpdateUtc).ThenBy(c => c.AccountId).Take(UpgradeSlots).ToList();
         foreach (var career in shoppers.Concat(due.Where(c => !Upgrading(c)).OrderByDescending(c => c.NeedsRegear)
-                .ThenBy(c => c.LastGearUpdateUtc).ThenBy(c => c.AccountId).Take(GearBatch - shoppers.Count)))
-            gearRequests.TryAdd(career.Id, session);
+                .ThenByDescending(c => c.IsOnline).ThenBy(c => c.LastGearUpdateUtc).ThenBy(c => c.AccountId).Take(GearBatch - shoppers.Count)))
+            if (gearRequests.TryAdd(career.Id, session)) gearStats[0]++;
+        if (now - gearStatsUtc >= 1800)
+        {
+            gearStatsUtc = now;
+            logger.Info($"[PBT] Gear worker: {due.Count} due ({due.Count(c => c.NeedsRegear)} dead), {population.Careers.Values.Count(c => !c.Retired && c.NeedsRegear)} dead in total, {population.Careers.Values.Count(c => !c.Retired && WaitingForGear(c, now))} held by the regear delay, "
+                + $"last 30 min queued {gearStats[0]}, skipped {gearStats[1]}, APBS failed {gearStats[2]}, stale {gearStats[3]}, applied {gearStats[4]}, apply failed {gearStats[5]}.");
+            Array.Clear(gearStats);
+        }
     }
 }
