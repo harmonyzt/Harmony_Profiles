@@ -494,7 +494,9 @@
 }
 
 .pbt-editor .fb-card>h2+.fb-muted {
-    margin-bottom: 4px
+    margin-bottom: 4px;
+    color: var(--fb-text);
+    line-height: 1.6
 }
 
 .pbt-editor .fb-flush {
