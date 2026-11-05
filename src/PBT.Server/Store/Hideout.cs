@@ -12,17 +12,18 @@ public sealed partial class PopulationStore
         public int MaximumLevel { get; set; }
         public Dictionary<int, HideoutPrior> Modules { get; set; } = new();
     }
+
     private sealed class HideoutPrior
     {
         public double BuiltChance { get; set; }
         public double MeanLevel { get; set; }
     }
+
     private static readonly Lazy<List<HideoutCohort>> HideoutCohorts = new(() =>
     {
         using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("PBT.Server.Calibration.hideout-priors.json")
-            ?? throw new InvalidDataException("Hideout calibration is missing.");
-        return JsonSerializer.Deserialize<List<HideoutCohort>>(stream)
-            ?? throw new InvalidDataException("Hideout calibration is empty.");
+                           ?? throw new InvalidDataException("Hideout calibration is missing.");
+        return JsonSerializer.Deserialize<List<HideoutCohort>>(stream) ?? throw new InvalidDataException("Hideout calibration is empty.");
     });
 
     private int DesiredHideoutLevel(Career c, int type, double hours, int maximum)
@@ -54,8 +55,8 @@ public sealed partial class PopulationStore
             if (career is null && encounters.TryGetValue(aid, out var encounter) && CanAccess(encounter, session))
                 population.Careers.TryGetValue(encounter.CareerId, out career);
             if (career is null) return new(1, true, false, "This account is unavailable.");
-            bool accepted = SocialReady && population.Friendships.TryGetValue(session.ToString(), out var friends)
-                && friends.TryGetValue(career.Id, out var link) && link.Accepted && !link.Removed && !link.Cancelled;
+            bool accepted = SocialReady && population.Friendships.TryGetValue(session.ToString(), out var friends) && friends.TryGetValue(career.Id, out var link) && link.Accepted
+                            && !link.Removed && !link.Cancelled;
             return new(1, true, accepted, accepted ? "Visit your friend's Hideout." : "Become accepted friends to enter. Overview remains available.");
         }
     }

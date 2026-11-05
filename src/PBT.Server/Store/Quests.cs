@@ -6,6 +6,7 @@ namespace PBT.Server;
 public sealed partial class PopulationStore
 {
     private sealed record QuestNode(string Id, string Name, int Level, string[] Requires);
+
     private List<QuestNode>? questCatalog;
 
     private List<QuestNode> QuestCatalog()
@@ -19,14 +20,16 @@ public sealed partial class PopulationStore
             if (quest.GameModes is { Count: > 0 }) continue;
             string id = quest.Id.ToString();
             var start = JsonNode.Parse(json.Serialize(quest.Conditions)!)?["AvailableForStart"]?.AsArray() ?? [];
-            int level = start.OfType<JsonObject>().Where(c => c["conditionType"]?.ToString() == "Level")
-                .Select(c => (int)(c["value"]?.GetValue<double>() ?? 0)).DefaultIfEmpty(1).Max();
-            var requires = start.OfType<JsonObject>().Where(c => c["conditionType"]?.ToString() == "Quest")
-                .Select(c => c["target"]?.ToString()).Where(t => t is not null).Select(t => t!).ToArray();
+            int level = start.OfType<JsonObject>().Where(c => c["conditionType"]?.ToString() == "Level").Select(c => (int)(c["value"]?.GetValue<double>() ?? 0)).DefaultIfEmpty(1)
+                .Max();
+            var requires = start.OfType<JsonObject>().Where(c => c["conditionType"]?.ToString() == "Quest").Select(c => c["target"]?.ToString()).Where(t => t is not null)
+                .Select(t => t!).ToArray();
             raw[id] = (names.GetValueOrDefault(id + " name") ?? quest.QuestName ?? id, Math.Max(1, level), requires);
         }
+
         // A quest cannot come before its chain does, so it inherits the highest level up the chain.
         var levels = new Dictionary<string, int>();
+
         int Effective(string id, int depth)
         {
             if (levels.TryGetValue(id, out int known)) return known;
@@ -34,14 +37,20 @@ public sealed partial class PopulationStore
             int level = q.Requires.Where(raw.ContainsKey).Select(r => Effective(r, depth + 1)).Append(q.Level).Max();
             return levels[id] = level;
         }
-        questCatalog = raw.Select(p => new QuestNode(p.Key, p.Value.Name, Effective(p.Key, 0), p.Value.Requires.Where(raw.ContainsKey).ToArray()))
-            .OrderBy(q => q.Level).ToList();
+
+        questCatalog = raw.Select(p => new QuestNode(p.Key, p.Value.Name, Effective(p.Key, 0), p.Value.Requires.Where(raw.ContainsKey).ToArray())).OrderBy(q => q.Level).ToList();
         return questCatalog;
     }
 
     private double QuestDrive(Career c)
     {
-        double share = c.Archetype switch { "Timmy" => .35, "Aggressive" => .45, "Survivor" => .75, _ => .55 };
+        double share = c.Archetype switch
+        {
+            "Timmy" => .35,
+            "Aggressive" => .45,
+            "Survivor" => .75,
+            _ => .55
+        };
         share += (Stable(c.Id + ":quests") - .5) * .3 + (Notable(c) ? .1 : 0) - (IsCheater(c) ? .35 : 0);
         return Math.Clamp(share, .05, 1);
     }
@@ -60,8 +69,8 @@ public sealed partial class PopulationStore
         var waiting = open.ToDictionary(q => q.Id, q => q.Requires.Count(ids.Contains));
         var unlocks = new Dictionary<string, List<QuestNode>>();
         foreach (var q in open)
-            foreach (var r in q.Requires.Where(ids.Contains))
-                (unlocks.TryGetValue(r, out var list) ? list : unlocks[r] = new()).Add(q);
+        foreach (var r in q.Requires.Where(ids.Contains))
+            (unlocks.TryGetValue(r, out var list) ? list : unlocks[r] = new()).Add(q);
         var ready = new PriorityQueue<QuestNode, double>();
         double Key(QuestNode q) => q.Level + Stable(c.Id + ":quest:" + q.Id) * 6;
         foreach (var q in open.Where(q => waiting[q.Id] == 0)) ready.Enqueue(q, Key(q));
@@ -71,8 +80,10 @@ public sealed partial class PopulationStore
             done.Add(next);
             if (!unlocks.TryGetValue(next.Id, out var after)) continue;
             foreach (var q in after)
-                if (--waiting[q.Id] == 0) ready.Enqueue(q, Key(q));
+                if (--waiting[q.Id] == 0)
+                    ready.Enqueue(q, Key(q));
         }
+
         return done;
     }
 
@@ -80,7 +91,12 @@ public sealed partial class PopulationStore
     {
         int target = (int)Math.Round(QuestsInReach(c) * QuestDrive(c));
         // Prestige wipes quests, so the count can fall.
-        if (target <= c.QuestsDone) { c.QuestsDone = target; return; }
+        if (target <= c.QuestsDone)
+        {
+            c.QuestsDone = target;
+            return;
+        }
+
         var done = QuestOrder(c, target);
         if (log && done.Count > c.QuestsDone)
         {
@@ -88,6 +104,7 @@ public sealed partial class PopulationStore
             string more = fresh.Count > 1 ? $" and {fresh.Count - 1} more" : "";
             Log("quest", $"{c.Name} completed {fresh[^1].Name}{more}");
         }
+
         c.QuestsDone = done.Count;
     }
 

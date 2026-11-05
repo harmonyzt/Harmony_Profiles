@@ -13,12 +13,16 @@ public sealed class Population
     public Dictionary<string, long> SessionEndedUtc { get; set; } = new();
     public long LastSimulationUtc { get; set; }
     public long LastGenerationOrder { get; set; }
+
     public Dictionary<int, RaidObservation> RaidObservations { get; set; } = new();
+
     // Raid PMCs whose outcome after your raid is still to come, keyed by encounter alias.
     public Dictionary<int, PendingStory> PendingStories { get; set; } = new();
     public Dictionary<string, Career> Careers { get; set; } = new();
     public Dictionary<string, Dictionary<string, Friendship>> Friendships { get; set; } = new();
+
     public Dictionary<string, CheaterReport> CheaterReports { get; set; } = new();
+
     // Last death per player session, so a report can hand back what that raid cost.
     public Dictionary<string, RaidLoss> RaidLosses { get; set; } = new();
 }
@@ -95,7 +99,9 @@ public sealed class Career
     public int DevelopmentVersion { get; set; }
     public ObservedCareer Observed { get; set; } = new();
     public double WealthRubles { get; set; }
+
     public double HideoutInvestment { get; set; }
+
     // Zero levels are left out.
     public Dictionary<int, int> AreaLevels { get; set; } = new();
     public string CustomizationStashId { get; set; } = "";
@@ -126,7 +132,9 @@ public sealed class CareerAssets
     public int SchemaVersion { get; set; } = 1;
     public string CareerId { get; set; } = "";
     public JsonObject Equipment { get; set; } = new();
+
     public JsonArray ShowcaseItems { get; set; } = new();
+
     // Null until a prestige carries items over. Before that the stash is rolled from the native template when needed.
     public JsonObject? Stash { get; set; }
     [JsonIgnore] internal long Version;
@@ -153,7 +161,9 @@ public sealed class Encounter
     public long StoryDueUtc { get; set; }
     public bool KillerCaptured { get; set; }
     public string? RaidId { get; set; }
+
     public string Map { get; set; } = "";
+
     // Equipment lives only in the encounter file once trimmed.
     [JsonIgnore] public bool Trimmed { get; set; }
 }
@@ -161,7 +171,9 @@ public sealed class Encounter
 public sealed class PendingStory
 {
     public string CareerId { get; set; } = "";
+
     public string Map { get; set; } = "";
+
     // Died, Survived or Transit.
     public string Outcome { get; set; } = "Survived";
     public string TransitTo { get; set; } = "";

@@ -9,8 +9,7 @@ public sealed partial class PopulationStore
     {
         lock (gate)
         {
-            if (!Ready || report.ProtocolVersion != 1 || !Guid.TryParseExact(report.RaidId, "N", out _)
-                || report.Bots is null || report.Bots.Count is < 1 or > 512) return 0;
+            if (!Ready || report.ProtocolVersion != 1 || !Guid.TryParseExact(report.RaidId, "N", out _) || report.Bots is null || report.Bots.Count is < 1 or > 512) return 0;
             var previousObservations = population.RaidObservations;
             var next = new Dictionary<int, RaidObservation>(previousObservations);
             var previousCareers = new Dictionary<string, ObservedCareer>();
@@ -27,14 +26,10 @@ public sealed partial class PopulationStore
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             foreach (var incoming in report.Bots)
             {
-                if (incoming is null || !seen.Add(incoming.AccountId)
-                    || !encounters.TryGetValue(incoming.AccountId, out var encounter)
-                    || !CanAccess(encounter, session) || encounter.RuntimeProfileId != incoming.RuntimeProfileId
-                    || !population.Careers.TryGetValue(encounter.CareerId, out var career)
-                    || incoming.ActiveSeconds < 0 || incoming.ActiveSeconds > 21600
-                    || incoming.ActiveSeconds > Math.Max(0, now - encounter.GeneratedUtc) + 60
-                    || incoming.PmcKills is < 0 or > 512 || incoming.ScavKills is < 0 or > 512
-                    || incoming.UsecKills is < 0 or > 512 || incoming.BearKills is < 0 or > 512
+                if (incoming is null || !seen.Add(incoming.AccountId) || !encounters.TryGetValue(incoming.AccountId, out var encounter) || !CanAccess(encounter, session)
+                    || encounter.RuntimeProfileId != incoming.RuntimeProfileId || !population.Careers.TryGetValue(encounter.CareerId, out var career) || incoming.ActiveSeconds < 0
+                    || incoming.ActiveSeconds > 21600 || incoming.ActiveSeconds > Math.Max(0, now - encounter.GeneratedUtc) + 60 || incoming.PmcKills is < 0 or > 512
+                    || incoming.ScavKills is < 0 or > 512 || incoming.UsecKills is < 0 or > 512 || incoming.BearKills is < 0 or > 512
                     || incoming.UsecKills + incoming.BearKills > incoming.PmcKills) continue;
                 next.TryGetValue(incoming.AccountId, out var old);
                 // A cached alias belongs to at most one observed raid. Never rebind it to a later raid.
@@ -58,7 +53,10 @@ public sealed partial class PopulationStore
                 if (merged.UsecKills + merged.BearKills > merged.PmcKills) continue;
                 accepted++;
                 if (merged == old) continue;
-                merged = merged with { LastReportUtc = now };
+                merged = merged with
+                {
+                    LastReportUtc = now
+                };
                 if (merged.Finished && old?.Finished != true) finished.Add((encounter, merged));
                 if (merged.Died && old?.Died != true)
                 {
@@ -66,11 +64,15 @@ public sealed partial class PopulationStore
                     if (population.AppliedStories.TryGetValue(incoming.AccountId, out string? story) && story is "Died" or "DiedUncounted")
                         confirmedStoryDeaths[incoming.AccountId] = career.Id;
                 }
+
                 if (!updates.TryGetValue(career.Id, out var totals))
                 {
                     previousCareers.Add(career.Id, career.Observed);
-                    updates.Add(career.Id, totals = career.Observed with { });
+                    updates.Add(career.Id, totals = career.Observed with
+                    {
+                    });
                 }
+
                 totals.Raids += old is null ? 1 : 0;
                 totals.Deaths += merged.Died && old?.Died != true ? 1 : 0;
                 totals.PmcKills += merged.PmcKills - (old?.PmcKills ?? 0);
@@ -83,6 +85,7 @@ public sealed partial class PopulationStore
                 next[incoming.AccountId] = merged;
                 changed = true;
             }
+
             if (!changed) return accepted;
             bool previousDirty = dirty;
             population.RaidObservations = next;
@@ -91,15 +94,22 @@ public sealed partial class PopulationStore
                 var career = population.Careers[id];
                 previousAchievements.Add(id, career.Achievements);
                 previousLife.Add(id, (career.NeedsRegear, career.CurrentSurvivalStreak, career.StoryDeaths));
-                if (newDeaths.Contains(id)) { MarkDead(career, DateTimeOffset.UtcNow.ToUnixTimeSeconds()); career.CurrentSurvivalStreak = 0; }
+                if (newDeaths.Contains(id))
+                {
+                    MarkDead(career, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                    career.CurrentSurvivalStreak = 0;
+                }
+
                 career.Observed = totals;
             }
+
             population.AppliedStories = new Dictionary<int, string>(previousStories);
             foreach (var (account, id) in confirmedStoryDeaths)
             {
                 if (previousStories[account] == "Died") population.Careers[id].StoryDeaths = Math.Max(0, population.Careers[id].StoryDeaths - 1);
                 population.AppliedStories[account] = "ConfirmedDeath";
             }
+
             try
             {
                 // Receipts and totals share one snapshot, so retries cannot double-count.
@@ -118,15 +128,24 @@ public sealed partial class PopulationStore
                     population.Careers[id].CurrentSurvivalStreak = life.Streak;
                     population.Careers[id].StoryDeaths = life.StoryDeaths;
                 }
+
                 population.AppliedStories = previousStories;
                 dirty = previousDirty;
                 throw;
             }
+
             foreach (var (encounter, observation) in finished)
             {
-                try { AfterRaid(encounter, observation, report.Map, killer: false, now); }
-                catch (Exception ex) { Report(ex); }
+                try
+                {
+                    AfterRaid(encounter, observation, report.Map, killer: false, now);
+                }
+                catch (Exception ex)
+                {
+                    Report(ex);
+                }
             }
+
             return accepted;
         }
     }

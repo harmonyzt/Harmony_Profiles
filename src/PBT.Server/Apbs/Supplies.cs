@@ -35,25 +35,56 @@ public sealed partial class PopulationStore
         var plan = new List<(string, HashSet<EquipmentSlots>)>();
         void Want(IEnumerable<string> category, string tpl)
         {
-            if (!category.Any(carried.Contains)) plan.Add((tpl, MedSlots));
+            if (!category.Any(carried.Contains))
+            {
+                plan.Add((tpl, MedSlots));
+            }
         }
+        
         string[] allKits = [Ai2, Car, Salewa, Ifak, Afak, Grizzly];
         Want(allKits, Pick(Medkits[tier]));
-        if (tier >= 3 && Roll(.4)) plan.Add((Pick(Medkits[tier]), MedSlots));
+        
+        if (tier >= 3 && Roll(.4))
+        {
+            plan.Add((Pick(Medkits[tier]), MedSlots));
+        }
+        
         Want([Bandage, Esmarch, Cat, Calok], Pick(Bleeds[tier]));
-        if (Roll(.7)) Want([Splint, AluSplint], tier >= 3 ? AluSplint : Splint);
-        if (Roll(.8)) Want([Analgin, Ibuprofen, Morphine], tier <= 1 ? Analgin : tier == 2 ? Ibuprofen : Roll(.5) ? Morphine : Ibuprofen);
-        if (tier >= 2 && Roll(tier switch { 2 => .3, 3 => .6, _ => .9 })) Want([Cms, Surv12], tier == 4 && Roll(.4) ? Surv12 : Cms);
-        if (tier >= 3 && Roll(tier == 3 ? .15 : .35)) Want([Propital, Etg], Roll(.6) ? Propital : Etg);
+        if (Roll(.7))
+        {
+            Want([Splint, AluSplint], tier >= 3 ? AluSplint : Splint);
+        }
+
+        if (Roll(.8))
+        {
+            Want([Analgin, Ibuprofen, Morphine], tier <= 1 ? Analgin : tier == 2 ? Ibuprofen : Roll(.5) ? Morphine : Ibuprofen);
+        }
+
+        if (tier >= 2 && Roll(tier switch
+            {
+                2 => .3,
+                3 => .6,
+                _ => .9
+            }))
+        {
+            Want([Cms, Surv12], tier == 4 && Roll(.4) ? Surv12 : Cms);
+        }
+
+        if (tier >= 3 && Roll(tier == 3 ? .15 : .35))
+        {
+            Want([Propital, Etg], Roll(.6) ? Propital : Etg);
+        }
 
         int grenades = c.Archetype switch { "Timmy" => Random.Shared.Next(0, 2), "Aggressive" => Random.Shared.Next(1, 4), _ => Random.Shared.Next(0, 3) };
         grenades -= carried.Count(t => Grenades.Any(g => g.Tpl == t));
+        
         int total = Grenades.Sum(g => g.Weight);
         for (int i = 0; i < grenades; i++)
         {
             int roll = Random.Shared.Next(total);
             plan.Add((Grenades.First(g => (roll -= g.Weight) < 0).Tpl, GrenadeSlots));
         }
+        
         return plan;
     }
 
@@ -64,7 +95,9 @@ public sealed partial class PopulationStore
         string root = inventory.Equipment.Value.ToString();
         var secure = inventory.Items.FirstOrDefault(i => i.ParentId == root && i.SlotId == "SecuredContainer");
         if (secure is not null)
+        {
             inventory.Items = inventory.Items.Where(i => !(i.ParentId == secure.Id.ToString() && SecureStash.Contains(i.Template))).ToList();
+        }
 
         var holders = inventory.Items.Where(i => i.ParentId == root && i.SlotId is "Pockets" or "TacticalVest" or "Backpack")
             .Select(i => i.Id.ToString()).ToHashSet();
@@ -73,20 +106,35 @@ public sealed partial class PopulationStore
         {
             grew = false;
             foreach (var i in inventory.Items)
-                if (i.ParentId is { } p && holders.Contains(p)) grew |= holders.Add(i.Id.ToString());
+            {
+                if (i.ParentId is { } p && holders.Contains(p))
+                {
+                    grew |= holders.Add(i.Id.ToString());
+                }
+            }
         } while (grew);
+        
         var carried = inventory.Items.Where(i => holders.Contains(i.Id.ToString())).Select(i => i.Template.ToString()).ToHashSet();
 
         inventoryContainers.ClearCache(botId);
         try
         {
-            foreach (string slot in LootContainers) TrackContainer(botId, inventory, root, slot);
+            foreach (string slot in LootContainers)
+            {
+                TrackContainer(botId, inventory, root, slot);
+            }
+            
             foreach (var (tpl, slots) in PlanSupplies(c, carried))
             {
-                if (!templates.Items.TryGetValue(new MongoId(tpl), out var template)) continue;
+                if (!templates.Items.TryGetValue(new MongoId(tpl), out var template))
+                {
+                    continue;
+                }
+                
                 var upd = itemHelper.GenerateUpdForItem(template) ?? new Upd();
                 upd.StackObjectsCount = 1;
                 var item = new Item { Id = new MongoId(), Template = template.Id, Upd = upd };
+                
                 botGeneratorHelper.AddItemWithChildrenToEquipmentSlot(botId, slots, item.Id, item.Template, [item], inventory);
             }
         }

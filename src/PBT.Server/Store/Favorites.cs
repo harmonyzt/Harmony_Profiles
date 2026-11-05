@@ -14,8 +14,14 @@ public sealed partial class PopulationStore
     private HashSet<string> Favorites()
     {
         if (favorites is not null) return favorites;
-        try { favorites = File.Exists(FavoritesPath) ? JsonSerializer.Deserialize<HashSet<string>>(File.ReadAllText(FavoritesPath)) : null; }
-        catch { }
+        try
+        {
+            favorites = File.Exists(FavoritesPath) ? JsonSerializer.Deserialize<HashSet<string>>(File.ReadAllText(FavoritesPath)) : null;
+        }
+        catch
+        {
+        }
+
         return favorites ??= new();
     }
 

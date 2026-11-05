@@ -13,47 +13,77 @@ public sealed partial class PopulationStore
         if (!File.Exists(path))
         {
             personalities = DefaultPersonalities();
-            AtomicFile.Write(path, JsonSerializer.Serialize(personalities, new JsonSerializerOptions { WriteIndented = true }));
+            AtomicFile.Write(path, JsonSerializer.Serialize(personalities, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            }));
         }
-        else personalities = JsonSerializer.Deserialize<List<PersonalityTemplate>>(File.ReadAllText(path))
-            ?? throw new InvalidDataException("Personalities file is empty.");
+        else personalities = JsonSerializer.Deserialize<List<PersonalityTemplate>>(File.ReadAllText(path)) ?? throw new InvalidDataException("Personalities file is empty.");
+
         ValidatePersonalities(personalities);
     }
 
     private static List<PersonalityTemplate> DefaultPersonalities() =>
     [
-        new() { Id = "Timmy", Weight = 30, MinimumLevel = 1,
-            MaximumLevel = 15, MinimumSurvival = .12, MaximumSurvival = .3,
-            MinimumRaidMinutes = 4, MaximumRaidMinutes = 28, ProgressTo = "Casual" },
+        new()
+        {
+            Id = "Timmy",
+            Weight = 30,
+            MinimumLevel = 1,
+            MaximumLevel = 15,
+            MinimumSurvival = .12,
+            MaximumSurvival = .3,
+            MinimumRaidMinutes = 4,
+            MaximumRaidMinutes = 28,
+            ProgressTo = "Casual"
+        },
         new(),
-        new() { Id = "Aggressive", Weight = 20, MinimumRaidMinutes = 5, MaximumRaidMinutes = 32 },
-        new() { Id = "Survivor", Weight = 10, MinimumSurvival = .5, MaximumSurvival = .7,
-            MinimumRaidMinutes = 16, MaximumRaidMinutes = 48 }
+        new()
+        {
+            Id = "Aggressive",
+            Weight = 20,
+            MinimumRaidMinutes = 5,
+            MaximumRaidMinutes = 32
+        },
+        new()
+        {
+            Id = "Survivor",
+            Weight = 10,
+            MinimumSurvival = .5,
+            MaximumSurvival = .7,
+            MinimumRaidMinutes = 16,
+            MaximumRaidMinutes = 48
+        }
     ];
 
     private static void ValidatePersonalities(List<PersonalityTemplate> candidates)
     {
         if (candidates.Count is < 1 or > 100 || candidates.Any(p => p is null || string.IsNullOrWhiteSpace(p.Id)
-            || p.Id.Length > 64 || p.Weight is < 1 or > 1000 || p.MinimumLevel < 1 || p.MaximumLevel < p.MinimumLevel || p.MaximumLevel > 79
-            || !double.IsFinite(p.MinimumDailyHours) || !double.IsFinite(p.MaximumDailyHours)
-            || p.MinimumDailyHours < 0 || p.MaximumDailyHours < p.MinimumDailyHours || p.MaximumDailyHours > 24
-            || !double.IsFinite(p.MinimumSurvival) || !double.IsFinite(p.MaximumSurvival)
-            || p.MinimumSurvival < 0 || p.MaximumSurvival < p.MinimumSurvival || p.MaximumSurvival > 1
-            || !double.IsFinite(p.MinimumRaidMinutes) || !double.IsFinite(p.MaximumRaidMinutes)
-            || p.MinimumRaidMinutes < 2 || p.MaximumRaidMinutes < p.MinimumRaidMinutes || p.MaximumRaidMinutes > 60
-            || !double.IsFinite(p.TransitionHours) || p.TransitionHours < 1)
-            || candidates.Select(p => p.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() != candidates.Count
-            || candidates.Any(p => p.ProgressTo is not null && !candidates.Any(t => t.Id == p.ProgressTo)))
+                                                                              || p.Id.Length > 64 || p.Weight is < 1 or > 1000 || p.MinimumLevel < 1
+                                                                              || p.MaximumLevel < p.MinimumLevel || p.MaximumLevel > 79 || !double.IsFinite(p.MinimumDailyHours)
+                                                                              || !double.IsFinite(p.MaximumDailyHours) || p.MinimumDailyHours < 0
+                                                                              || p.MaximumDailyHours < p.MinimumDailyHours || p.MaximumDailyHours > 24
+                                                                              || !double.IsFinite(p.MinimumSurvival) || !double.IsFinite(p.MaximumSurvival) || p.MinimumSurvival < 0
+                                                                              || p.MaximumSurvival < p.MinimumSurvival || p.MaximumSurvival > 1
+                                                                              || !double.IsFinite(p.MinimumRaidMinutes) || !double.IsFinite(p.MaximumRaidMinutes)
+                                                                              || p.MinimumRaidMinutes < 2 || p.MaximumRaidMinutes < p.MinimumRaidMinutes
+                                                                              || p.MaximumRaidMinutes > 60 || !double.IsFinite(p.TransitionHours) || p.TransitionHours < 1)
+                                             || candidates.Select(p => p.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() != candidates.Count
+                                             || candidates.Any(p => p.ProgressTo is not null && !candidates.Any(t => t.Id == p.ProgressTo)))
             throw new InvalidDataException("Invalid personality templates; existing population preserved.");
     }
 
-    private PersonalityTemplate Personality(Career c) => personalities.FirstOrDefault(p => p.Id == c.Archetype)
-        ?? personalities[0];
+    private PersonalityTemplate Personality(Career c) => personalities.FirstOrDefault(p => p.Id == c.Archetype) ?? personalities[0];
 
     private PersonalityTemplate PickPersonality()
     {
         int roll = Random.Shared.Next(personalities.Sum(p => p.Weight));
-        foreach (var p in personalities) { roll -= p.Weight; if (roll < 0) return p; }
+        foreach (var p in personalities)
+        {
+            roll -= p.Weight;
+            if (roll < 0) return p;
+        }
+
         return personalities[^1];
     }
 
@@ -65,8 +95,7 @@ public sealed partial class PopulationStore
         var prior = Cohort(c);
         double pace = c.Archetype == "Aggressive" ? .85 : c.Archetype == "Survivor" ? 1.15 : 1;
         // Survived raids run long and deaths end early, so the average follows the survival rate.
-        double mean = (Survival(c) * prior.SurvivedMinutes + (1 - Survival(c)) * prior.DeathMinutes)
-            * pace * (.85 + Stable(c.Id + ":raid-duration") * .3);
+        double mean = (Survival(c) * prior.SurvivedMinutes + (1 - Survival(c)) * prior.DeathMinutes) * pace * (.85 + Stable(c.Id + ":raid-duration") * .3);
         double minutes = mean * (random ? .5 + Random.Shared.NextDouble() : 1);
         return Math.Clamp(minutes, lower, upper) * 60;
     }
@@ -83,11 +112,13 @@ public sealed partial class PopulationStore
             c.PendingRaidSeconds = Math.Clamp(c.PendingRaidSeconds, 0, Math.Max(0, c.TargetRaidSeconds - .001));
             c.LifeVersion = 2;
         }
+
         if (c.NextActivityUtc <= 0)
         {
             c.LastActivityUtc = now;
             c.NextActivityUtc = now + Random.Shared.Next(600, 1801);
         }
+
         if (migrating || c.RegisteredUtc <= 0)
             c.RegisteredUtc = Math.Max(1, Math.Min(c.RegisteredUtc > 0 ? c.RegisteredUtc : now, now - AccountAge(c, now)));
     }
@@ -98,8 +129,7 @@ public sealed partial class PopulationStore
         AddRaids(c, seconds, earnExperience: true);
         int completed = c.Raids - previousRaids, survived = c.Survived - previousSurvived;
         int level = Level(c.Experience);
-        c.WealthRubles = Math.Clamp(c.WealthRubles + survived * RaidIncome(c, level, true)
-            - (completed - survived) * RaidIncome(c, level, false), 0, MaximumWealth);
+        c.WealthRubles = Math.Clamp(c.WealthRubles + survived * RaidIncome(c, level, true) - (completed - survived) * RaidIncome(c, level, false), 0, MaximumWealth);
         var personality = Personality(c);
         if (personality.ProgressTo is not null && (c.RaidSeconds + c.Observed.ActiveSeconds) / 3600 >= personality.TransitionHours)
         {
@@ -107,6 +137,7 @@ public sealed partial class PopulationStore
             personality = Personality(c);
             c.SurvivalChance = SurvivalFor(c);
         }
+
         if (completed > 0)
         {
             Develop(c);
@@ -140,6 +171,7 @@ public sealed partial class PopulationStore
             observedActiveSource = receipts;
             observedActiveCount = receipts.Count;
         }
+
         return observedActive.Contains(c.Id);
     }
 
@@ -160,6 +192,7 @@ public sealed partial class PopulationStore
                 if (a.State == "Menu" && !a.Held) GoOffline(c, a, now);
                 else a.WantsOffline = true;
             }
+
             if (c.IsOnline) c.Achievements = EarnedMilestones(c, now);
             c.LastActivityUtc = now;
             c.NextActivityUtc = c.IsOnline ? Math.Min(now + interval, Math.Max(now + 60, c.SessionEndUtc)) : now + interval;
@@ -174,25 +207,29 @@ public sealed partial class PopulationStore
         return GenerateCareerGear(c, session, DateTimeOffset.UtcNow.ToUnixTimeSeconds(), story);
     }
 
-    private static string? PrimaryWeapon(JsonObject equipment) => equipment["Items"]?.AsArray().OfType<JsonObject>()
-        .FirstOrDefault(i => i["slotId"]?.ToString() == "FirstPrimaryWeapon")?["_tpl"]?.ToString();
+    private static string? PrimaryWeapon(JsonObject equipment) =>
+        equipment["Items"]?.AsArray().OfType<JsonObject>().FirstOrDefault(i => i["slotId"]?.ToString() == "FirstPrimaryWeapon")?["_tpl"]?.ToString();
 
     private static JsonObject NakedEquipment(JsonObject source)
     {
         string root = source["Id"]!.GetValue<string>();
         var all = source["Items"]!.AsArray().OfType<JsonObject>().ToArray();
-        var keep = new HashSet<string>(all.Where(i => i["parentId"]?.ToString() == root && i["slotId"]?.ToString() == "Scabbard")
-            .Select(i => i["_id"]!.GetValue<string>()));
+        var keep = new HashSet<string>(all.Where(i => i["parentId"]?.ToString() == root && i["slotId"]?.ToString() == "Scabbard").Select(i => i["_id"]!.GetValue<string>()));
         bool changed;
         do
         {
             changed = false;
             foreach (var i in all)
-                if (i["parentId"] is { } p && keep.Contains(p.ToString())) changed |= keep.Add(i["_id"]!.GetValue<string>());
+                if (i["parentId"] is { } p && keep.Contains(p.ToString()))
+                    changed |= keep.Add(i["_id"]!.GetValue<string>());
         } while (changed);
+
         keep.Add(root);
-        return new JsonObject { ["Id"] = root, ["Items"] = new JsonArray(all.Where(i => keep.Contains(i["_id"]!.GetValue<string>()))
-            .Select(i => (JsonNode)i.DeepClone()).ToArray()) };
+        return new JsonObject
+        {
+            ["Id"] = root,
+            ["Items"] = new JsonArray(all.Where(i => keep.Contains(i["_id"]!.GetValue<string>())).Select(i => (JsonNode)i.DeepClone()).ToArray())
+        };
     }
 
     private JsonObject RepairEquipment(JsonObject source)
@@ -200,20 +237,31 @@ public sealed partial class PopulationStore
         try
         {
             string root = source["Id"]!.GetValue<string>();
-            var valid = source["Items"]!.AsArray().OfType<JsonObject>()
-                .Where(i => IsId(i["_tpl"]?.ToString()) && templates.Items.ContainsKey(new(i["_tpl"]!.ToString()))).ToArray();
-            var keep = new HashSet<string> { root };
+            var valid = source["Items"]!.AsArray().OfType<JsonObject>().Where(i => IsId(i["_tpl"]?.ToString()) && templates.Items.ContainsKey(new(i["_tpl"]!.ToString())))
+                .ToArray();
+            var keep = new HashSet<string>
+            {
+                root
+            };
             bool changed;
             do
             {
                 changed = false;
                 foreach (var i in valid)
-                    if (i["parentId"] is { } p && keep.Contains(p.ToString())) changed |= keep.Add(i["_id"]!.ToString());
+                    if (i["parentId"] is { } p && keep.Contains(p.ToString()))
+                        changed |= keep.Add(i["_id"]!.ToString());
             } while (changed);
-            var result = new JsonObject { ["Id"] = root, ["Items"] = new JsonArray(valid.Where(i => keep.Contains(i["_id"]!.ToString()))
-                .Select(i => (JsonNode)i.DeepClone()).ToArray()) };
+
+            var result = new JsonObject
+            {
+                ["Id"] = root,
+                ["Items"] = new JsonArray(valid.Where(i => keep.Contains(i["_id"]!.ToString())).Select(i => (JsonNode)i.DeepClone()).ToArray())
+            };
             return ValidEquipment(result) ? result : EmptyEquipment();
         }
-        catch { return EmptyEquipment(); }
+        catch
+        {
+            return EmptyEquipment();
+        }
     }
 }

@@ -9,42 +9,114 @@ public sealed partial class PopulationStore
         public string Map = "";
         public string Target = "";
         public long Since;
+
         public long Until;
+
         // In your raid or waiting on a post-raid story. Stories and observations move it, not the world tick.
         public bool Held;
         public bool WantsOffline;
+
         public string Doing = "";
+
         // Careers queueing and playing together, including this one.
         public string[] Party = [];
     }
 
     // Solo maps run a private instance for you and your team, with no random PMCs.
-    private sealed record WorldMap(string Id, string Name, double Weight, string[] Transits, int MinimumLevel, int MaximumLevel, bool WeeklyBoss, bool Solo, int MinPlayers, int MaxPlayers);
+    private sealed record WorldMap(
+        string Id,
+        string Name,
+        double Weight,
+        string[] Transits,
+        int MinimumLevel,
+        int MaximumLevel,
+        bool WeeklyBoss,
+        bool Solo,
+        int MinPlayers,
+        int MaxPlayers
+    );
 
     private static readonly Dictionary<string, double> MapPopularity = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["bigmap"] = 16, ["woods"] = 13, ["interchange"] = 11, ["tarkovstreets"] = 11, ["shoreline"] = 9, ["rezervbase"] = 9,
-        ["factory4_day"] = 8, ["lighthouse"] = 7, ["sandbox"] = 7, ["sandbox_high"] = 6, ["laboratory"] = 5, ["factory4_night"] = 3, ["labyrinth"] = 2
+        ["bigmap"] = 16,
+        ["woods"] = 13,
+        ["interchange"] = 11,
+        ["tarkovstreets"] = 11,
+        ["shoreline"] = 9,
+        ["rezervbase"] = 9,
+        ["factory4_day"] = 8,
+        ["lighthouse"] = 7,
+        ["sandbox"] = 7,
+        ["sandbox_high"] = 6,
+        ["laboratory"] = 5,
+        ["factory4_night"] = 3,
+        ["labyrinth"] = 2
     };
-    private static readonly HashSet<string> HiddenMaps = new(StringComparer.OrdinalIgnoreCase) { "hideout", "develop", "privatearea", "suburbs", "terminal", "town" };
+
+    private static readonly HashSet<string> HiddenMaps = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "hideout",
+        "develop",
+        "privatearea",
+        "suburbs",
+        "terminal",
+        "town"
+    };
+
     // Same map in the game's selector, but separate lobbies with their own players.
     private static readonly Dictionary<string, string> SplitMapNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["factory4_day"] = "Factory (Day)", ["factory4_night"] = "Factory (Night)", ["sandbox"] = "Ground Zero", ["sandbox_high"] = "Ground Zero 21+"
+        ["factory4_day"] = "Factory (Day)",
+        ["factory4_night"] = "Factory (Night)",
+        ["sandbox"] = "Ground Zero",
+        ["sandbox_high"] = "Ground Zero 21+"
     };
-    private static readonly HashSet<string> SoloMaps = new(StringComparer.OrdinalIgnoreCase) { "icebreaker" };
-    private static readonly HashSet<string> StreamerMaps = new(StringComparer.OrdinalIgnoreCase) { "laboratory", "tarkovstreets", "bigmap" };
+
+    private static readonly HashSet<string> SoloMaps = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "icebreaker"
+    };
+
+    private static readonly HashSet<string> StreamerMaps = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "laboratory",
+        "tarkovstreets",
+        "bigmap"
+    };
+
     // Name fragments that tie a player to a map. "lab" alone would match too many unrelated names.
     private static readonly Dictionary<string, string[]> MapNameWords = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["factory4_day"] = ["factory"], ["factory4_night"] = ["factory"], ["bigmap"] = ["customs"], ["woods"] = ["woods"],
-        ["interchange"] = ["interchange"], ["tarkovstreets"] = ["streets"], ["shoreline"] = ["shoreline"], ["rezervbase"] = ["reserve", "rezerv"],
-        ["lighthouse"] = ["lighthouse"], ["sandbox"] = ["groundzero"], ["sandbox_high"] = ["groundzero"], ["laboratory"] = ["labs", "laboratory"],
-        ["labyrinth"] = ["labyrinth"], ["icebreaker"] = ["icebreaker"]
+        ["factory4_day"] = ["factory"],
+        ["factory4_night"] = ["factory"],
+        ["bigmap"] = ["customs"],
+        ["woods"] = ["woods"],
+        ["interchange"] = ["interchange"],
+        ["tarkovstreets"] = ["streets"],
+        ["shoreline"] = ["shoreline"],
+        ["rezervbase"] = ["reserve", "rezerv"],
+        ["lighthouse"] = ["lighthouse"],
+        ["sandbox"] = ["groundzero"],
+        ["sandbox_high"] = ["groundzero"],
+        ["laboratory"] = ["labs", "laboratory"],
+        ["labyrinth"] = ["labyrinth"],
+        ["icebreaker"] = ["icebreaker"]
     };
+
     // Bosses that are normally a gamble. One of them at 100% is a weekly boss.
     private static readonly HashSet<string> HeadlineBosses = new(StringComparer.OrdinalIgnoreCase)
-        { "bossBully", "bossKilla", "bossKojaniy", "bossGluhar", "bossSanitar", "bossTagilla", "bossKnight", "bossBoar", "bossKolontay", "bossPartisan" };
+    {
+        "bossBully",
+        "bossKilla",
+        "bossKojaniy",
+        "bossGluhar",
+        "bossSanitar",
+        "bossTagilla",
+        "bossKnight",
+        "bossBoar",
+        "bossKolontay",
+        "bossPartisan"
+    };
 
     private const int LogSize = 300;
     private const int HistoryPoints = 90;
@@ -75,8 +147,15 @@ public sealed partial class PopulationStore
         if (worldMaps.Count > 0 && now - mapsRefreshedUtc < 600) return;
         mapsRefreshedUtc = now;
         Dictionary<string, string> names;
-        try { names = locales.GetLocaleDb(); }
-        catch { names = new(); }
+        try
+        {
+            names = locales.GetLocaleDb();
+        }
+        catch
+        {
+            names = new();
+        }
+
         var next = new List<WorldMap>();
         foreach (var location in locations.GetDictionary().Values)
         {
@@ -89,14 +168,15 @@ public sealed partial class PopulationStore
             bool solo = SoloMaps.Contains(id) || (b.BotMax == 0 && (b.Waves is null || b.Waves.Count == 0));
             bool weekly = !solo && b.BossLocationSpawn?.Any(s => s.BossChance >= 100 && s.BossName is { } boss && HeadlineBosses.Contains(boss)) == true;
             string name = SplitMapNames.GetValueOrDefault(id) ?? names.GetValueOrDefault(b.Id) ?? names.GetValueOrDefault(b.IdField + " Name") ?? b.Name ?? b.Id;
-            var transits = (b.Transits ?? []).Where(t => t.IsActive != false && !string.IsNullOrEmpty(t.Location))
-                .Select(t => MapKey(t.Location)).Where(t => t != id).Distinct().ToArray();
+            var transits = (b.Transits ?? []).Where(t => t.IsActive != false && !string.IsNullOrEmpty(t.Location)).Select(t => MapKey(t.Location)).Where(t => t != id).Distinct()
+                .ToArray();
             int minimum = b.RequiredPlayerLevelMin ?? 0, maximum = b.RequiredPlayerLevelMax is > 0 ? b.RequiredPlayerLevelMax.Value : 100;
             // The game sends level 21+ to the high Ground Zero, but its database entry has no lower gate.
             if (id == "sandbox_high") minimum = Math.Max(minimum, 21);
             int minPlayers = Math.Max(1, b.MinPlayers ?? 8), maxPlayers = Math.Max(minPlayers, b.MaxPlayers ?? minPlayers);
             next.Add(new(id, name, MapPopularity.GetValueOrDefault(id, solo ? 3 : 5), transits, minimum, maximum, weekly, solo, minPlayers, maxPlayers));
         }
+
         if (next.Count > 0) worldMaps = next;
     }
 
@@ -125,7 +205,12 @@ public sealed partial class PopulationStore
         double total = weights.Sum(x => x.Weight);
         if (weights.Length == 0 || total <= 0) return null;
         double roll = Random.Shared.NextDouble() * total;
-        foreach (var (map, weight) in weights) { roll -= weight; if (roll <= 0) return map; }
+        foreach (var (map, weight) in weights)
+        {
+            roll -= weight;
+            if (roll <= 0) return map;
+        }
+
         return weights[^1].Map;
     }
 
@@ -137,12 +222,11 @@ public sealed partial class PopulationStore
             .Where(m => level >= m.MinimumLevel && level <= m.MaximumLevel && !(m.Id == "laboratory" && level < 20));
     }
 
-    private Dictionary<string, int> PlayingCounts() =>
-        activities.Values.Where(a => a.State is "Raid" or "Queue").GroupBy(a => a.Map).ToDictionary(g => g.Key, g => g.Count());
+    private Dictionary<string, int> PlayingCounts() => activities.Values.Where(a => a.State is "Raid" or "Queue").GroupBy(a => a.Map).ToDictionary(g => g.Key, g => g.Count());
 
-    private HashSet<string> ObservedActiveCareers(long now) => population.RaidObservations.Values
-        .Where(o => !o.Finished && now - o.LastReportUtc < 180 && encounters.ContainsKey(o.AccountId))
-        .Select(o => encounters[o.AccountId].CareerId).ToHashSet();
+    private HashSet<string> ObservedActiveCareers(long now) =>
+        population.RaidObservations.Values.Where(o => !o.Finished && now - o.LastReportUtc < 180 && encounters.ContainsKey(o.AccountId))
+            .Select(o => encounters[o.AccountId].CareerId).ToHashSet();
 
     private int QueueSeconds(string map, Dictionary<string, int>? counts = null)
     {
@@ -163,8 +247,7 @@ public sealed partial class PopulationStore
     private void InitializeWorld(long now)
     {
         RefreshMaps(now);
-        var held = population.PendingStories.Values.GroupBy(s => s.CareerId)
-            .ToDictionary(g => g.Key, g => g.MaxBy(s => s.DueUtc)!, StringComparer.Ordinal);
+        var held = population.PendingStories.Values.GroupBy(s => s.CareerId).ToDictionary(g => g.Key, g => g.MaxBy(s => s.DueUtc)!, StringComparer.Ordinal);
         foreach (var c in population.Careers.Values.Where(c => !c.Retired))
         {
             var a = ActivityOf(c);
@@ -174,6 +257,7 @@ public sealed partial class PopulationStore
                 Set(a, "Raid", story.Map, now, story.DueUtc + 60, held: true);
                 continue;
             }
+
             if (!c.IsOnline) continue;
             // Start mid-session instead of everyone in the menu at once.
             double roll = Random.Shared.NextDouble();
@@ -187,6 +271,7 @@ public sealed partial class PopulationStore
                 Set(a, "Raid", map.Id, now - into, now + Math.Max(30, length - into));
             }
         }
+
         FormSquads();
         worldTimer = new Timer(_ => TickWorld(), null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
     }
@@ -215,7 +300,10 @@ public sealed partial class PopulationStore
         {
             if (!Ready) return;
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            try { WorldTick(now); }
+            try
+            {
+                WorldTick(now);
+            }
             catch (Exception ex)
             {
                 if (now - worldErrorUtc < 300) return;
@@ -245,21 +333,43 @@ public sealed partial class PopulationStore
                 else a.Until = now + 60;
                 continue;
             }
+
             switch (a.State)
             {
                 case "Menu":
-                    if (a.WantsOffline || !c.IsOnline) { GoOffline(c, a, now); break; }
+                    if (a.WantsOffline || !c.IsOnline)
+                    {
+                        GoOffline(c, a, now);
+                        break;
+                    }
+
                     // Dead and naked: wait for the regear, and some give up for the day.
                     if (WaitingForGear(c, now))
                     {
                         // Checked every few minutes, so this is about a third giving up per hour of waiting.
                         if (Random.Shared.NextDouble() < .015) GoOffline(c, a, now);
-                        else { a.Until = now + Random.Shared.Next(60, 181); a.Doing = "Gearing up"; }
+                        else
+                        {
+                            a.Until = now + Random.Shared.Next(60, 181);
+                            a.Doing = "Gearing up";
+                        }
+
                         break;
                     }
-                    if (a.Doing is not ("AFK" or "Waiting for squad") && Random.Shared.NextDouble() < .25) { NextErrand(c, a, now); break; }
+
+                    if (a.Doing is not ("AFK" or "Waiting for squad") && Random.Shared.NextDouble() < .25)
+                    {
+                        NextErrand(c, a, now);
+                        break;
+                    }
+
                     if (TryQueueSquad(c, a, now)) break;
-                    if (PickMap(c) is not { } map) { a.Until = now + 120; break; }
+                    if (PickMap(c) is not { } map)
+                    {
+                        a.Until = now + 120;
+                        break;
+                    }
+
                     Set(a, "Queue", map.Id, now, now + QueueSeconds(map.Id));
                     break;
                 case "Queue":
@@ -273,6 +383,7 @@ public sealed partial class PopulationStore
                     break;
             }
         }
+
         if (now - historyUtc >= 60)
         {
             historyUtc = now;
@@ -298,7 +409,12 @@ public sealed partial class PopulationStore
         c.Achievements = EarnedMilestones(c, now);
         worldDirty = true;
         string map = MapLabel(a.Map), gained = c.PmcKills > kills ? $" with {c.PmcKills - kills} PMC kill{(c.PmcKills - kills == 1 ? "" : "s")}" : "";
-        if (c.Raids == raids) { ToMenu(c, a, now); return; }
+        if (c.Raids == raids)
+        {
+            ToMenu(c, a, now);
+            return;
+        }
+
         if (c.Survived > survived)
         {
             AfterSurvival(c);
@@ -310,6 +426,7 @@ public sealed partial class PopulationStore
                 Set(a, "Transit", a.Map, now, now + Random.Shared.Next(20, 91), target: next.Id);
                 return;
             }
+
             Log("extract", $"{c.Name} extracted from {map}{gained}", a.Map);
         }
         else if (c.MissingRaids > missing) Log("mia", $"{c.Name} went missing in action on {map}", a.Map);
@@ -321,6 +438,7 @@ public sealed partial class PopulationStore
             ToMenu(c, a, now, died: true);
             return;
         }
+
         ToMenu(c, a, now);
     }
 
@@ -336,8 +454,7 @@ public sealed partial class PopulationStore
     private string Killed(Career c, string mapId, string map)
     {
         if (FindMap(mapId)?.Solo == true) return $"{c.Name} died on {map}";
-        var others = population.Careers.Values.Where(o => o.Id != c.Id && activities.TryGetValue(o.Id, out var oa)
-            && oa.State == "Raid" && oa.Map == mapId).Take(50).ToArray();
+        var others = population.Careers.Values.Where(o => o.Id != c.Id && activities.TryGetValue(o.Id, out var oa) && oa.State == "Raid" && oa.Map == mapId).Take(50).ToArray();
         if (others.Length > 0 && Random.Shared.NextDouble() < .5)
             return $"{c.Name} was killed by {others[Random.Shared.Next(others.Length)].Name} on {map}";
         return $"{c.Name} was killed on {map}";
@@ -348,8 +465,7 @@ public sealed partial class PopulationStore
         bool wanted = a.WantsOffline;
         EnterMenu(c, a, now, died);
         bool quit = died && AfterDeath(c, now);
-        a.WantsOffline = wanted || quit || now >= c.SessionEndUtc - 900 && !Tilted(c)
-            || Random.Shared.NextDouble() < policy.World.LogOffChance * .12;
+        a.WantsOffline = wanted || quit || now >= c.SessionEndUtc - 900 && !Tilted(c) || Random.Shared.NextDouble() < policy.World.LogOffChance * .12;
         c.IsOnline = true;
     }
 
@@ -357,7 +473,12 @@ public sealed partial class PopulationStore
     {
         c.IsOnline = true;
         if (c.SessionEndUtc <= now) c.SessionEndUtc = RollSessionEnd(c, now);
-        if (now - c.LastOfflineUtc > 4 * 3600) { c.DeathStreak = 0; c.TiltUntilUtc = 0; }
+        if (now - c.LastOfflineUtc > 4 * 3600)
+        {
+            c.DeathStreak = 0;
+            c.TiltUntilUtc = 0;
+        }
+
         EnterMenu(c, a, now);
         a.WantsOffline = false;
         Log("online", $"{c.Name} came online");
@@ -447,9 +568,9 @@ public sealed partial class PopulationStore
                 return new WorldMapStatus(m.Id, m.Name, raid, queue, QueueSeconds(m.Id, counts), (raid + queue) / (double)playing, m.WeeklyBoss, m.Solo,
                     mapHistory.TryGetValue(m.Id, out var points) ? points.ToArray() : []);
             }).OrderByDescending(m => m.InRaid + m.Queueing).ThenBy(m => m.Name).ToList();
-            return new(live.Count(a => a.State != "Offline"), live.Count(a => a.State == "Raid"), live.Count(a => a.State == "Queue"),
-                live.Count(a => a.State == "Menu"), live.Count(a => a.State == "Transit"), population.PendingStories.Count, maps,
-                worldLog.Take(Math.Clamp(events, 0, LogSize)).ToList(), servers ? ServerStatuses(now) : []);
+            return new(live.Count(a => a.State != "Offline"), live.Count(a => a.State == "Raid"), live.Count(a => a.State == "Queue"), live.Count(a => a.State == "Menu"),
+                live.Count(a => a.State == "Transit"), population.PendingStories.Count, maps, worldLog.Take(Math.Clamp(events, 0, LogSize)).ToList(),
+                servers ? ServerStatuses(now) : []);
         }
     }
 
@@ -468,14 +589,22 @@ public sealed partial class PopulationStore
     {
         var (state, status, map, since) = Describe(c, now, observed);
         long deaths = Math.Max(1, c.Raids - c.Survived - c.MissingRaids - c.AwolRaids - c.RunThroughRaids + c.Observed.Deaths + c.StoryDeaths);
-        return new WorldPlayerRow(c.Name, c.Side, c.Archetype, Level(c.Experience), c.PrestigeLevel, state, status, map,
-            since > 0 ? now - since : 0, (int)(c.Raids + c.Observed.Raids), Math.Round((double)(c.PmcKills + c.Observed.PmcKills) / deaths, 2), Notable(c),
-            SquadNames(c), activities.TryGetValue(c.Id, out var a) && a.State is "Queue" or "Raid" or "Transit" ? TeamNames(c, a) : [], c.Id);
+        return new WorldPlayerRow(c.Name, c.Side, c.Archetype, Level(c.Experience), c.PrestigeLevel, state, status, map, since > 0 ? now - since : 0,
+            (int)(c.Raids + c.Observed.Raids), Math.Round((double)(c.PmcKills + c.Observed.PmcKills) / deaths, 2), Notable(c), SquadNames(c),
+            activities.TryGetValue(c.Id, out var a) && a.State is "Queue" or "Raid" or "Transit" ? TeamNames(c, a) : [], c.Id);
     }
 
     public Dictionary<string, object> MapIndicators()
     {
         var world = GetWorld(0, servers: false);
-        return world.Maps.ToDictionary(m => m.Id, m => (object)new { m.InRaid, m.Queueing, m.Share, m.QueueSeconds, m.WeeklyBoss, m.Solo });
+        return world.Maps.ToDictionary(m => m.Id, m => (object)new
+        {
+            m.InRaid,
+            m.Queueing,
+            m.Share,
+            m.QueueSeconds,
+            m.WeeklyBoss,
+            m.Solo
+        });
     }
 }

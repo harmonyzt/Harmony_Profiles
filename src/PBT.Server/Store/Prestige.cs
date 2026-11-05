@@ -16,8 +16,7 @@ public sealed partial class PopulationStore
     {
         string path = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(directory)!, "simulation.json");
         bool write = !File.Exists(path);
-        if (!write) policy = JsonSerializer.Deserialize<SimulationPolicy>(File.ReadAllText(path))
-            ?? throw new InvalidDataException("Simulation policy is empty.");
+        if (!write) policy = JsonSerializer.Deserialize<SimulationPolicy>(File.ReadAllText(path)) ?? throw new InvalidDataException("Simulation policy is empty.");
         // Files from before the stats rework have single raid lengths and inflated kill rates.
         if (policy.ProgressionPriors?.Any(p => p is not null && p.SurvivedMinutes == 0 && p.DeathMinutes == 0) == true)
         {
@@ -25,6 +24,7 @@ public sealed partial class PopulationStore
             write = true;
             logger.Info("[PBT] Replaced pre-rework raid history priors in simulation.json with the new defaults.");
         }
+
         // The old 1% and 2% story chances made outcomes almost never show up.
         if (policy.PostRaidDeathChance == .01 && policy.PostRaidRegearChance == .02)
         {
@@ -34,6 +34,7 @@ public sealed partial class PopulationStore
             write = true;
             logger.Info("[PBT] Raised the old post-raid story chances in simulation.json to the new defaults.");
         }
+
         // At the old default of 1 most accounts never got past the gym wall.
         if (policy.Hideout is { BuiltChanceMultiplier: 1 } hideout)
         {
@@ -41,8 +42,13 @@ public sealed partial class PopulationStore
             write = true;
             logger.Info("[PBT] Raised the old hideout built chance multiplier in simulation.json to the new default.");
         }
+
         policy.Validate();
-        if (write) AtomicFile.Write(path, JsonSerializer.Serialize(policy, new JsonSerializerOptions { WriteIndented = true }));
+        if (write)
+            AtomicFile.Write(path, JsonSerializer.Serialize(policy, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            }));
         prestigeDefinitions = JsonNode.Parse(json.Serialize(templates.Prestige)!)?["elements"]?.DeepClone().AsArray() ?? new();
         foreach (var c in population.Careers.Values)
         {
@@ -57,22 +63,26 @@ public sealed partial class PopulationStore
     {
         foreach (var condition in conditions.OfType<JsonObject>())
         {
-            string[] allowed = ["id", "index", "dynamicLocale", "visibilityConditions", "globalQuestCounterId", "parentId", "value",
+            string[] allowed =
+            [
+                "id", "index", "dynamicLocale", "visibilityConditions", "globalQuestCounterId", "parentId", "value",
                 "compareMethod", "target", "status", "availableAfter", "dispersion", "areaType", "conditionType",
                 "minDurability", "maxDurability", "dogtagLevel", "onlyFoundInRaid", "isEncoded",
                 // Content Backport - Prestiges keeps a metadata copy in "props" and a false "isFinisher" on its conditions.
-                "props", "isFinisher"];
-            if (condition.Any(p => p.Value is not null && !allowed.Contains(p.Key))
-                || condition["visibilityConditions"] is JsonArray { Count: > 0 }
-                || !string.IsNullOrEmpty(condition["globalQuestCounterId"]?.ToString())
-                || !string.IsNullOrEmpty(condition["parentId"]?.ToString())
-                || (condition["availableAfter"]?.GetValue<double>() ?? 0) > 0
-                || (condition["dispersion"]?.GetValue<double>() ?? 0) > 0) return false;
+                "props", "isFinisher"
+            ];
+            if (condition.Any(p => p.Value is not null && !allowed.Contains(p.Key)) || condition["visibilityConditions"] is JsonArray { Count: > 0 }
+                                                                                    || !string.IsNullOrEmpty(condition["globalQuestCounterId"]?.ToString())
+                                                                                    || !string.IsNullOrEmpty(condition["parentId"]?.ToString())
+                                                                                    || (condition["availableAfter"]?.GetValue<double>() ?? 0) > 0
+                                                                                    || (condition["dispersion"]?.GetValue<double>() ?? 0) > 0) return false;
             double value = condition["value"]?.GetValue<double>() ?? 0;
             if (condition["compareMethod"] is { } compare && compare.ToString() != ">=") return false;
             switch (condition["conditionType"]?.ToString())
             {
-                case "Level": if (Level(c.Experience) < value) return false; break;
+                case "Level":
+                    if (Level(c.Experience) < value) return false;
+                    break;
                 case "Skill":
                     if (SkillProgress(c, condition["target"]?.ToString()) / 100 < value) return false;
                     break;
@@ -82,21 +92,20 @@ public sealed partial class PopulationStore
                     break;
                 case "Quest":
                     string id = condition["target"]?.ToString() ?? "";
-                    if (!IsId(id) || !templates.Quests.ContainsKey(new MongoId(id))
-                        || condition["status"] is not JsonArray statuses || !statuses.Any(s => s?.GetValue<int>() == 4)
+                    if (!IsId(id) || !templates.Quests.ContainsKey(new MongoId(id)) || condition["status"] is not JsonArray statuses || !statuses.Any(s => s?.GetValue<int>() == 4)
                         || CycleHours(c) < policy.MinimumPrestigeCycleHours * (1 + c.PrestigeLevel * .25)) return false;
                     break;
                 case "HasItem":
-                    if (condition["target"] is not JsonArray { Count: 1 } targets || targets[0]?.ToString() != "5449016a4bdc2d6f028b456f"
-                        || c.WealthRubles < value || condition["onlyFoundInRaid"]?.GetValue<bool>() == true
-                        || condition["isEncoded"]?.GetValue<bool>() == true || (condition["dogtagLevel"]?.GetValue<double>() ?? 0) > 0
-                        || (condition["minDurability"]?.GetValue<double>() ?? 0) > 0
+                    if (condition["target"] is not JsonArray { Count: 1 } targets || targets[0]?.ToString() != "5449016a4bdc2d6f028b456f" || c.WealthRubles < value
+                        || condition["onlyFoundInRaid"]?.GetValue<bool>() == true || condition["isEncoded"]?.GetValue<bool>() == true
+                        || (condition["dogtagLevel"]?.GetValue<double>() ?? 0) > 0 || (condition["minDurability"]?.GetValue<double>() ?? 0) > 0
                         || (condition["maxDurability"]?.GetValue<double>() ?? 100) < 100)
                         return false;
                     break;
                 default: return false;
             }
         }
+
         return conditions.Count > 0 && conditions.All(c => c is JsonObject);
     }
 
@@ -104,15 +113,15 @@ public sealed partial class PopulationStore
     private Dictionary<string, double>? PrestigeSkillCarry(Career c, JsonObject definition)
     {
         var transfer = definition["transferConfigs"]?.AsObject();
-        if (transfer?["skillConfig"]?["transferMultiplier"] is not JsonValue skillRate
-            || transfer["masteringConfig"]?["transferMultiplier"] is not JsonValue masteryRate
-            || skillRate.GetValue<double>() is < 0 or > 1 || masteryRate.GetValue<double>() is < 0 or > 1) return null;
+        if (transfer?["skillConfig"]?["transferMultiplier"] is not JsonValue skillRate || transfer["masteringConfig"]?["transferMultiplier"] is not JsonValue masteryRate
+                                                                                       || skillRate.GetValue<double>() is < 0 or > 1
+                                                                                       || masteryRate.GetValue<double>() is < 0 or > 1) return null;
         return CareerSkills(c)["Common"]!.AsArray().OfType<JsonObject>()
             .ToDictionary(s => s["Id"]!.ToString(), s => (s["Progress"]?.GetValue<double>() ?? 0) * skillRate.GetValue<double>());
     }
 
-    private static int PrestigeLevelRequirement(JsonObject definition) => (int)(definition["conditions"]?.AsArray().OfType<JsonObject>()
-        .FirstOrDefault(c => c["conditionType"]?.ToString() == "Level")?["value"]?.GetValue<double>() ?? 55);
+    private static int PrestigeLevelRequirement(JsonObject definition) =>
+        (int)(definition["conditions"]?.AsArray().OfType<JsonObject>().FirstOrDefault(c => c["conditionType"]?.ToString() == "Level")?["value"]?.GetValue<double>() ?? 55);
 
     // Some accounts start with earlier prestige cycles behind them, each played up to that prestige's level requirement.
     private void AddPrestigeBackstory(Career c)
@@ -144,7 +153,10 @@ public sealed partial class PopulationStore
         {
             var record = c.PrestigeHistory[i];
             long utc = c.RegisteredUtc + (long)((now - c.RegisteredUtc) * Math.Clamp(record.LifetimeHours / lifetime, 0, 1));
-            c.PrestigeHistory[i] = record with { Utc = utc };
+            c.PrestigeHistory[i] = record with
+            {
+                Utc = utc
+            };
             c.LastPrestigeUtc = utc;
             if (IsId(record.DefinitionId) && PrestigeHelper.PrestigeAchievements.TryGetValue(new MongoId(record.DefinitionId), out var achievement))
                 c.Achievements[achievement.ToString()] = utc;
@@ -155,8 +167,8 @@ public sealed partial class PopulationStore
     {
         if (!policy.EnablePrestige || c.PrestigeLevel >= prestigeDefinitions.Count || IsObservedActive(c, now) || now < c.StoryHoldUntilUtc
             || reservedCareers.Values.Any(ids => ids.Contains(c.Id)) || CycleHours(c) < policy.MinimumPrestigeCycleHours
-            || prestigeDefinitions[c.PrestigeLevel] is not JsonObject definition
-            || definition["conditions"] is not JsonArray conditions || !PrestigeConditions(c, conditions)) return;
+            || prestigeDefinitions[c.PrestigeLevel] is not JsonObject definition || definition["conditions"] is not JsonArray conditions
+            || !PrestigeConditions(c, conditions)) return;
         var next = JsonSerializer.Deserialize<Career>(JsonSerializer.Serialize(c))!;
         string definitionId = definition["id"]!.ToString();
         var transfer = definition["transferConfigs"]?.AsObject();
@@ -189,6 +201,7 @@ public sealed partial class PopulationStore
             tree[0]!["parentId"] = stashRoot;
             foreach (var item in tree) items.Add(item!.DeepClone());
         }
+
         stash["items"] = items;
         SyncStashTemplate(next, stash);
         if (IsId(definitionId) && PrestigeHelper.PrestigeAchievements.TryGetValue(new MongoId(definitionId), out var achievement))
@@ -222,13 +235,27 @@ public sealed partial class PopulationStore
             var props = templates.Items[new MongoId(tpl)].Properties;
             int width = Math.Max(1, props?.Width ?? 1), height = Math.Max(1, props?.Height ?? 1);
             if (width > columns || height > rows) continue;
-            if (x + width > columns) { x = 0; y += rowHeight; rowHeight = 0; }
+            if (x + width > columns)
+            {
+                x = 0;
+                y += rowHeight;
+                rowHeight = 0;
+            }
+
             if (y + height > rows) continue;
             var tree = ItemTree(source, item["_id"]!.ToString());
-            tree[0]!["location"] = new JsonObject { ["x"] = x, ["y"] = y, ["r"] = 0, ["isSearched"] = true };
-            x += width; rowHeight = Math.Max(rowHeight, height);
+            tree[0]!["location"] = new JsonObject
+            {
+                ["x"] = x,
+                ["y"] = y,
+                ["r"] = 0,
+                ["isSearched"] = true
+            };
+            x += width;
+            rowHeight = Math.Max(rowHeight, height);
             result.Add(tree);
         }
+
         return result;
     }
 
@@ -240,6 +267,7 @@ public sealed partial class PopulationStore
             if (tpl == ancestor) return true;
             tpl = item.Parent.ToString();
         }
+
         return false;
     }
 
@@ -247,15 +275,20 @@ public sealed partial class PopulationStore
 
     private static JsonArray ItemTree(JsonArray items, string root)
     {
-        var keep = new HashSet<string> { root };
+        var keep = new HashSet<string>
+        {
+            root
+        };
         bool changed;
         do
         {
             changed = false;
             foreach (var item in items.OfType<JsonObject>())
-                if (item["parentId"] is { } parent && keep.Contains(parent.ToString())) changed |= keep.Add(item["_id"]!.ToString());
+                if (item["parentId"] is { } parent && keep.Contains(parent.ToString()))
+                    changed |= keep.Add(item["_id"]!.ToString());
         } while (changed);
-        return new JsonArray(items.OfType<JsonObject>().Where(i => keep.Contains(i["_id"]!.ToString()))
-            .OrderByDescending(i => i["_id"]!.ToString() == root).Select(i => i.DeepClone()).ToArray());
+
+        return new JsonArray(items.OfType<JsonObject>().Where(i => keep.Contains(i["_id"]!.ToString())).OrderByDescending(i => i["_id"]!.ToString() == root)
+            .Select(i => i.DeepClone()).ToArray());
     }
 }

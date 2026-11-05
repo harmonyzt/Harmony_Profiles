@@ -16,6 +16,7 @@ public sealed partial class PopulationStore
     private long assetSequence;
     private readonly object assetGate = new();
     private readonly Dictionary<string, long> assetsWritten = new();
+
     private sealed record AssetSnapshot(CareerAssets Assets, long Sequence, long Version, string Text);
 
     private string CareerDirectory => Path.Combine(directory, "careers");
@@ -39,8 +40,13 @@ public sealed partial class PopulationStore
             assetOrder.AddFirst(node);
             return node.Value;
         }
+
         var assets = assetFiles.Contains(c.Id) ? ReadAssets(c) : null;
-        assets ??= new CareerAssets { CareerId = c.Id, Equipment = EmptyEquipment(StableId(c.Id + ":equipment")) };
+        assets ??= new CareerAssets
+        {
+            CareerId = c.Id,
+            Equipment = EmptyEquipment(StableId(c.Id + ":equipment"))
+        };
         assetCache.Add(c.Id, assetOrder.AddFirst(assets));
         while (assetOrder.Count > AssetCacheSize)
         {
@@ -60,9 +66,11 @@ public sealed partial class PopulationStore
                     break;
                 }
             }
+
             assetOrder.RemoveLast();
             assetCache.Remove(last.Value.CareerId);
         }
+
         return assets;
     }
 
@@ -72,8 +80,8 @@ public sealed partial class PopulationStore
         try
         {
             var assets = JsonSerializer.Deserialize<CareerAssets>(File.ReadAllText(path));
-            if (assets is null || assets.SchemaVersion != 1 || assets.CareerId != c.Id || assets.Equipment is null
-                || assets.ShowcaseItems is null || assets.ShowcaseItems.Count > 4096)
+            if (assets is null || assets.SchemaVersion != 1 || assets.CareerId != c.Id || assets.Equipment is null || assets.ShowcaseItems is null
+                || assets.ShowcaseItems.Count > 4096)
                 throw new InvalidDataException("Invalid career file.");
             return assets;
         }
@@ -104,12 +112,10 @@ public sealed partial class PopulationStore
     }
 
     // Caller holds the gate.
-    private static void Saved(AssetSnapshot snapshot) =>
-        snapshot.Assets.SavedVersion = Math.Max(snapshot.Assets.SavedVersion, snapshot.Version);
+    private static void Saved(AssetSnapshot snapshot) => snapshot.Assets.SavedVersion = Math.Max(snapshot.Assets.SavedVersion, snapshot.Version);
 
     // Caller holds the gate. The writes can happen after it is released.
-    private List<AssetSnapshot> SnapshotChangedAssets() =>
-        assetOrder.Where(a => a.Version > a.SavedVersion).Select(SnapshotAssets).ToList();
+    private List<AssetSnapshot> SnapshotChangedAssets() => assetOrder.Where(a => a.Version > a.SavedVersion).Select(SnapshotAssets).ToList();
 
     private void SaveChangedAssets()
     {
@@ -135,8 +141,7 @@ public sealed partial class PopulationStore
     {
         if (!e.Trimmed) return e.Equipment;
         string path = Path.Combine(directory, "encounters", e.AccountId + ".json");
-        return JsonSerializer.Deserialize<Encounter>(File.ReadAllText(path))?.Equipment
-            ?? throw new InvalidDataException($"Empty encounter {path}");
+        return JsonSerializer.Deserialize<Encounter>(File.ReadAllText(path))?.Equipment ?? throw new InvalidDataException($"Empty encounter {path}");
     }
 
     private static void TrimEncounter(Encounter e)
@@ -157,6 +162,5 @@ public sealed partial class PopulationStore
         return Convert.ToHexString(hash.GetHashAndReset());
     }
 
-    private static string StableId(string key) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)), 0, 12).ToLowerInvariant();
+    private static string StableId(string key) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)), 0, 12).ToLowerInvariant();
 }

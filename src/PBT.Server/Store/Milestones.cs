@@ -5,6 +5,7 @@ namespace PBT.Server;
 public sealed partial class PopulationStore
 {
     private sealed record Milestone(string Id, string Side, string Counter, double Threshold);
+
     private readonly List<Milestone> milestones = [];
     private readonly HashSet<string> installedAchievements = [];
 
@@ -17,14 +18,13 @@ public sealed partial class PopulationStore
             try
             {
                 var node = JsonNode.Parse(json.Serialize(achievement)!)!.AsObject();
-                if (!achievement.Hidden && achievement.Side is "All" or "Pmc" or "Usec" or "Bear"
-                    && !node.ToJsonString().Contains("Prestige", StringComparison.OrdinalIgnoreCase))
+                if (!achievement.Hidden && achievement.Side is "All" or "Pmc" or "Usec" or "Bear" && !node.ToJsonString().Contains("Prestige", StringComparison.OrdinalIgnoreCase))
                     achievementStories[id] = (achievement.Side, achievement.Rarity);
                 if (node["hidden"]?.GetValue<bool>() == true || node["conditions"] is not JsonObject conditions
-                    || !Keys(conditions, "started", "availableForStart", "availableForFinish", "success", "fail")
-                    || conditions.Any(p => p.Key != "availableForFinish" && !Empty(p.Value))
-                    || conditions["availableForFinish"] is not JsonArray { Count: 1 } finish
-                    || finish[0] is not JsonObject condition || !PlainCounter(condition)) continue;
+                                                             || !Keys(conditions, "started", "availableForStart", "availableForFinish", "success", "fail")
+                                                             || conditions.Any(p => p.Key != "availableForFinish" && !Empty(p.Value))
+                                                             || conditions["availableForFinish"] is not JsonArray { Count: 1 } finish || finish[0] is not JsonObject condition
+                                                             || !PlainCounter(condition)) continue;
                 string side = node["side"]?.GetValue<string>() ?? "";
                 if (side is not ("All" or "Pmc" or "Usec" or "Bear")) continue;
                 double threshold = condition["value"]?.GetValue<double>() ?? 0;
@@ -37,44 +37,46 @@ public sealed partial class PopulationStore
                 logger.Warning("[PBT] Achievement rule skipped: " + id + ": " + ex.Message);
             }
         }
+
         logger.Debug($"[PBT] {milestones.Count} supported lifetime achievement rules loaded.");
     }
 
     private static bool Keys(JsonObject node, params string[] allowed) => node.All(p => allowed.Contains(p.Key));
-    private static bool Empty(JsonNode? node) => node is null || node is JsonArray { Count: 0 }
-        || node is JsonValue value && (value.ToJsonString() is "false" or "0" or "\"\"");
+    private static bool Empty(JsonNode? node) => node is null || node is JsonArray { Count: 0 } || node is JsonValue value && (value.ToJsonString() is "false" or "0" or "\"\"");
 
     private static bool PlainCounter(JsonObject node) =>
-        Keys(node, "id", "index", "dynamicLocale", "visibilityConditions", "globalQuestCounterId", "parentId",
-            "value", "type", "oneSessionOnly", "completeInSeconds", "doNotResetIfCounterCompleted",
-            "isResetOnConditionFailed", "isNecessary", "counter", "epicGamesId", "steamGamesId", "conditionType")
-        && new[] { "visibilityConditions", "globalQuestCounterId", "parentId", "oneSessionOnly", "completeInSeconds",
-            "isResetOnConditionFailed", "isNecessary" }.All(k => Empty(node[k]))
-        && node["conditionType"]?.GetValue<string>() == "CounterCreator"
-        && node["type"]?.GetValue<string>() == "Completion";
+        Keys(node, "id", "index", "dynamicLocale", "visibilityConditions", "globalQuestCounterId", "parentId", "value", "type", "oneSessionOnly", "completeInSeconds",
+            "doNotResetIfCounterCompleted", "isResetOnConditionFailed", "isNecessary", "counter", "epicGamesId", "steamGamesId", "conditionType")
+        && new[] { "visibilityConditions", "globalQuestCounterId", "parentId", "oneSessionOnly", "completeInSeconds", "isResetOnConditionFailed", "isNecessary" }.All(k =>
+            Empty(node[k])) && node["conditionType"]?.GetValue<string>() == "CounterCreator" && node["type"]?.GetValue<string>() == "Completion";
 
     private static string? CounterName(JsonObject condition)
     {
-        if (condition["counter"] is not JsonObject counter || !Keys(counter, "id", "conditions")
-            || counter["conditions"] is not JsonArray { Count: 1 } rules || rules[0] is not JsonObject rule) return null;
+        if (condition["counter"] is not JsonObject counter || !Keys(counter, "id", "conditions") || counter["conditions"] is not JsonArray { Count: 1 } rules
+            || rules[0] is not JsonObject rule) return null;
         string? type = rule["conditionType"]?.GetValue<string>();
         if (type == "ExitStatus")
-            return Keys(rule, "id", "dynamicLocale", "status", "conditionType")
-                && rule["status"] is JsonArray { Count: 1 } statuses && statuses[0]?.GetValue<string>() == "Survived"
-                    ? "Survived" : null;
-        if (type != "Kills" || !Keys(rule, "id", "dynamicLocale", "target", "compareMethod", "value", "weapon",
-                "distance", "weaponModsInclusive", "weaponModsExclusive", "enemyEquipmentInclusive", "enemyEquipmentExclusive",
-                "weaponCaliber", "savageRole", "bodyPart", "daytime", "enemyHealthEffects", "resetOnSessionEnd", "conditionType")
-            || new[] { "weapon", "weaponModsInclusive", "weaponModsExclusive", "enemyEquipmentInclusive", "enemyEquipmentExclusive",
-                "weaponCaliber", "savageRole", "bodyPart", "enemyHealthEffects", "resetOnSessionEnd" }.Any(k => !Empty(rule[k]))
-            || rule["compareMethod"]?.GetValue<string>() != ">=" || rule["value"]?.GetValue<double>() != 1
-            || rule["distance"] is not JsonObject distance || !Keys(distance, "value", "compareMethod")
-            || distance["value"]?.GetValue<double>() != 0 || distance["compareMethod"]?.GetValue<string>() != ">="
-            || rule["daytime"] is not JsonObject daytime || !Keys(daytime, "from", "to")
+            return Keys(rule, "id", "dynamicLocale", "status", "conditionType") && rule["status"] is JsonArray { Count: 1 } statuses
+                                                                                && statuses[0]?.GetValue<string>() == "Survived"
+                ? "Survived"
+                : null;
+        if (type != "Kills"
+            || !Keys(rule, "id", "dynamicLocale", "target", "compareMethod", "value", "weapon", "distance", "weaponModsInclusive", "weaponModsExclusive", "enemyEquipmentInclusive",
+                "enemyEquipmentExclusive", "weaponCaliber", "savageRole", "bodyPart", "daytime", "enemyHealthEffects", "resetOnSessionEnd", "conditionType")
+            || new[]
+            {
+                "weapon", "weaponModsInclusive", "weaponModsExclusive", "enemyEquipmentInclusive", "enemyEquipmentExclusive", "weaponCaliber", "savageRole", "bodyPart",
+                "enemyHealthEffects", "resetOnSessionEnd"
+            }.Any(k => !Empty(rule[k])) || rule["compareMethod"]?.GetValue<string>() != ">=" || rule["value"]?.GetValue<double>() != 1
+            || rule["distance"] is not JsonObject distance || !Keys(distance, "value", "compareMethod") || distance["value"]?.GetValue<double>() != 0
+            || distance["compareMethod"]?.GetValue<string>() != ">=" || rule["daytime"] is not JsonObject daytime || !Keys(daytime, "from", "to")
             || daytime["from"]?.GetValue<double>() != 0 || daytime["to"]?.GetValue<double>() != 0) return null;
         return rule["target"]?.GetValue<string>() switch
         {
-            "Usec" => "UsecKills", "Bear" => "BearKills", "Savage" => "ScavKills", _ => null
+            "Usec" => "UsecKills",
+            "Bear" => "BearKills",
+            "Savage" => "ScavKills",
+            _ => null
         };
     }
 
@@ -98,6 +100,7 @@ public sealed partial class PopulationStore
             if (value >= milestone.Threshold && hours >= BadgeHours(milestone.Id, rarity))
                 result.Add(milestone.Id, Math.Max(career.RegisteredUtc, now));
         }
+
         AddStories(career, result, now);
         return result;
     }
@@ -106,7 +109,8 @@ public sealed partial class PopulationStore
     {
         var result = new JsonObject();
         foreach (var (id, earned) in career.Achievements)
-            if (installedAchievements.Contains(id)) result[id] = earned;
+            if (installedAchievements.Contains(id))
+                result[id] = earned;
         return result;
     }
 
@@ -116,14 +120,13 @@ public sealed partial class PopulationStore
         {
             var career = population.Careers[group.Key];
             string? current = CareerEquipment(career)["Id"]?.ToString();
-            var latest = group.OrderByDescending(e => e.GenerationOrder).ThenByDescending(e => e.GeneratedUtc)
-                .ThenByDescending(e => e.AccountId == career.LastEquipmentAccount)
-                .ThenByDescending(e => EncounterEquipment(e)["Id"]?.ToString() == current)
-                .ThenByDescending(e => e.AccountId).First();
+            var latest = group.OrderByDescending(e => e.GenerationOrder).ThenByDescending(e => e.GeneratedUtc).ThenByDescending(e => e.AccountId == career.LastEquipmentAccount)
+                .ThenByDescending(e => EncounterEquipment(e)["Id"]?.ToString() == current).ThenByDescending(e => e.AccountId).First();
             // Expiration of the newest alias must not resurrect an older, longer-retained killer loadout.
             if ((!career.EquipmentIsSimulated && career.LastEquipmentAccount == 0) || latest.AccountId == career.LastEquipmentAccount
-                || latest.GenerationOrder > career.LastEquipmentOrder
-                || latest.GenerationOrder == career.LastEquipmentOrder && latest.GeneratedUtc > career.LastEquipmentGeneratedUtc)
+                                                                                   || latest.GenerationOrder > career.LastEquipmentOrder
+                                                                                   || latest.GenerationOrder == career.LastEquipmentOrder
+                                                                                   && latest.GeneratedUtc > career.LastEquipmentGeneratedUtc)
                 RememberEquipment(career, latest);
         }
     }

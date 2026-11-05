@@ -35,8 +35,12 @@ public sealed partial class PopulationStore
             clock.Stop();
             var after = GC.GetGCMemoryInfo();
             largeObjectsAfterCompact = LargeObjectBytes(after);
-            logger.Info($"[PBT] Compacted server memory in {clock.ElapsedMilliseconds} ms: committed {committed / 1048576} MB -> {after.TotalCommittedBytes / 1048576} MB, large objects {large / 1048576} MB -> {largeObjectsAfterCompact / 1048576} MB.");
+            logger.Info(
+                $"[PBT] Compacted server memory in {clock.ElapsedMilliseconds} ms: committed {committed / 1048576} MB -> {after.TotalCommittedBytes / 1048576} MB, large objects {large / 1048576} MB -> {largeObjectsAfterCompact / 1048576} MB.");
         }
-        catch (Exception ex) { logger.Warning("[PBT] Memory compaction skipped: " + ex.Message); }
+        catch (Exception ex)
+        {
+            logger.Warning("[PBT] Memory compaction skipped: " + ex.Message);
+        }
     }
 }

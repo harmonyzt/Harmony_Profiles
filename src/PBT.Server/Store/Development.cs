@@ -17,8 +17,7 @@ public sealed partial class PopulationStore
         if (nativeCharacters.TryGetValue(key, out var cached)) return cached;
         if (!templates.Profiles.TryGetValue(edition, out var profile))
             throw new InvalidDataException("Native edition template is missing: " + edition);
-        var source = (side == "Bear" ? profile.Bear : profile.Usec)?.Character
-            ?? throw new InvalidDataException("Native character template is missing for " + key);
+        var source = (side == "Bear" ? profile.Bear : profile.Usec)?.Character ?? throw new InvalidDataException("Native character template is missing for " + key);
         var character = JsonNode.Parse(json.Serialize(source)!)!.AsObject();
         nativeCharacters.Add(key, character);
         return character;
@@ -38,11 +37,13 @@ public sealed partial class PopulationStore
             int deaths = Math.Max(0, c.Raids - c.Survived);
             c.WealthRubles = Math.Clamp(100000 + c.Survived * RaidIncome(c, level, true) - deaths * RaidIncome(c, level, false), 100000, MaximumWealth);
         }
+
         foreach (var baseline in native["Hideout"]!["Areas"]!.AsArray().OfType<JsonObject>())
         {
             int type = baseline["type"]!.GetValue<int>(), level = baseline["level"]!.GetValue<int>();
             if (level > AreaLevel(c, type)) c.AreaLevels[type] = level;
         }
+
         c.DevelopmentVersion = 2;
         dirty = true;
     }
@@ -50,19 +51,18 @@ public sealed partial class PopulationStore
     private string StashTemplate(Career c)
     {
         var native = NativeCharacter(c.Side, c.Edition);
-        int baseline = native["Hideout"]!["Areas"]!.AsArray().OfType<JsonObject>()
-            .First(a => a["type"]!.GetValue<int>() == 3)["level"]!.GetValue<int>();
+        int baseline = native["Hideout"]!["Areas"]!.AsArray().OfType<JsonObject>().First(a => a["type"]!.GetValue<int>() == 3)["level"]!.GetValue<int>();
         if (AreaLevel(c, 3) > baseline)
         {
             var area = hideout.Areas.FirstOrDefault(a => (int?)a.Type == 3);
-            if (area?.Stages?.TryGetValue(AreaLevel(c, 3).ToString(), out var stage) == true
-                && stage.Container is MongoId container && !container.IsEmpty && templates.Items.ContainsKey(container))
+            if (area?.Stages?.TryGetValue(AreaLevel(c, 3).ToString(), out var stage) == true && stage.Container is MongoId container && !container.IsEmpty
+                && templates.Items.ContainsKey(container))
                 return container.ToString();
         }
+
         var inventory = native["Inventory"]!.AsObject();
         string root = inventory["stash"]!.GetValue<string>();
-        return inventory["items"]!.AsArray().OfType<JsonObject>()
-            .First(i => i["_id"]?.ToString() == root && i["parentId"] is null)["_tpl"]!.GetValue<string>();
+        return inventory["items"]!.AsArray().OfType<JsonObject>().First(i => i["_id"]?.ToString() == root && i["parentId"] is null)["_tpl"]!.GetValue<string>();
     }
 
     private void SyncStashTemplate(Career c, JsonObject stash)
@@ -76,8 +76,7 @@ public sealed partial class PopulationStore
     // Only prestige reads the stash, so it is rolled then unless a previous prestige stored one.
     private JsonObject CareerStash(Career c)
     {
-        var stash = Assets(c).Stash?.DeepClone().AsObject()
-            ?? GenerateStash(c, NativeCharacter(c.Side, c.Edition)["Inventory"]!.AsObject());
+        var stash = Assets(c).Stash?.DeepClone().AsObject() ?? GenerateStash(c, NativeCharacter(c.Side, c.Edition)["Inventory"]!.AsObject());
         SyncStashTemplate(c, stash);
         return stash;
     }
@@ -87,8 +86,7 @@ public sealed partial class PopulationStore
         string oldRoot = inventory["stash"]!.GetValue<string>();
         var all = inventory["items"]!.AsArray().OfType<JsonObject>().ToArray();
         int wanted = Math.Clamp(8 + (int)(CycleHours(c) / 30), 8, 60);
-        var roots = all.Where(x => x["parentId"]?.GetValue<string>() == oldRoot)
-            .OrderBy(x => Stable(c.Id + ":" + x["_id"])).Take(wanted).ToArray();
+        var roots = all.Where(x => x["parentId"]?.GetValue<string>() == oldRoot).OrderBy(x => Stable(c.Id + ":" + x["_id"])).Take(wanted).ToArray();
         bool changed;
         var allowedRoots = roots.Select(x => x["_id"]!.GetValue<string>()).ToHashSet();
         var keep = new HashSet<string>(allowedRoots);
@@ -99,13 +97,13 @@ public sealed partial class PopulationStore
                 if (item["parentId"] is JsonValue parent && keep.Contains(parent.GetValue<string>()))
                     changed |= keep.Add(item["_id"]!.GetValue<string>());
         } while (changed);
+
         keep.Add(oldRoot);
         var ids = keep.ToDictionary(id => id, _ => NewId());
         var result = new JsonArray();
         foreach (var item in all.Where(x => keep.Contains(x["_id"]!.GetValue<string>())
-            && (x["_id"]!.ToString() == oldRoot && x["parentId"] is null
-                || x["parentId"] is not null && keep.Contains(x["parentId"]!.ToString())))
-            .DistinctBy(x => x["_id"]!.ToString()))
+                                            && (x["_id"]!.ToString() == oldRoot && x["parentId"] is null || x["parentId"] is not null && keep.Contains(x["parentId"]!.ToString())))
+                     .DistinctBy(x => x["_id"]!.ToString()))
         {
             var copy = item.DeepClone().AsObject();
             copy["_id"] = ids[item["_id"]!.GetValue<string>()];
@@ -113,7 +111,12 @@ public sealed partial class PopulationStore
                 copy["parentId"] = newParent;
             result.Add(copy);
         }
-        return new JsonObject { ["stash"] = ids[oldRoot], ["items"] = result };
+
+        return new JsonObject
+        {
+            ["stash"] = ids[oldRoot],
+            ["items"] = result
+        };
     }
 
     private void Develop(Career c)
@@ -134,8 +137,7 @@ public sealed partial class PopulationStore
 
     private double SkillProgress(Career c, string? id)
     {
-        var native = NativeCharacter(c.Side, c.Edition)["Skills"]?["Common"]?.AsArray().OfType<JsonObject>()
-            .FirstOrDefault(s => s["Id"]?.GetValue<string>() == id);
+        var native = NativeCharacter(c.Side, c.Edition)["Skills"]?["Common"]?.AsArray().OfType<JsonObject>().FirstOrDefault(s => s["Id"]?.GetValue<string>() == id);
         return native is null ? 0 : SkillProgress(c, id!, native["Progress"]?.GetValue<double>() ?? 0, CycleHours(c));
     }
 
@@ -160,15 +162,15 @@ public sealed partial class PopulationStore
         for (int i = 0; i < trader.Base.LoyaltyLevels.Count; i++)
         {
             var stage = trader.Base.LoyaltyLevels[i];
-            if (playerLevel >= (stage.MinLevel ?? 1) && sales >= (stage.MinSalesSum ?? 0)
-                && standing >= (stage.MinStanding ?? 0)) loyalty = i + 1;
+            if (playerLevel >= (stage.MinLevel ?? 1) && sales >= (stage.MinSalesSum ?? 0) && standing >= (stage.MinStanding ?? 0)) loyalty = i + 1;
             else break;
         }
+
         return loyalty;
     }
 
-    private HideoutArea[] HideoutAreas() => hideout.Areas.Concat(hideout.CustomAreas ?? []).Where(a => a.IsEnabled != false && a.Type is not null)
-        .GroupBy(a => (int)a.Type!.Value).Select(g => g.First()).ToArray();
+    private HideoutArea[] HideoutAreas() =>
+        hideout.Areas.Concat(hideout.CustomAreas ?? []).Where(a => a.IsEnabled != false && a.Type is not null).GroupBy(a => (int)a.Type!.Value).Select(g => g.First()).ToArray();
 
     private void AdvanceHideout(Career c, double hours)
     {
@@ -199,8 +201,10 @@ public sealed partial class PopulationStore
                 upgraded = true;
             }
         } while (upgraded);
+
         foreach (var (type, level) in levels)
-            if (level > 0) c.AreaLevels[type] = level;
+            if (level > 0)
+                c.AreaLevels[type] = level;
     }
 
     // Root IDs are stable per career.
@@ -209,40 +213,70 @@ public sealed partial class PopulationStore
         var result = NativeCharacter(c.Side, c.Edition)["Hideout"]!.DeepClone().AsObject();
         result["Seed"] = (StableId(c.Id + ":hideout-seed") + StableId(c.Id + ":hideout-seed:2"))[..32];
         result["HideoutCounters"] = new JsonObject
-            { ["fuelCounter"] = 0, ["airFilterCounter"] = 0, ["waterFilterCounter"] = 0, ["craftingTimeCounter"] = 0 };
+        {
+            ["fuelCounter"] = 0,
+            ["airFilterCounter"] = 0,
+            ["waterFilterCounter"] = 0,
+            ["craftingTimeCounter"] = 0
+        };
         var states = result["Areas"]!.AsArray();
         var areaStashes = new JsonObject();
-        var items = new JsonArray(new JsonObject { ["_id"] = c.CustomizationStashId, ["_tpl"] = "673c7b00cbf4b984b5099181" });
+        var items = new JsonArray(new JsonObject
+        {
+            ["_id"] = c.CustomizationStashId,
+            ["_tpl"] = "673c7b00cbf4b984b5099181"
+        });
         foreach (var area in HideoutAreas())
         {
             int type = (int)area.Type!.Value;
             var state = states.OfType<JsonObject>().FirstOrDefault(a => a["type"]!.GetValue<int>() == type);
             if (state is null)
-                states.Add(state = new JsonObject { ["type"] = type, ["level"] = 0, ["active"] = false,
-                    ["constructing"] = false, ["completeTime"] = 0, ["passiveBonusesEnabled"] = false, ["slots"] = new JsonArray() });
+                states.Add(state = new JsonObject
+                {
+                    ["type"] = type,
+                    ["level"] = 0,
+                    ["active"] = false,
+                    ["constructing"] = false,
+                    ["completeTime"] = 0,
+                    ["passiveBonusesEnabled"] = false,
+                    ["slots"] = new JsonArray()
+                });
             int level = AreaLevel(c, type);
             if (area.Stages is null || !area.Stages.TryGetValue(level.ToString(), out var stage)) continue;
-            if (state["level"]!.GetValue<int>() != level) { state["constructing"] = false; state["completeTime"] = 0; }
+            if (state["level"]!.GetValue<int>() != level)
+            {
+                state["constructing"] = false;
+                state["completeTime"] = 0;
+            }
+
             state["level"] = level;
             state["active"] = level > 0 && area.NeedsFuel != true;
             state["passiveBonusesEnabled"] = level > 0 && area.NeedsFuel != true;
             int count = stage.Slots ?? 0;
             if (count is < 0 or > 128) continue;
             var slots = new JsonArray();
-            for (int i = 0; i < count; i++) slots.Add(new JsonObject { ["locationIndex"] = i });
+            for (int i = 0; i < count; i++)
+                slots.Add(new JsonObject
+                {
+                    ["locationIndex"] = i
+                });
             state["slots"] = slots;
             if (stage.Container is not MongoId container || container.IsEmpty || !templates.Items.ContainsKey(container)) continue;
             if (type == 3) container = new MongoId(StashTemplate(c));
             string root = StableId(c.Id + ":area-stash:" + type);
             areaStashes[type.ToString()] = root;
-            items.Add(new JsonObject { ["_id"] = root, ["_tpl"] = container.ToString() });
+            items.Add(new JsonObject
+            {
+                ["_id"] = root,
+                ["_tpl"] = container.ToString()
+            });
         }
+
         return (result, areaStashes, items);
     }
 
     private static bool AreaRequirements(List<HideoutAreaRequirement>? requirements, Dictionary<int, int> levels) =>
-        requirements is null || requirements.All(r => r.Type == "Area" && r.AreaType is int type
-            && levels.GetValueOrDefault(type) >= (r.RequiredLevel ?? 0));
+        requirements is null || requirements.All(r => r.Type == "Area" && r.AreaType is int type && levels.GetValueOrDefault(type) >= (r.RequiredLevel ?? 0));
 
     private double StageCost(Career c, Stage stage, Dictionary<int, int> levels)
     {
@@ -264,32 +298,34 @@ public sealed partial class PopulationStore
                 case "Item":
                     if (!templates.Items.ContainsKey(r.TemplateId) || r.Count is not int count || count < 0) return double.PositiveInfinity;
                     // Money has no flea price.
-                    double price = templates.Prices.TryGetValue(r.TemplateId, out double flea) ? flea
-                        : HandbookPrices().GetValueOrDefault(r.TemplateId.ToString(), 10000);
+                    double price = templates.Prices.TryGetValue(r.TemplateId, out double flea) ? flea : HandbookPrices().GetValueOrDefault(r.TemplateId.ToString(), 10000);
                     cost += Math.Max(1, price) * count;
                     if (r.IsSpawnedInSession == true && c.Raids < count) return double.PositiveInfinity;
                     break;
                 default: return double.PositiveInfinity;
             }
         }
+
         return cost;
     }
 
     private void ApplyAppearance(Career c, BotBase bot)
     {
         if (bot.Customization is null) return;
+
         MongoId? Asset(string key)
         {
             string? id = c.Customization[key]?.GetValue<string>();
             return Wearable(key, id) ? new MongoId(id!) : (MongoId?)null;
         }
+
         if (settings.PersistentFaceAndVoice)
         {
             bot.Customization.Head = Asset("Head") ?? bot.Customization.Head;
             bot.Customization.Voice = Asset("Voice") ?? bot.Customization.Voice;
         }
-        if (settings.PersistentClothing && Asset("Body") is MongoId body && Asset("Feet") is MongoId feet
-            && Asset("Hands") is MongoId hands)
+
+        if (settings.PersistentClothing && Asset("Body") is MongoId body && Asset("Feet") is MongoId feet && Asset("Hands") is MongoId hands)
         {
             bot.Customization.Body = body;
             bot.Customization.Feet = feet;

@@ -11,8 +11,10 @@ public sealed partial class PopulationStore
         if (!policy.WealthGearTiers) return 0;
         double kits = c.WealthRubles / Math.Max(1, KitCost(c));
         int shift = kits < .5 ? -2 : kits < 3 ? -1 : kits >= 60 ? 1 : 0;
+        
         // On tilt nobody wants to lose another good kit.
         if (Tilted(c)) shift--;
+        
         // Now and then anyone runs a cheap kit to save money, or goes all in.
         if (roll)
         {
@@ -20,6 +22,7 @@ public sealed partial class PopulationStore
             if (r < .12) shift--;
             else if (r > .92) shift++;
         }
+
         return shift;
     }
 

@@ -13,6 +13,7 @@ namespace PBT.Server;
 public sealed class CheatReportRequest : IRequestData
 {
     [JsonPropertyName("uid")] public string? Uid { get; set; }
+
     // The client sends EReportType, as "cheat" or as its flag value 2.
     [JsonPropertyName("type")] public JsonElement Type { get; set; }
 }
@@ -38,8 +39,8 @@ public sealed partial class PopulationStore
         int have = active.Count(IsCheater);
         if (have >= target) return;
         // A fresh account that is suddenly a god, so young careers first.
-        var pick = active.Where(c => !c.Cheater && c.BannedUtc == 0 && !Notable(c) && Level(c.Experience) <= 35)
-            .OrderBy(_ => Random.Shared.Next()).Take(Math.Min(target - have, 3)).ToList();
+        var pick = active.Where(c => !c.Cheater && c.BannedUtc == 0 && !Notable(c) && Level(c.Experience) <= 35).OrderBy(_ => Random.Shared.Next()).Take(Math.Min(target - have, 3))
+            .ToList();
         foreach (var c in pick) MakeCheater(c);
         if (pick.Count > 0) dirty = true;
     }
@@ -66,7 +67,7 @@ public sealed partial class PopulationStore
         {
             var result = request?.Results;
             if (result?.Result != ExitStatus.KILLED || !int.TryParse(result.KillerAid, out int killer)
-                || result.Profile?.Inventory is not { Items: { } items, Equipment: { } equipment }) return;
+                                                    || result.Profile?.Inventory is not { Items: { } items, Equipment: { } equipment }) return;
             lock (gate)
             {
                 if (!Ready || !policy.Cheaters.Enabled || !encounters.TryGetValue(killer, out var e) || !CanAccess(e, session)) return;
@@ -77,24 +78,36 @@ public sealed partial class PopulationStore
                 foreach (var top in all.OfType<JsonObject>().Where(i => i["parentId"]?.ToString() == root && KeptOnDeath.Contains(i["slotId"]?.ToString())))
                 {
                     // Pocket contents are lost, the pockets themselves are not.
-                    if (top["slotId"]!.ToString() == "Pockets") { kept.Add(top["_id"]!.ToString()); continue; }
+                    if (top["slotId"]!.ToString() == "Pockets")
+                    {
+                        kept.Add(top["_id"]!.ToString());
+                        continue;
+                    }
+
                     foreach (var node in ItemTree(all, top["_id"]!.ToString())) kept.Add(node!["_id"]!.ToString());
                 }
+
                 var lostItems = new JsonArray();
                 foreach (var top in all.OfType<JsonObject>().Where(i => i["parentId"]?.ToString() == root))
-                    foreach (var node in ItemTree(all, top["_id"]!.ToString()))
-                    {
-                        string id = node!["_id"]!.ToString();
-                        if (!kept.Contains(id) && !insured.Contains(id) && lostItems.Count < 400) lostItems.Add(node.DeepClone());
-                    }
+                foreach (var node in ItemTree(all, top["_id"]!.ToString()))
+                {
+                    string id = node!["_id"]!.ToString();
+                    if (!kept.Contains(id) && !insured.Contains(id) && lostItems.Count < 400) lostItems.Add(node.DeepClone());
+                }
+
                 population.RaidLosses[session.ToString()] = new RaidLoss
                 {
-                    KillerAccountId = killer, Utc = DateTimeOffset.UtcNow.ToUnixTimeSeconds(), Items = lostItems
+                    KillerAccountId = killer,
+                    Utc = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                    Items = lostItems
                 };
                 dirty = true;
             }
         }
-        catch (Exception ex) { Report(ex); }
+        catch (Exception ex)
+        {
+            Report(ex);
+        }
     }
 
     public void ReportCheater(CheatReportRequest request, MongoId session)
@@ -118,7 +131,9 @@ public sealed partial class PopulationStore
             var s = policy.Cheaters;
             var report = new CheaterReport
             {
-                CareerId = career.Id, SessionId = sid, ReportedUtc = now,
+                CareerId = career.Id,
+                SessionId = sid,
+                ReportedUtc = now,
                 DueUtc = now + (long)((s.BanMinimumHours + Random.Shared.NextDouble() * (s.BanMaximumHours - s.BanMinimumHours)) * 3600)
             };
             if (population.RaidLosses.TryGetValue(sid, out var loss) && loss.KillerAccountId == account && now - loss.Utc < 6 * 3600)
@@ -126,6 +141,7 @@ public sealed partial class PopulationStore
                 report.LostGear = loss.Items;
                 population.RaidLosses.Remove(sid);
             }
+
             population.CheaterReports[Guid.NewGuid().ToString("N")] = report;
             dirty = true;
         }
@@ -150,8 +166,15 @@ public sealed partial class PopulationStore
                     type?.FirstNames?.RemoveAll(n => NameKey(c.Side, n) == NameKey(c.Side, c.SourceName));
                 Log("ban", $"{c.Name} was banned for cheating");
             }
-            try { SendBanReward(report); }
-            catch (Exception ex) { Report(ex); }
+
+            try
+            {
+                SendBanReward(report);
+            }
+            catch (Exception ex)
+            {
+                Report(ex);
+            }
         }
     }
 
@@ -164,10 +187,14 @@ public sealed partial class PopulationStore
         if (s.RewardRubles > 0)
             items.AddRange(itemHelper.SplitStack(new Item
             {
-                Id = new MongoId(), Template = new MongoId("5449016a4bdc2d6f028b456f"), Upd = new Upd { StackObjectsCount = s.RewardRubles }
+                Id = new MongoId(),
+                Template = new MongoId("5449016a4bdc2d6f028b456f"),
+                Upd = new Upd
+                {
+                    StackObjectsCount = s.RewardRubles
+                }
             }));
-        string text = "Thank you for your report. A player you reported has been banned for cheating."
-            + (items.Count > 0 ? " Please accept this compensation." : "");
+        string text = "Thank you for your report. A player you reported has been banned for cheating." + (items.Count > 0 ? " Please accept this compensation." : "");
         mail.SendSystemMessageToPlayer(new MongoId(report.SessionId), text, items, 7 * 86400L);
     }
 
@@ -184,7 +211,10 @@ public sealed partial class PopulationStore
         string root = equipment["Id"]!.ToString();
         var items = equipment["Items"]!.AsArray();
         var props = template.Properties;
-        var clear = new HashSet<string> { slot };
+        var clear = new HashSet<string>
+        {
+            slot
+        };
         if (props?.BlocksEyewear == true) clear.Add("Eyewear");
         if (props?.BlocksFaceCover == true) clear.Add("FaceCover");
         if (props?.BlocksEarpiece == true) clear.Add("Earpiece");
@@ -198,11 +228,13 @@ public sealed partial class PopulationStore
             var subtree = ItemTree(items, top["_id"]!.ToString()).Select(n => n!["_tpl"]!.ToString()).ToHashSet();
             if (Conflicts(added, subtree) || Conflicts(subtree, added)) clear.Add(topSlot);
         }
+
         foreach (var top in items.OfType<JsonObject>().Where(i => i["parentId"]?.ToString() == root && clear.Contains(i["slotId"]?.ToString() ?? "")).ToArray())
         {
             var remove = ItemTree(items, top["_id"]!.ToString()).Select(n => n!["_id"]!.ToString()).ToHashSet();
             foreach (var node in items.OfType<JsonObject>().Where(i => remove.Contains(i["_id"]!.ToString())).ToArray()) items.Remove(node);
         }
+
         var first = (JsonObject)tree[0]!;
         first["parentId"] = root;
         first["slotId"] = slot;
@@ -210,7 +242,6 @@ public sealed partial class PopulationStore
         foreach (var node in tree) items.Add(node!.DeepClone());
     }
 
-    private bool Conflicts(HashSet<string> from, HashSet<string> against) => from.Any(tpl =>
-        templates.Items.TryGetValue(new MongoId(tpl), out var t) && t.Properties?.ConflictingItems is { } c
-        && c.Any(x => against.Contains(x.ToString())));
+    private bool Conflicts(HashSet<string> from, HashSet<string> against) =>
+        from.Any(tpl => templates.Items.TryGetValue(new MongoId(tpl), out var t) && t.Properties?.ConflictingItems is { } c && c.Any(x => against.Contains(x.ToString())));
 }

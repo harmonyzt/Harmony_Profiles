@@ -17,9 +17,10 @@ public sealed partial class PopulationStore
         {
             if (!Ready) return (false, false, "PBT has not finished loading.");
             if (population.Careers.Values.Any(c => !c.Retired && (c.Name.Equals(name, StringComparison.OrdinalIgnoreCase)
-                    || c.SourceName.Equals(name, StringComparison.OrdinalIgnoreCase))))
+                                                                  || c.SourceName.Equals(name, StringComparison.OrdinalIgnoreCase))))
                 return (true, false, $"{name} counts as a streamer once you save the simulation policy.");
         }
+
         string folder = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(directory)!)!, "BotCallsigns");
         string file = Path.Combine(folder, "nameData", "userDefinedNames.json");
         if (!Directory.Exists(folder)) return (false, false, $"No player is named {name}. Install Bot Callsigns to add new names.");
@@ -33,12 +34,17 @@ public sealed partial class PopulationStore
             if (names[key] is not JsonArray list) names[key] = list = new JsonArray();
             if (!list.Any(n => string.Equals(n?.ToString(), name, StringComparison.OrdinalIgnoreCase))) list.Add(name);
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            AtomicFile.Write(file, names.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            AtomicFile.Write(file, names.ToJsonString(new JsonSerializerOptions
+            {
+                WriteIndented = true
+            }));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException)
         {
             return (false, false, "Could not update Bot Callsigns' userDefinedNames.json: " + ex.Message);
         }
-        return (true, true, $"{name} was added to Bot Callsigns as a {(key == "BearNames" ? "BEAR" : "USEC")} name. Save the simulation policy, then restart the server so the player exists.");
+
+        return (true, true,
+            $"{name} was added to Bot Callsigns as a {(key == "BearNames" ? "BEAR" : "USEC")} name. Save the simulation policy, then restart the server so the player exists.");
     }
 }

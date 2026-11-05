@@ -16,12 +16,22 @@ public sealed record PresetInfo(string Name, bool BuiltIn, bool Selected, bool M
 public sealed partial class PopulationStore
 {
     public const string DefaultPreset = "Default";
-    private static readonly JsonSerializerOptions PresetJson = new() { WriteIndented = true };
+
+    private static readonly JsonSerializerOptions PresetJson = new()
+    {
+        WriteIndented = true
+    };
 
     private string PresetFolder => System.IO.Path.Combine(System.IO.Path.GetDirectoryName(directory)!, "Presets");
     private string SelectionPath => System.IO.Path.Combine(PresetFolder, "selected.txt");
 
-    private static PbtPreset BuiltInPreset() => new() { Personalities = DefaultPersonalities(), Simulation = new(), Settings = new() };
+    private static PbtPreset BuiltInPreset() =>
+        new()
+        {
+            Personalities = DefaultPersonalities(),
+            Simulation = new(),
+            Settings = new()
+        };
 
     private static string CheckName(string? name)
     {
@@ -47,8 +57,14 @@ public sealed partial class PopulationStore
 
     private string SelectedPreset()
     {
-        try { return File.Exists(SelectionPath) ? CheckName(File.ReadAllText(SelectionPath)) : DefaultPreset; }
-        catch { return DefaultPreset; }
+        try
+        {
+            return File.Exists(SelectionPath) ? CheckName(File.ReadAllText(SelectionPath)) : DefaultPreset;
+        }
+        catch
+        {
+            return DefaultPreset;
+        }
     }
 
     private bool MatchesLive(PbtPreset preset) =>
@@ -64,17 +80,27 @@ public sealed partial class PopulationStore
             Directory.CreateDirectory(PresetFolder);
             string selected = SelectedPreset();
             var names = Directory.EnumerateFiles(PresetFolder, "*.json").Select(System.IO.Path.GetFileNameWithoutExtension)
-                .Where(n => n is not null && !n.Equals(DefaultPreset, StringComparison.OrdinalIgnoreCase))
-                .Select(n => n!).Order(StringComparer.OrdinalIgnoreCase).Prepend(DefaultPreset);
+                .Where(n => n is not null && !n.Equals(DefaultPreset, StringComparison.OrdinalIgnoreCase)).Select(n => n!).Order(StringComparer.OrdinalIgnoreCase)
+                .Prepend(DefaultPreset);
             var list = new List<PresetInfo>();
             foreach (string name in names)
             {
                 bool isSelected = name.Equals(selected, StringComparison.OrdinalIgnoreCase);
                 bool modified = false;
                 // A broken file still lists, so it can be deleted from the editor.
-                if (isSelected) try { modified = !MatchesLive(ReadPreset(name)); } catch { modified = true; }
+                if (isSelected)
+                    try
+                    {
+                        modified = !MatchesLive(ReadPreset(name));
+                    }
+                    catch
+                    {
+                        modified = true;
+                    }
+
                 list.Add(new(name, name == DefaultPreset, isSelected, modified));
             }
+
             return list;
         }
     }
@@ -105,7 +131,10 @@ public sealed partial class PopulationStore
             for (int i = 0; i < sections.Length; i++)
                 if (Revision(File.ReadAllText(EditorPath(sections[i]))) != revisions[i])
                     throw new InvalidOperationException("Settings changed since you opened them. Reload saved settings before saving.");
-            var strict = new JsonSerializerOptions { UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow };
+            var strict = new JsonSerializerOptions
+            {
+                UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
+            };
             var preset = new PbtPreset
             {
                 Personalities = JsonSerializer.Deserialize<List<PersonalityTemplate>>(personalitiesJson, strict),
@@ -114,7 +143,9 @@ public sealed partial class PopulationStore
             };
             if (preset.Personalities is null || preset.Simulation is null || preset.Settings is null)
                 throw new InvalidDataException("Settings are empty.");
-            foreach (var item in preset.Personalities) if (string.IsNullOrWhiteSpace(item.ProgressTo)) item.ProgressTo = null;
+            foreach (var item in preset.Personalities)
+                if (string.IsNullOrWhiteSpace(item.ProgressTo))
+                    item.ProgressTo = null;
             WriteLive(preset);
             Directory.CreateDirectory(PresetFolder);
             AtomicFile.Write(path, JsonSerializer.Serialize(preset, PresetJson), backup: false);
@@ -125,14 +156,19 @@ public sealed partial class PopulationStore
 
     public string PresetFolderPath
     {
-        get { Directory.CreateDirectory(PresetFolder); return PresetFolder; }
+        get
+        {
+            Directory.CreateDirectory(PresetFolder);
+            return PresetFolder;
+        }
     }
 
     // Opens on the server's desktop, which is the user's own PC for a normal SPT install.
     public void OpenPresetFolder()
     {
         string folder = PresetFolderPath;
-        var start = OperatingSystem.IsWindows() ? new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{folder}\"")
+        var start = OperatingSystem.IsWindows()
+            ? new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{folder}\"")
             : new System.Diagnostics.ProcessStartInfo(OperatingSystem.IsMacOS() ? "open" : "xdg-open", folder);
         start.UseShellExecute = false;
         using var process = System.Diagnostics.Process.Start(start);
@@ -160,11 +196,13 @@ public sealed partial class PopulationStore
             AtomicFile.Write(EditorPath("personalities"), JsonSerializer.Serialize(preset.Personalities, PresetJson));
             personalities = preset.Personalities;
         }
+
         if (preset.Simulation is not null)
         {
             AtomicFile.Write(EditorPath("simulation"), JsonSerializer.Serialize(preset.Simulation, PresetJson));
             policy = preset.Simulation;
         }
+
         if (preset.Settings is not null)
         {
             AtomicFile.Write(EditorPath("settings"), JsonSerializer.Serialize(preset.Settings, PresetJson));

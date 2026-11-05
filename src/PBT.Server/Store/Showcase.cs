@@ -7,13 +7,15 @@ namespace PBT.Server;
 public sealed partial class PopulationStore
 {
     private sealed record DisplaySpace(string Name, JsonObject Props, int Width, int Height);
+
     private readonly Dictionary<(int Area, int Level), List<DisplaySpace>> displaySpaces = new();
     private readonly Dictionary<string, JsonObject> showcaseProperties = new();
     private readonly Dictionary<string, (long Due, int Attempts)> showcaseQueue = new();
     private Dictionary<string, double>? handbookPrices;
 
-    private Dictionary<string, double> HandbookPrices() => handbookPrices ??= templates.Handbook.Items.Where(i => i.Price is > 0)
-        .GroupBy(i => i.Id.ToString()).ToDictionary(g => g.Key, g => g.First().Price!.Value);
+    private Dictionary<string, double> HandbookPrices() =>
+        handbookPrices ??= templates.Handbook.Items.Where(i => i.Price is > 0).GroupBy(i => i.Id.ToString()).ToDictionary(g => g.Key, g => g.First().Price!.Value);
+
     private readonly Dictionary<int, List<KeyValuePair<string, double>>> trophyCatalogs = new();
     private readonly Dictionary<string, HashSet<string>> showcaseAncestors = new();
     private readonly HashSet<string> validatedFavorites = new();
@@ -29,8 +31,8 @@ public sealed partial class PopulationStore
         return props;
     }
 
-    private bool IsShowcaseDogtag(string tpl) => ShowcaseProps(tpl).ContainsKey("DogTagQualities")
-        || templates.Items[new MongoId(tpl)].Name?.Contains("dogtag", StringComparison.OrdinalIgnoreCase) == true;
+    private bool IsShowcaseDogtag(string tpl) =>
+        ShowcaseProps(tpl).ContainsKey("DogTagQualities") || templates.Items[new MongoId(tpl)].Name?.Contains("dogtag", StringComparison.OrdinalIgnoreCase) == true;
 
     private List<DisplaySpace> ShowcaseSpaces(Career c, int area)
     {
@@ -38,17 +40,16 @@ public sealed partial class PopulationStore
         if (displaySpaces.TryGetValue((area, level), out var cached)) return cached;
         var result = new List<DisplaySpace>();
         var definition = hideout.Areas.FirstOrDefault(a => (int?)a.Type == area);
-        if (level > 0 && definition?.Stages?.TryGetValue(level.ToString(), out var stage) == true
-            && stage.Container is MongoId container && templates.Items.ContainsKey(container))
+        if (level > 0 && definition?.Stages?.TryGetValue(level.ToString(), out var stage) == true && stage.Container is MongoId container && templates.Items.ContainsKey(container))
         {
             var props = ShowcaseProps(container.ToString());
             foreach (var slot in props["Slots"]?.AsArray().OfType<JsonObject>() ?? [])
             {
                 string name = slot["_name"]?.ToString() ?? "";
-                if (name.Length == 0 || name.Contains("dogtag", StringComparison.OrdinalIgnoreCase)
-                    || slot["_props"] is not JsonObject filters) continue;
+                if (name.Length == 0 || name.Contains("dogtag", StringComparison.OrdinalIgnoreCase) || slot["_props"] is not JsonObject filters) continue;
                 result.Add(new(name, filters, 0, 0));
             }
+
             foreach (var grid in props["Grids"]?.AsArray().OfType<JsonObject>() ?? [])
             {
                 if (grid["_props"] is not JsonObject filters) continue;
@@ -57,6 +58,7 @@ public sealed partial class PopulationStore
                     result.Add(new(grid["_name"]?.ToString() ?? "", filters, width, height));
             }
         }
+
         displaySpaces.Add((area, level), result);
         return result;
     }
@@ -71,6 +73,7 @@ public sealed partial class PopulationStore
                 current = item.Parent.ToString();
             showcaseAncestors.Add(tpl, chain);
         }
+
         return chain.Contains(ancestor);
     }
 
@@ -96,6 +99,7 @@ public sealed partial class PopulationStore
             if (source == first) item["parentId"] = parent;
             wrapper["Items"]!.AsArray().Add(item);
         }
+
         if (!ValidEquipment(wrapper)) return false;
         foreach (var item in tree.OfType<JsonObject>())
         {
@@ -105,18 +109,20 @@ public sealed partial class PopulationStore
             {
                 if (slot["_required"]?.GetValue<bool>() != true) continue;
                 string name = slot["_name"]?.ToString() ?? "";
-                var child = tree.OfType<JsonObject>().FirstOrDefault(i => i["parentId"]?.ToString() == item["_id"]!.ToString()
-                    && i["slotId"]?.ToString() == name);
-                if (child is null || slot["_props"] is not JsonObject props
-                    || !DisplayAllows(new(name, props, 0, 0), child["_tpl"]!.ToString())) return false;
+                var child = tree.OfType<JsonObject>().FirstOrDefault(i => i["parentId"]?.ToString() == item["_id"]!.ToString() && i["slotId"]?.ToString() == name);
+                if (child is null || slot["_props"] is not JsonObject props || !DisplayAllows(new(name, props, 0, 0), child["_tpl"]!.ToString())) return false;
             }
         }
+
         return true;
     }
 
     private bool FitsShowcase(Career c, int area, IEnumerable<JsonArray> trees)
     {
-        try { return FitShowcaseTrees(c, area, trees); }
+        try
+        {
+            return FitShowcaseTrees(c, area, trees);
+        }
         catch (Exception ex)
         {
             if (showcaseWarnings.Add(c.Id + ":layout:" + area))
@@ -142,6 +148,7 @@ public sealed partial class PopulationStore
                 size = (nativeSize.Width, nativeSize.Height);
                 if (validatedFavorites.Contains(root)) showcaseSizes[root] = size;
             }
+
             bool placed = false;
             for (int index = 0; index < spaces.Count && !placed; index++)
             {
@@ -149,34 +156,49 @@ public sealed partial class PopulationStore
                 if (!DisplayAllows(space, tpl)) continue;
                 if (space.Width == 0)
                 {
-                    if (!occupied[index][0, 0]) { occupied[index][0, 0] = true; placed = true; }
+                    if (!occupied[index][0, 0])
+                    {
+                        occupied[index][0, 0] = true;
+                        placed = true;
+                    }
+
                     continue;
                 }
+
                 for (int rotation = 0; rotation < 2 && !placed; rotation++)
                 {
                     int width = rotation == 0 ? size.Width : size.Height, height = rotation == 0 ? size.Height : size.Width;
                     for (int y = 0; y + height <= space.Height && !placed; y++)
-                        for (int x = 0; x + width <= space.Width && !placed; x++)
-                        {
-                            bool free = true;
-                            for (int dy = 0; dy < height && free; dy++)
-                                for (int dx = 0; dx < width; dx++)
-                                    if (occupied[index][x + dx, y + dy]) { free = false; break; }
-                            if (!free) continue;
-                            for (int dy = 0; dy < height; dy++)
-                                for (int dx = 0; dx < width; dx++) occupied[index][x + dx, y + dy] = true;
-                            placed = true;
-                        }
+                    for (int x = 0; x + width <= space.Width && !placed; x++)
+                    {
+                        bool free = true;
+                        for (int dy = 0; dy < height && free; dy++)
+                        for (int dx = 0; dx < width; dx++)
+                            if (occupied[index][x + dx, y + dy])
+                            {
+                                free = false;
+                                break;
+                            }
+
+                        if (!free) continue;
+                        for (int dy = 0; dy < height; dy++)
+                        for (int dx = 0; dx < width; dx++)
+                            occupied[index][x + dx, y + dy] = true;
+                        placed = true;
+                    }
                 }
             }
+
             if (!placed) return false;
         }
+
         return true;
     }
 
-    private int ShowcaseTarget(Career c, int area) => area == 24
-        ? AreaLevel(c, area) > 0 ? Math.Clamp(2 + Level(c.Experience) / 20, 2, 2 + AreaLevel(c, area)) : 0
-        : Math.Min(ShowcaseSpaces(c, area).Count, 3 + Level(c.Experience) / 5 + (int)(Stable(c.Id + ":collection-size") * 4));
+    private int ShowcaseTarget(Career c, int area) =>
+        area == 24
+            ? AreaLevel(c, area) > 0 ? Math.Clamp(2 + Level(c.Experience) / 20, 2, 2 + AreaLevel(c, area)) : 0
+            : Math.Min(ShowcaseSpaces(c, area).Count, 3 + Level(c.Experience) / 5 + (int)(Stable(c.Id + ":collection-size") * 4));
 
     private List<JsonArray> VisibleShowcaseTrees(Career c, int area)
     {
@@ -189,6 +211,7 @@ public sealed partial class PopulationStore
             var tree = ItemTree(items, root);
             if (FitsShowcase(c, area, trees.Append(tree))) trees.Add(tree);
         }
+
         return trees;
     }
 
@@ -198,8 +221,7 @@ public sealed partial class PopulationStore
         var assets = Assets(c);
         if (!ValidShowcaseTree(tree) || c.ShowcaseAreas.Count >= 128 || assets.ShowcaseItems.Count + tree.Count > 4096) return false;
         string tpl = tree[0]!["_tpl"]!.ToString();
-        if (c.ShowcaseAreas.Keys.Any(id => assets.ShowcaseItems.OfType<JsonObject>()
-            .Any(i => i["_id"]?.ToString() == id && i["_tpl"]?.ToString() == tpl))) return false;
+        if (c.ShowcaseAreas.Keys.Any(id => assets.ShowcaseItems.OfType<JsonObject>().Any(i => i["_id"]?.ToString() == id && i["_tpl"]?.ToString() == tpl))) return false;
         var current = VisibleShowcaseTrees(c, area);
         if (current.Count >= ShowcaseTarget(c, area) || !FitsShowcase(c, area, current.Append(tree))) return false;
         var ids = tree.OfType<JsonObject>().ToDictionary(i => i["_id"]!.ToString(), _ => NewId());
@@ -207,10 +229,17 @@ public sealed partial class PopulationStore
         {
             string old = item["_id"]!.ToString();
             item["_id"] = ids[old];
-            if (old == root) { item.Remove("parentId"); item.Remove("slotId"); item.Remove("location"); }
+            if (old == root)
+            {
+                item.Remove("parentId");
+                item.Remove("slotId");
+                item.Remove("location");
+            }
             else item["parentId"] = ids[item["parentId"]!.ToString()];
+
             assets.ShowcaseItems.Add(item.DeepClone());
         }
+
         assets.Changed();
         c.ShowcaseAreas.Add(ids[root], area);
         validatedFavorites.Add(ids[root]);
@@ -220,7 +249,7 @@ public sealed partial class PopulationStore
 
     private static IEnumerable<JsonObject> EquippedWeapons(JsonObject equipment) =>
         equipment["Items"]!.AsArray().OfType<JsonObject>().Where(i => i["parentId"]?.ToString() == equipment["Id"]!.ToString()
-            && i["slotId"]?.ToString() is "FirstPrimaryWeapon" or "SecondPrimaryWeapon" or "Holster");
+                                                                      && i["slotId"]?.ToString() is "FirstPrimaryWeapon" or "SecondPrimaryWeapon" or "Holster");
 
     // Rack guns come from a separately generated loadout, never one the PMC is carrying right now.
     private void PinGeneratedWeapons(Career c, JsonObject equipment)
@@ -235,7 +264,10 @@ public sealed partial class PopulationStore
     private void EnsureShowcase(Career c)
     {
         if (!policy.EnableShowcase) return;
-        try { DevelopShowcase(c); }
+        try
+        {
+            DevelopShowcase(c);
+        }
         catch (Exception ex)
         {
             if (showcaseWarnings.Add(c.Id + ":collection"))
@@ -246,24 +278,23 @@ public sealed partial class PopulationStore
     private void DevelopShowcase(Career c)
     {
         // The pinned count is checked first so a full collection never loads the career file.
-        if (AreaLevel(c, 16) <= 0 || c.ShowcaseAreas.Count(p => p.Value == 16) >= ShowcaseTarget(c, 16)
-            || VisibleShowcaseTrees(c, 16).Count >= ShowcaseTarget(c, 16)) return;
+        if (AreaLevel(c, 16) <= 0 || c.ShowcaseAreas.Count(p => p.Value == 16) >= ShowcaseTarget(c, 16) || VisibleShowcaseTrees(c, 16).Count >= ShowcaseTarget(c, 16)) return;
         var showcasePrices = HandbookPrices();
         double budget = Math.Clamp(25000 + Math.Pow(Level(c.Experience), 2) * 800 + TotalSeconds(c) / 36, 25000, 10000000);
-        var used = c.ShowcaseAreas.Keys.Select(id => Assets(c).ShowcaseItems.OfType<JsonObject>()
-            .FirstOrDefault(i => i["_id"]?.ToString() == id)?["_tpl"]?.ToString()).ToHashSet();
+        var used = c.ShowcaseAreas.Keys.Select(id => Assets(c).ShowcaseItems.OfType<JsonObject>().FirstOrDefault(i => i["_id"]?.ToString() == id)?["_tpl"]?.ToString()).ToHashSet();
         int level = AreaLevel(c, 16);
         if (!trophyCatalogs.TryGetValue(level, out var catalog))
         {
             var allowed = ShowcaseSpaces(c, 16);
             catalog = showcasePrices.Where(p => p.Value >= 1000 && templates.Items.ContainsKey(new MongoId(p.Key))
-                && allowed.Any(s => DisplayAllows(s, p.Key)) && !IsShowcaseDogtag(p.Key)
-                && ShowcaseProps(p.Key)["QuestItem"]?.GetValue<bool>() != true).ToList();
+                                                                && allowed.Any(s => DisplayAllows(s, p.Key)) && !IsShowcaseDogtag(p.Key)
+                                                                && ShowcaseProps(p.Key)["QuestItem"]?.GetValue<bool>() != true).ToList();
             trophyCatalogs.Add(level, catalog);
         }
-        foreach (var entry in catalog.Where(p => p.Value <= budget && !used.Contains(p.Key))
-            .OrderBy(p => -Math.Log(Math.Max(.000001, Stable(c.Id + ":favorite:" + p.Key)))
-                / (1 + Math.Log10(Math.Max(1, p.Value)) + (ShowcaseBasedOn(p.Key, "543be5e94bdc2df1348b4568") ? 2 : 0))))
+
+        foreach (var entry in catalog.Where(p => p.Value <= budget && !used.Contains(p.Key)).OrderBy(p =>
+                     -Math.Log(Math.Max(.000001, Stable(c.Id + ":favorite:" + p.Key)))
+                     / (1 + Math.Log10(Math.Max(1, p.Value)) + (ShowcaseBasedOn(p.Key, "543be5e94bdc2df1348b4568") ? 2 : 0))))
         {
             var tree = CreateShowcaseCollectible(entry.Key);
             if (tree is not null) PinShowcase(c, tree, tree[0]!["_id"]!.ToString(), 16);
@@ -281,7 +312,7 @@ public sealed partial class PopulationStore
             {
                 var source = JsonNode.Parse(json.Serialize(preset.Items)!)!.AsArray();
                 var root = source.OfType<JsonObject>().FirstOrDefault(i => i["_tpl"]?.ToString() == tpl
-                    && !source.OfType<JsonObject>().Any(p => p["_id"]?.ToString() == i["parentId"]?.ToString()));
+                                                                           && !source.OfType<JsonObject>().Any(p => p["_id"]?.ToString() == i["parentId"]?.ToString()));
                 if (root is not null)
                 {
                     var tree = ItemTree(source, root["_id"]!.ToString());
@@ -289,10 +320,16 @@ public sealed partial class PopulationStore
                 }
             }
         }
+
         var upd = itemHelper.GenerateUpdForItem(templates.Items[id]) ?? new Upd();
         upd.StackObjectsCount = 1;
         upd.SpawnedInSession = false;
-        var item = new Item { Id = new MongoId(), Template = id, Upd = upd };
+        var item = new Item
+        {
+            Id = new MongoId(),
+            Template = id,
+            Upd = upd
+        };
         var single = new JsonArray(JsonNode.Parse(json.Serialize(item)!));
         return ValidShowcaseTree(single) ? single : null;
     }
@@ -300,8 +337,7 @@ public sealed partial class PopulationStore
     private JsonArray PublicShowcase(Career c)
     {
         if (!policy.EnableShowcase) return new();
-        return new JsonArray(new[] { 24, 16 }.SelectMany(area => VisibleShowcaseTrees(c, area))
-            .SelectMany(tree => tree.Select(item => item!.DeepClone())).ToArray());
+        return new JsonArray(new[] { 24, 16 }.SelectMany(area => VisibleShowcaseTrees(c, area)).SelectMany(tree => tree.Select(item => item!.DeepClone())).ToArray());
     }
 
     private void RepairShowcase(Career c)
@@ -318,18 +354,29 @@ public sealed partial class PopulationStore
             {
                 tree = ItemTree(assets.ShowcaseItems, root);
                 if (!ValidShowcaseTree(tree) || tree.OfType<JsonObject>().Any(i => ids.Contains(i["_id"]!.ToString()))
-                    || (area == 24 && carried.Contains(tree[0]!["_tpl"]!.ToString()))) continue;
+                                             || (area == 24 && carried.Contains(tree[0]!["_tpl"]!.ToString()))) continue;
             }
-            catch { continue; }
+            catch
+            {
+                continue;
+            }
+
             roots.Add(root, area);
             validatedFavorites.Add(root);
             foreach (var item in tree.OfType<JsonObject>())
             {
-                if (item["_id"]!.ToString() == root) { item.Remove("parentId"); item.Remove("slotId"); item.Remove("location"); }
+                if (item["_id"]!.ToString() == root)
+                {
+                    item.Remove("parentId");
+                    item.Remove("slotId");
+                    item.Remove("location");
+                }
+
                 ids.Add(item["_id"]!.ToString());
                 retained.Add(item.DeepClone());
             }
         }
+
         if (assets.ShowcaseItems.ToJsonString() == retained.ToJsonString() && c.ShowcaseAreas.Count == roots.Count) return;
         dirty = true;
         assets.Changed();
@@ -351,16 +398,20 @@ public sealed partial class PopulationStore
         {
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             if (!Ready || !policy.EnableShowcase || gearFactory is null) return;
-            if (!byAccount.TryGetValue(accountId, out career) && !(encounters.TryGetValue(accountId, out var encounter)
-                && CanAccess(encounter, session) && population.Careers.TryGetValue(encounter.CareerId, out career))) return;
+            if (!byAccount.TryGetValue(accountId, out career) && !(encounters.TryGetValue(accountId, out var encounter) && CanAccess(encounter, session)
+                    && population.Careers.TryGetValue(encounter.CareerId, out career))) return;
             if (career is null || career.Retired || AreaLevel(career, 24) <= 0 || IsObservedActive(career, now) || RackFull(career)
                 || rackViews.TryGetValue(career.Id, out long next) && now < next) return;
             rackViews[career.Id] = now + 300;
         }
+
         for (int attempt = 0; attempt < 3; attempt++)
         {
             JsonObject loadout;
-            try { loadout = GenerateIsolatedEquipment(career, session, RackTiers()); }
+            try
+            {
+                loadout = GenerateIsolatedEquipment(career, session, RackTiers());
+            }
             catch (Exception ex)
             {
                 lock (gate)
@@ -368,6 +419,7 @@ public sealed partial class PopulationStore
                         logger.Warning($"[PBT] Weapon rack generation deferred for account {career.AccountId}. {ex.GetBaseException().Message}");
                 return;
             }
+
             lock (gate)
             {
                 if (!Ready) return;
@@ -389,19 +441,28 @@ public sealed partial class PopulationStore
         if (!policy.EnableShowcase || GearSession() is not MongoId session || gearFactory is null) return false;
         foreach (var (id, work) in showcaseQueue.OrderBy(p => p.Value.Due).ToArray())
         {
-            if (!population.Careers.TryGetValue(id, out var c) || c.Retired || AreaLevel(c, 24) <= 0
-                || c.ShowcaseAreas.Count(p => p.Value == 24) >= ShowcaseTarget(c, 24))
-            { showcaseQueue.Remove(id); continue; }
+            if (!population.Careers.TryGetValue(id, out var c) || c.Retired || AreaLevel(c, 24) <= 0 || c.ShowcaseAreas.Count(p => p.Value == 24) >= ShowcaseTarget(c, 24))
+            {
+                showcaseQueue.Remove(id);
+                continue;
+            }
+
             if (work.Due > now || IsObservedActive(c, now) || now < c.StoryHoldUntilUtc || now - c.LastEquipmentGeneratedUtc < 900) continue;
-            try { PinGeneratedWeapons(c, GenerateIsolatedEquipment(c, session, RackTiers())); }
+            try
+            {
+                PinGeneratedWeapons(c, GenerateIsolatedEquipment(c, session, RackTiers()));
+            }
             catch (Exception ex)
             {
-                if (work.Attempts == 0) logger.Warning($"[PBT] Showcase APBS generation deferred for account {c.AccountId}; pinned favorites retained. {ex.GetBaseException().Message}");
+                if (work.Attempts == 0)
+                    logger.Warning($"[PBT] Showcase APBS generation deferred for account {c.AccountId}; pinned favorites retained. {ex.GetBaseException().Message}");
             }
+
             // Repeated unsupported/duplicate rolls back off without replacing existing favorites.
             showcaseQueue[id] = (now + (work.Attempts < 7 ? 60 : 3600), Math.Min(8, work.Attempts + 1));
             return true;
         }
+
         return false;
     }
 

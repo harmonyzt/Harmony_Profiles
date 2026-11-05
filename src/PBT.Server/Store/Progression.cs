@@ -21,10 +21,14 @@ public sealed partial class PopulationStore
         return Notable(c) ? roll + (1 - roll) * policy.NotableNames.SkillBonus : roll;
     }
 
-    private double Aggression(Career c) => (IsCheater(c) ? policy.Cheaters.KillMultiplier : 1) * (Tilted(c) ? 1.3 : 1) * c.Archetype switch
-    {
-        "Timmy" => .6, "Aggressive" => 1.35, "Survivor" => .75, _ => 1
-    };
+    private double Aggression(Career c) =>
+        (IsCheater(c) ? policy.Cheaters.KillMultiplier : 1) * (Tilted(c) ? 1.3 : 1) * c.Archetype switch
+        {
+            "Timmy" => .6,
+            "Aggressive" => 1.35,
+            "Survivor" => .75,
+            _ => 1
+        };
 
     private double SurvivalFor(Career c)
     {
@@ -32,8 +36,7 @@ public sealed partial class PopulationStore
         return p.MinimumSurvival + (p.MaximumSurvival - p.MinimumSurvival) * Skill(c);
     }
 
-    private double OnlineFactor(Career c) => policy.OnlineTimeMinimum
-        + (policy.OnlineTimeMaximum - policy.OnlineTimeMinimum) * Stable(c.Id + ":online-overhead");
+    private double OnlineFactor(Career c) => policy.OnlineTimeMinimum + (policy.OnlineTimeMaximum - policy.OnlineTimeMinimum) * Stable(c.Id + ":online-overhead");
 
     private double OnlineSeconds(Career c) => c.OnlineSeconds + c.Observed.ActiveSeconds * OnlineFactor(c);
 
@@ -55,6 +58,7 @@ public sealed partial class PopulationStore
             double average = p * RaidExperience(level, true) + (1 - p) * RaidExperience(level, false);
             raids += Math.Max(0, end - start) / Math.Max(1, average);
         }
+
         return raids;
     }
 
@@ -75,7 +79,12 @@ public sealed partial class PopulationStore
     {
         double limit = Math.Exp(-Math.Clamp(mean, 0, 20)), product = 1;
         int count = 0;
-        do { count++; product *= Random.Shared.NextDouble(); } while (product > limit && count < 128);
+        do
+        {
+            count++;
+            product *= Random.Shared.NextDouble();
+        } while (product > limit && count < 128);
+
         return count - 1;
     }
 
@@ -84,8 +93,7 @@ public sealed partial class PopulationStore
         var cohort = Cohort(career);
         double skill = Skill(career), aggression = Aggression(career);
         career.PmcKills = (int)Math.Min(int.MaxValue, (long)career.PmcKills + SampleKills(cohort.PmcKills * (.3 + 1.4 * skill) * aggression));
-        career.ScavKills = (int)Math.Min(int.MaxValue, (long)career.ScavKills
-            + SampleKills(cohort.ScavKills * (.6 + .8 * skill) * Math.Sqrt(aggression)));
+        career.ScavKills = (int)Math.Min(int.MaxValue, (long)career.ScavKills + SampleKills(cohort.ScavKills * (.6 + .8 * skill) * Math.Sqrt(aggression)));
     }
 
     private long Lifetime(Career career, string key, long computed)
@@ -94,7 +102,12 @@ public sealed partial class PopulationStore
         if (computed < previous && reportedRegressions.Add(career.Id + ":" + key))
             logger.Warning($"[PBT] Lifetime regression retained previous total: account={career.AccountId}, counter={key}, computed={computed}, previous={previous}.");
         long current = Math.Max(previous, Math.Max(0, computed));
-        if (current != previous) { career.LifetimeTotals[key] = current; dirty = true; }
+        if (current != previous)
+        {
+            career.LifetimeTotals[key] = current;
+            dirty = true;
+        }
+
         return current;
     }
 
@@ -123,10 +136,10 @@ public sealed partial class PopulationStore
                 if (xp is null) continue;
                 while (counts.GetValueOrDefault(target) < quota)
                 {
-                    var candidate = careers.Where(c => !linked.Contains(c.Id) && !encountered.Contains(c.Id)
-                            && c.LastEquipmentAccount == 0 && c.PrestigeLevel == 0 && Level(c.Experience) < target
-                            && counts.GetValueOrDefault(Level(c.Experience)) > quota)
-                        .OrderBy(c => c.Archetype == "Timmy").ThenByDescending(c => Level(c.Experience)).ThenBy(c => c.AccountId).FirstOrDefault();
+                    var candidate = careers
+                        .Where(c => !linked.Contains(c.Id) && !encountered.Contains(c.Id) && c.LastEquipmentAccount == 0 && c.PrestigeLevel == 0 && Level(c.Experience) < target
+                                    && counts.GetValueOrDefault(Level(c.Experience)) > quota).OrderBy(c => c.Archetype == "Timmy").ThenByDescending(c => Level(c.Experience))
+                        .ThenBy(c => c.AccountId).FirstOrDefault();
                     if (candidate is null) break;
                     int previous = Level(candidate.Experience);
                     candidate.Experience = xp.Value;
@@ -141,8 +154,10 @@ public sealed partial class PopulationStore
                     dirty = true;
                 }
             }
+
             if (promoted > 0) logger.Debug($"[PBT] Prepared {promoted} unencountered {side} careers for APBS level coverage; existing friend and encounter careers retained.");
         }
+
         population.CoverageVersion = 1;
         dirty = true;
     }

@@ -21,6 +21,7 @@ public sealed partial class PopulationStore
             var (h1, w1) = i + 1 < points.Length ? points[i + 1] : (24, points[0].Weight);
             hours[h] = w0 + (w1 - w0) * (h - h0) / (h1 - h0);
         }
+
         return hours;
     }
 
@@ -37,7 +38,12 @@ public sealed partial class PopulationStore
     private static Schedule ScheduleOf(Career c)
     {
         double roll = Stable(c.Id + ":schedule") * Schedules.Sum(s => s.Share);
-        foreach (var s in Schedules) { roll -= s.Share; if (roll < 0) return s; }
+        foreach (var s in Schedules)
+        {
+            roll -= s.Share;
+            if (roll < 0) return s;
+        }
+
         return Schedules[^1];
     }
 
@@ -91,10 +97,14 @@ public sealed partial class PopulationStore
     private bool Tilted(Career c) => DateTimeOffset.UtcNow.ToUnixTimeSeconds() < c.TiltUntilUtc;
 
     // How badly losing gets to someone. Survivors shrug, aggressive players boil over.
-    private double Temper(Career c) => (.5 + Stable(c.Id + ":temper")) * c.Archetype switch
-    {
-        "Aggressive" => 1.5, "Timmy" => 1.2, "Survivor" => .6, _ => 1
-    };
+    private double Temper(Career c) =>
+        (.5 + Stable(c.Id + ":temper")) * c.Archetype switch
+        {
+            "Aggressive" => 1.5,
+            "Timmy" => 1.2,
+            "Survivor" => .6,
+            _ => 1
+        };
 
     // After a death: rage quit, tilt into reckless cheap-kit raids, or shrug it off.
     private bool AfterDeath(Career c, long now)
@@ -110,6 +120,7 @@ public sealed partial class PopulationStore
             Log("ragequit", $"{c.Name} rage quit after {c.DeathStreak} deaths in a row");
             return true;
         }
+
         if (c.DeathStreak >= 3 && now >= c.TiltUntilUtc && Random.Shared.NextDouble() < Math.Min(.8, .25 * temper))
         {
             c.TiltUntilUtc = now + Random.Shared.Next(2400, 7201);
@@ -117,6 +128,7 @@ public sealed partial class PopulationStore
             c.SessionEndUtc = Math.Max(c.SessionEndUtc, c.TiltUntilUtc);
             if (Random.Shared.NextDouble() < .3) Log("tilt", $"{c.Name} is on tilt");
         }
+
         return false;
     }
 

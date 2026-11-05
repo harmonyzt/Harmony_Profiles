@@ -20,8 +20,7 @@ public sealed partial class PopulationStore
     // Caller holds the gate. The most played keeps a base name, the rest retire and leave SPT's name pool.
     private void RetireNameVariants(IEnumerable<(string Side, List<string> Names)> pools)
     {
-        var variants = population.Careers.Values.Where(c => !c.Retired).GroupBy(c => NameKey(c.Side, BaseName(c.SourceName)))
-            .Where(g => g.Count() > 1)
+        var variants = population.Careers.Values.Where(c => !c.Retired).GroupBy(c => NameKey(c.Side, BaseName(c.SourceName))).Where(g => g.Count() > 1)
             .SelectMany(g => g.OrderByDescending(c => c.Raids + c.Observed.Raids).ThenBy(c => c.AccountId).Skip(1)).ToList();
         if (variants.Count == 0) return;
         foreach (var c in variants) c.Retired = true;
@@ -31,8 +30,7 @@ public sealed partial class PopulationStore
         logger.Info($"[PBT] Retired {variants.Count} careers whose names only differ by trailing numbers.");
     }
 
-    private static string SourceName(Career career) => string.IsNullOrWhiteSpace(career.SourceName)
-        ? career.Name : career.SourceName;
+    private static string SourceName(Career career) => string.IsNullOrWhiteSpace(career.SourceName) ? career.Name : career.SourceName;
 
     private void InitializeIdentities()
     {
@@ -41,17 +39,18 @@ public sealed partial class PopulationStore
             career.SourceName = SourceName(career);
         var groups = population.Careers.Values.GroupBy(c => NameKey("", c.Name)).ToArray();
         // Real players keep their names. A name pool can contain one (BotCallsigns has "user"), so that career moves aside.
-        var players = saves.GetProfiles().Values.Select(p => p.CharacterData?.PmcData?.Info?.Nickname)
-            .Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => NameKey("", n!)).ToHashSet();
+        var players = saves.GetProfiles().Values.Select(p => p.CharacterData?.PmcData?.Info?.Nickname).Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => NameKey("", n!))
+            .ToHashSet();
         occupiedNicknames.UnionWith(players);
         foreach (var group in groups) occupiedNicknames.Add(group.Key);
         int changed = 0;
         foreach (var group in groups)
-            foreach (var career in group.OrderBy(c => c.AccountId).Skip(players.Contains(group.Key) ? 0 : 1))
-            {
-                career.Name = AllocateNickname(career.SourceName);
-                changed++;
-            }
+        foreach (var career in group.OrderBy(c => c.AccountId).Skip(players.Contains(group.Key) ? 0 : 1))
+        {
+            career.Name = AllocateNickname(career.SourceName);
+            changed++;
+        }
+
         if (changed > 0)
             logger.Info($"[PBT] Assigned unique nicknames to {changed} colliding careers; accounts and histories retained.");
     }
@@ -68,6 +67,7 @@ public sealed partial class PopulationStore
             string candidate = stem + suffix;
             if (occupiedNicknames.Add(NameKey("", candidate))) return candidate;
         }
+
         throw new InvalidDataException("No unique nickname available.");
     }
 
@@ -75,7 +75,6 @@ public sealed partial class PopulationStore
     {
         byName = population.Careers.Values.ToDictionary(c => NameKey(c.Side, c.Name));
         bySourceName = population.Careers.Values.ToDictionary(c => NameKey(c.Side, c.SourceName));
-        byBaseName = population.Careers.Values.Where(c => !c.Retired).GroupBy(c => NameKey(c.Side, BaseName(c.SourceName)))
-            .ToDictionary(g => g.Key, g => g.First());
+        byBaseName = population.Careers.Values.Where(c => !c.Retired).GroupBy(c => NameKey(c.Side, BaseName(c.SourceName))).ToDictionary(g => g.Key, g => g.First());
     }
 }

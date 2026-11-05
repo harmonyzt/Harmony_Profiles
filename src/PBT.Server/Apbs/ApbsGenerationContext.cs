@@ -9,20 +9,26 @@ internal static class ApbsGenerationContext
 
     internal static void Install(Assembly apbs, Harmony owner)
     {
-        var type = apbs.GetType("ProgressiveBotSystem.Models.RaidInformation")
-            ?? throw new MissingMemberException("APBS raid context unavailable.");
+        var type = apbs.GetType("ProgressiveBotSystem.Models.RaidInformation") ?? throw new MissingMemberException("APBS raid context unavailable.");
         var contracts = new[]
         {
             ("RaidLocation", typeof(string), nameof(Location)),
             ("CurrentRaidLevel", typeof(int), nameof(Level)),
             ("NightTime", typeof(bool), nameof(Night))
         };
+        
         foreach (var (name, returnType, patch) in contracts)
         {
             var getter = AccessTools.PropertyGetter(type, name);
             if (getter is null || !getter.IsStatic || getter.ReturnType != returnType || getter.GetParameters().Length != 0)
+            {
                 throw new MissingMethodException("APBS context getter contract changed: " + name);
-            owner.Patch(getter, prefix: new HarmonyMethod(typeof(ApbsGenerationContext), patch) { priority = Priority.First });
+            }
+            
+            owner.Patch(getter, prefix: new HarmonyMethod(typeof(ApbsGenerationContext), patch)
+            {
+                priority = Priority.First
+            });
         }
     }
 

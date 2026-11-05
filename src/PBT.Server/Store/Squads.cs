@@ -29,11 +29,11 @@ public sealed partial class PopulationStore
         }
     }
 
-    private string[] SquadNames(Career c) => squads.TryGetValue(c.Id, out var members)
-        ? members.Where(id => id != c.Id && population.Careers.ContainsKey(id)).Select(id => population.Careers[id].Name).ToArray() : [];
+    private string[] SquadNames(Career c) =>
+        squads.TryGetValue(c.Id, out var members) ? members.Where(id => id != c.Id && population.Careers.ContainsKey(id)).Select(id => population.Careers[id].Name).ToArray() : [];
 
-    private string[] TeamNames(Career c, Activity a) => a.Party.Length < 2 ? []
-        : a.Party.Where(id => id != c.Id && population.Careers.ContainsKey(id)).Select(id => population.Careers[id].Name).ToArray();
+    private string[] TeamNames(Career c, Activity a) =>
+        a.Party.Length < 2 ? [] : a.Party.Where(id => id != c.Id && population.Careers.ContainsKey(id)).Select(id => population.Careers[id].Name).ToArray();
 
     private void EnterMenu(Career c, Activity a, long now, bool died = false)
     {
@@ -44,19 +44,30 @@ public sealed partial class PopulationStore
             a.Until = now + Random.Shared.Next(180, 601);
             return;
         }
+
         NextErrand(c, a, now);
     }
 
     private void NextErrand(Career c, Activity a, long now)
     {
-        double afk = c.Archetype switch { "Casual" => 1.6, "Aggressive" => .5, _ => 1 };
+        double afk = c.Archetype switch
+        {
+            "Casual" => 1.6,
+            "Aggressive" => .5,
+            _ => 1
+        };
         double total = Errands.Sum(e => e.Doing == "AFK" ? e.Weight * afk : e.Weight), roll = Random.Shared.NextDouble() * total;
         var pick = Errands[0];
         foreach (var errand in Errands)
         {
             roll -= errand.Doing == "AFK" ? errand.Weight * afk : errand.Weight;
-            if (roll <= 0) { pick = errand; break; }
+            if (roll <= 0)
+            {
+                pick = errand;
+                break;
+            }
         }
+
         a.Doing = pick.Doing;
         a.Until = now + Random.Shared.Next(pick.Minimum, pick.Maximum + 1);
     }
@@ -72,7 +83,10 @@ public sealed partial class PopulationStore
     private bool TryQueueSquad(Career c, Activity a, long now)
     {
         if (!squads.TryGetValue(c.Id, out var members)) return false;
-        var ready = new List<(Career Career, Activity Activity)> { (c, a) };
+        var ready = new List<(Career Career, Activity Activity)>
+        {
+            (c, a)
+        };
         long waitUntil = 0;
         foreach (string id in members)
         {
@@ -81,6 +95,7 @@ public sealed partial class PopulationStore
             ready.Add((mate, mateActivity));
             waitUntil = Math.Max(waitUntil, mateActivity.Until);
         }
+
         if (ready.Count < 2) return false;
         if (waitUntil > now && a.Doing != "Waiting for squad")
         {
@@ -88,6 +103,7 @@ public sealed partial class PopulationStore
             a.Until = waitUntil + 5;
             return true;
         }
+
         int[] levels = ready.Select(p => Level(p.Career.Experience)).ToArray();
         var map = PickMap(c);
         if (map is null || levels.Any(level => level < map.MinimumLevel || level > map.MaximumLevel)) return false;
@@ -121,6 +137,5 @@ public sealed partial class PopulationStore
         }
     }
 
-    private static string JoinNames(List<string> names) =>
-        names.Count <= 1 ? string.Concat(names) : string.Join(", ", names.Take(names.Count - 1)) + " and " + names[^1];
+    private static string JoinNames(List<string> names) => names.Count <= 1 ? string.Concat(names) : string.Join(", ", names.Take(names.Count - 1)) + " and " + names[^1];
 }

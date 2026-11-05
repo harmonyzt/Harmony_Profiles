@@ -24,11 +24,35 @@ public sealed record WorldEvent(long Id, long Utc, string Kind, string Text, str
 
 public sealed record WorldMapStatus(string Id, string Name, int InRaid, int Queueing, int QueueSeconds, double Share, bool WeeklyBoss, bool Solo, int[] History);
 
-public sealed record WorldPlayerRow(string Name, string Side, string Personality, int Level, int Prestige, string State, string Status,
-    string Map, long Since, int Raids, double KillDeath, bool Notable, string[] Squad, string[] Team, string Id);
+public sealed record WorldPlayerRow(
+    string Name,
+    string Side,
+    string Personality,
+    int Level,
+    int Prestige,
+    string State,
+    string Status,
+    string Map,
+    long Since,
+    int Raids,
+    double KillDeath,
+    bool Notable,
+    string[] Squad,
+    string[] Team,
+    string Id
+);
 
-public sealed record WorldSnapshot(int Online, int InRaid, int Queueing, int InMenu, int InTransit, int PendingStories,
-    List<WorldMapStatus> Maps, List<WorldEvent> Events, List<WorldServerStatus> Servers);
+public sealed record WorldSnapshot(
+    int Online,
+    int InRaid,
+    int Queueing,
+    int InMenu,
+    int InTransit,
+    int PendingStories,
+    List<WorldMapStatus> Maps,
+    List<WorldEvent> Events,
+    List<WorldServerStatus> Servers
+);
 
 public sealed class KillerLookup : IRequestData
 {
@@ -45,20 +69,67 @@ public sealed class HideoutAccessRequest : IRequestData
 
 public sealed record HideoutAccessDecision(int ProtocolVersion, bool Managed, bool CanEnter, string Reason);
 
-public sealed record EditorSnapshot(string PersonalitiesJson, string PersonalitiesRevision, string PolicyJson,
-    string PolicyRevision, string SettingsJson, string SettingsRevision, int Careers, int Online, int PendingStories, int Prestiged, string GenerationMode, long ApbsMatched, long ApbsFallback,
-    EditorInsights Insights);
+public sealed record EditorSnapshot(
+    string PersonalitiesJson,
+    string PersonalitiesRevision,
+    string PolicyJson,
+    string PolicyRevision,
+    string SettingsJson,
+    string SettingsRevision,
+    int Careers,
+    int Online,
+    int PendingStories,
+    int Prestiged,
+    string GenerationMode,
+    long ApbsMatched,
+    long ApbsFallback,
+    EditorInsights Insights
+);
 
 // Dashboard figures. Level bands are 1-10, 11-20 ... 71-79.
-public sealed record EditorInsights(int[] LevelBands, int Bear, int Usec, Dictionary<string, int> Personalities,
-    List<EditorCareerRow> TopCareers, int RacksFilled, int RackOwners);
+public sealed record EditorInsights(int[] LevelBands, int Bear, int Usec, Dictionary<string, int> Personalities, List<EditorCareerRow> TopCareers, int RacksFilled, int RackOwners);
 
 public sealed record EditorCareerRow(string Name, string Side, string Personality, int Level, int Prestige, int Raids, double KillDeath, bool Online, string Id);
 
 public sealed record PlayerLink(string Id, string Name);
 
-public sealed record PlayerProfile(string Id, string Name, string Side, string Personality, int Level, int Prestige, int Experience, bool Notable,
-    string State, string Status, long Since, long RegisteredUtc, long InGameSeconds, long Raids, long Survived, long Killed, long MissingInAction,
-    long Left, long RunThrough, long PmcKills, long ScavKills, double KillDeath, double SurvivalRate, int CurrentStreak, int BestStreak,
-    int Achievements, int HideoutLevels, double Wealth, double KitValue, List<PlayerLink> Squad, List<WorldEvent> Events, List<GearEvent> Gear,
-    int QuestsDone, int QuestsInReach, List<string> RecentQuests, List<string> ActiveQuests, string Schedule, string Mood);
+public sealed record PlayerProfile(
+    string Id,
+    string Name,
+    string Side,
+    string Personality,
+    int Level,
+    int Prestige,
+    int Experience,
+    bool Notable,
+    string State,
+    string Status,
+    long Since,
+    long RegisteredUtc,
+    long InGameSeconds,
+    long Raids,
+    long Survived,
+    long Killed,
+    long MissingInAction,
+    long Left,
+    long RunThrough,
+    long PmcKills,
+    long ScavKills,
+    double KillDeath,
+    double SurvivalRate,
+    int CurrentStreak,
+    int BestStreak,
+    int Achievements,
+    int HideoutLevels,
+    double Wealth,
+    double KitValue,
+    List<PlayerLink> Squad,
+    List<WorldEvent> Events,
+    List<GearEvent> Gear,
+    int QuestsDone,
+    int QuestsInReach,
+    List<string> RecentQuests,
+    List<string> ActiveQuests,
+    string Schedule,
+    string Mood
+);

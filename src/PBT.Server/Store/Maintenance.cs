@@ -14,18 +14,18 @@ public sealed partial class PopulationStore
         {
             var careers = population.Careers.Values.Where(c => !c.Retired).ToArray();
             if (!Ready || careers.Length == 0) return [];
-            return installedAchievements.ToDictionary(id => id,
-                id => (int)Math.Round(careers.Count(c => c.Achievements.ContainsKey(id)) * 100d / careers.Length));
+            return installedAchievements.ToDictionary(id => id, id => (int)Math.Round(careers.Count(c => c.Achievements.ContainsKey(id)) * 100d / careers.Length));
         }
     }
 
-    private double BadgeHours(string id, string rarity) => rarity switch
-    {
-        "Common" => 15 + Stable(id + ":hours") * 85,
-        "Rare" => 150 + Stable(id + ":hours") * 600,
-        "Legendary" => 1000 + Stable(id + ":hours") * 2000,
-        _ => double.PositiveInfinity
-    };
+    private double BadgeHours(string id, string rarity) =>
+        rarity switch
+        {
+            "Common" => 15 + Stable(id + ":hours") * 85,
+            "Rare" => 150 + Stable(id + ":hours") * 600,
+            "Legendary" => 1000 + Stable(id + ":hours") * 2000,
+            _ => double.PositiveInfinity
+        };
 
     // The roll per account and achievement is fixed, so levelling up only ever adds achievements.
     private double StoryChance(Career c, string id, string rarity)
@@ -45,16 +45,15 @@ public sealed partial class PopulationStore
     {
         foreach (var (id, story) in achievementStories)
         {
-            if (milestones.Any(m => m.Id == id) || result.ContainsKey(id)
-                || story.Side is not ("All" or "Pmc") && story.Side != c.Side
+            if (milestones.Any(m => m.Id == id) || result.ContainsKey(id) || story.Side is not ("All" or "Pmc") && story.Side != c.Side
                 || Stable(c.Id + ":badge:" + id) >= StoryChance(c, id, story.Rarity)) continue;
             result.Add(id, now);
         }
     }
 
     // Some setups give the mannequin head a spawn weight. On a profile it looks broken.
-    private bool IsMannequin(string? id) => IsId(id) && templates.Customization.TryGetValue(new MongoId(id!), out var template)
-        && template.Name?.Contains("Mannequin", StringComparison.OrdinalIgnoreCase) == true;
+    private bool IsMannequin(string? id) =>
+        IsId(id) && templates.Customization.TryGetValue(new MongoId(id!), out var template) && template.Name?.Contains("Mannequin", StringComparison.OrdinalIgnoreCase) == true;
 
     // The client resolves Head/Body/Feet to a bundle while spawning; an id it can't resolve crashes bot loading.
     private bool Wearable(string part, string? id)
@@ -62,17 +61,19 @@ public sealed partial class PopulationStore
         if (!IsId(id)) return false;
         if (wearable.TryGetValue(id!, out bool known)) return known;
         bool ok = templates.Customization.TryGetValue(new MongoId(id!), out var template) && template.Type == "Item"
-            && (part is "Voice" || template.Properties?.BodyPart == part && PrefabPath(template.Properties.Prefab));
+                                                                                          && (part is "Voice" || template.Properties?.BodyPart == part
+                                                                                              && PrefabPath(template.Properties.Prefab));
         wearable[id!] = ok;
         return ok;
     }
 
-    private bool PrefabPath(object? prefab) => prefab switch
-    {
-        null => false,
-        string path => path.Length > 0,
-        _ => JsonNode.Parse(json.Serialize(prefab) ?? "null") is JsonObject node && !string.IsNullOrEmpty(node["path"]?.ToString())
-    };
+    private bool PrefabPath(object? prefab) =>
+        prefab switch
+        {
+            null => false,
+            string path => path.Length > 0,
+            _ => JsonNode.Parse(json.Serialize(prefab) ?? "null") is JsonObject node && !string.IsNullOrEmpty(node["path"]?.ToString())
+        };
 
     private Dictionary<MongoId, double> PlayableHeads(Dictionary<MongoId, double> heads)
     {
@@ -83,8 +84,7 @@ public sealed partial class PopulationStore
     private void RepairAppearance(Career c)
     {
         var native = NativeCharacter(c.Side, c.Edition);
-        if (IsMannequin(c.Customization["Head"]?.ToString())
-            && bots.Types.TryGetValue(c.Side.ToLowerInvariant(), out var type) && type is not null)
+        if (IsMannequin(c.Customization["Head"]?.ToString()) && bots.Types.TryGetValue(c.Side.ToLowerInvariant(), out var type) && type is not null)
         {
             var head = Pick(PlayableHeads(type.BotAppearance.Head));
             if (!IsMannequin(head.ToString()))
@@ -93,6 +93,7 @@ public sealed partial class PopulationStore
                 dirty = true;
             }
         }
+
         foreach (string part in new[] { "Head", "Body", "Hands", "Feet", "Voice" })
         {
             string? asset = c.Customization[part]?.ToString();
@@ -107,7 +108,11 @@ public sealed partial class PopulationStore
         var equipment = RepairEquipment(assets.Equipment);
         if (equipment.ToJsonString() != assets.Equipment.ToJsonString()) SetEquipment(c, equipment);
         if (assets.Stash?["stash"] is not JsonValue root || assets.Stash["items"] is not JsonArray items) return;
-        var shape = new JsonObject { ["Id"] = root.DeepClone(), ["Items"] = items.DeepClone() };
+        var shape = new JsonObject
+        {
+            ["Id"] = root.DeepClone(),
+            ["Items"] = items.DeepClone()
+        };
         var repaired = RepairEquipment(shape);
         if (repaired["Items"]!.ToJsonString() == items.ToJsonString()) return;
         if (repaired["Id"]?.ToString() != root.ToString()) assets.Stash = null;
