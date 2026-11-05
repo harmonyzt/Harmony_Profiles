@@ -1922,12 +1922,18 @@
 .pbt-editor {
     --fb-money: #2fd47a;
     --fb-money-loss: #f05252;
-    --fb-money-font: "Bender", "Cascadia Mono", "JetBrains Mono", Consolas, ui-monospace, monospace
+    --fb-money-font: "Cascadia Mono", "JetBrains Mono", Consolas, ui-monospace, monospace
 }
 
 .pbt-editor:not([data-theme=dark]) {
     --fb-money: #0b8a4c;
     --fb-money-loss: #c81e1e
+}
+
+.pbt-editor .fb-profile {
+    display: flex;
+    flex-direction: column;
+    gap: 16px
 }
 
 .pbt-editor .fb-profile-hero {
@@ -1939,8 +1945,7 @@
     gap: 20px;
     overflow: hidden;
     --fb-side: #1a56db;
-    background: linear-gradient(115deg, color-mix(in srgb, var(--fb-side) 14%, var(--fb-surface)) 0%, var(--fb-surface) 55%);
-    animation: fb-profile-in .45s cubic-bezier(.2, .7, .2, 1) both
+    background: linear-gradient(115deg, color-mix(in srgb, var(--fb-side) 14%, var(--fb-surface)) 0%, var(--fb-surface) 55%)
 }
 
 .pbt-editor .fb-profile-hero.fb-side-bear {
@@ -1953,9 +1958,7 @@
     position: absolute;
     inset: 0 auto 0 0;
     width: 4px;
-    background: var(--fb-side);
-    transform-origin: top;
-    animation: fb-grow-y .5s .1s cubic-bezier(.2, .7, .2, 1) both
+    background: var(--fb-side)
 }
 
 .pbt-editor .fb-profile-id {
@@ -1976,8 +1979,7 @@
     width: 64px;
     height: 64px;
     font-size: 26px;
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--fb-side) 25%, transparent);
-    animation: fb-avatar-pop .5s .05s cubic-bezier(.3, 1.6, .5, 1) both
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--fb-side) 25%, transparent)
 }
 
 .pbt-editor .fb-profile-name {
@@ -2061,36 +2063,22 @@
     text-shadow: none
 }
 
-/* Reads out left to right like a ticker */
 .pbt-editor .fb-money-lg {
     font-size: 30px;
-    line-height: 1.2;
-    animation: fb-money-in .7s .2s steps(14, end) both
+    line-height: 1.2
 }
 
 .pbt-editor .fb-purse>div:last-child .fb-money {
     font-size: 22px;
-    line-height: 1.35;
-    animation: fb-money-in .6s .3s steps(12, end) both
+    line-height: 1.35
 }
 
 .pbt-editor .fb-profile-stats .fb-stat {
-    animation: fb-rise .4s cubic-bezier(.2, .7, .2, 1) both;
-    transition: transform .15s, box-shadow .15s
+    transition: border-color .15s
 }
-
-.pbt-editor .fb-profile-stats .fb-stat:nth-child(1) { animation-delay: .08s }
-.pbt-editor .fb-profile-stats .fb-stat:nth-child(2) { animation-delay: .14s }
-.pbt-editor .fb-profile-stats .fb-stat:nth-child(3) { animation-delay: .2s }
-.pbt-editor .fb-profile-stats .fb-stat:nth-child(4) { animation-delay: .26s }
 
 .pbt-editor .fb-profile-stats .fb-stat:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px #0000001f
-}
-
-.pbt-editor .fb-profile>section:not(.fb-profile-hero) {
-    animation: fb-rise .4s .3s cubic-bezier(.2, .7, .2, 1) both
+    transform: none
 }
 
 .pbt-editor .fb-gear-log {
@@ -2105,18 +2093,12 @@
     gap: 12px;
     align-items: center;
     padding: 10px 0;
-    border-bottom: 1px solid var(--fb-border);
-    animation: fb-rise .35s cubic-bezier(.2, .7, .2, 1) both
+    border-bottom: 1px solid var(--fb-border)
 }
 
 .pbt-editor .fb-gear-log li:last-child {
     border-bottom: 0
 }
-
-.pbt-editor .fb-gear-log li:nth-child(2) { animation-delay: .05s }
-.pbt-editor .fb-gear-log li:nth-child(3) { animation-delay: .1s }
-.pbt-editor .fb-gear-log li:nth-child(4) { animation-delay: .15s }
-.pbt-editor .fb-gear-log li:nth-child(n+5) { animation-delay: .2s }
 
 .pbt-editor .fb-gear-icon {
     display: grid;
@@ -2160,49 +2142,9 @@
     background: var(--fb-money)
 }
 
-@keyframes fb-profile-in {
-    from {
-        opacity: 0;
-        transform: translateY(12px) scale(.985)
-    }
-
-    to {
-        opacity: 1;
-        transform: none
-    }
-}
-
-@keyframes fb-avatar-pop {
-    from {
-        opacity: 0;
-        transform: scale(.5) rotate(-12deg)
-    }
-
-    to {
-        opacity: 1;
-        transform: none
-    }
-}
-
-@keyframes fb-money-in {
-    from {
-        clip-path: inset(-20px 100% -20px -20px)
-    }
-
-    to {
-        clip-path: inset(-20px)
-    }
-}
-
 @media(max-width:640px) {
     .pbt-editor .fb-purse {
         width: 100%;
         justify-content: space-between
-    }
-}
-
-@media(prefers-reduced-motion:reduce) {
-    .pbt-editor .fb-profile * {
-        animation: none !important
     }
 }

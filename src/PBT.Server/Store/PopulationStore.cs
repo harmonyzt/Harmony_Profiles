@@ -126,7 +126,7 @@ public sealed partial class PopulationStore(
                     population.AppliedStories.Remove(account);
                 string fingerprint = TemplateFingerprint();
                 bool repairAssets = fingerprint != population.TemplateFingerprint;
-                var preparing = new LoadProgress(logger, "Preparing careers", population.Careers.Count);
+                using var preparing = new LoadProgress(logger, "Preparing Profiles", population.Careers.Count);
                 foreach (var career in population.Careers.Values)
                 {
                     preparing.Step();
@@ -153,7 +153,7 @@ public sealed partial class PopulationStore(
                 if (!settings.OfflineProgression && population.LastSimulationUtc > 0)
                     population.LastSimulationUtc = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 Simulate(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                var developing = new LoadProgress(logger, "Developing careers", population.Careers.Count);
+                using var developing = new LoadProgress(logger, "Developing Bot Profiles", population.Careers.Count);
                 foreach (var career in population.Careers.Values)
                 {
                     developing.Step();
@@ -293,7 +293,9 @@ public sealed partial class PopulationStore(
                 throw new InvalidDataException($"Missing {side} name pool");
             return (Side: side, Type: type, Names: type.FirstNames.Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
         }).ToArray();
-        var progress = new LoadProgress(logger, "Creating careers", pools.Sum(p => p.Names.Length));
+        
+        using var progress = new LoadProgress(logger, "Creating Bot Profiles", pools.Sum(p => p.Names.Length));
+        
         foreach (var (side, type, names) in pools)
         {
             foreach (var name in names)
