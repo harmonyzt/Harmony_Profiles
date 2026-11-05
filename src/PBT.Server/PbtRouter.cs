@@ -1,86 +1,165 @@
-using SPTarkov.DI.Annotations;
-using SPTarkov.Server.Core.DI;
-using SPTarkov.Server.Core.Models.Eft.Match;
-using SPTarkov.Server.Core.Utils;
-
-namespace PBT.Server;
-
-[Injectable(TypePriority = OnLoadOrder.Routers + 20)]
-public sealed class PbtRouter(JsonUtil json, PopulationStore store) : StaticRouter(json,
-[
-    new RouteAction<HideoutAccessRequest>("/pbt/hideout/access",
-        (url, request, session, output, token) => new ValueTask<string>(json.Serialize(store.HideoutAccess(request, session))!)),
-    new RouteAction<KillerLookup>("/pbt/killer/resolve",
-        (url, request, session, output, token) => new ValueTask<string>(json.Serialize(new { AccountId = store.ResolveKiller(request, session) })!)),
-    new RouteAction<ActivityReport>("/pbt/activity",
-        (url, request, session, output, token) =>
+namespace PBT.Server
+{
+    [Injectable(TypePriority = OnLoadOrder.Routers + 20)]
+    public sealed class PbtRouter(JsonUtil json, PopulationStore store) : StaticRouter(json, [
+        new RouteAction<HideoutAccessRequest>("/pbt/hideout/access",
+            (url, request, session, output, token) => new ValueTask<string>(json.Serialize(store.HideoutAccess(request, session))!)),
+        new RouteAction<KillerLookup>("/pbt/killer/resolve", (url, request, session, output, token) => new ValueTask<string>(json.Serialize(new
         {
-            try { return new ValueTask<string>(json.Serialize(new { ProtocolVersion = 1, Accepted = store.Observe(request, session) })!); }
+            AccountId = store.ResolveKiller(request, session)
+        })!)),
+        new RouteAction<ActivityReport>("/pbt/activity", (url, request, session, output, token) =>
+        {
+            try
+            {
+                return new ValueTask<string>(json.Serialize(new
+                {
+                    ProtocolVersion = 1,
+                    Accepted = store.Observe(request, session)
+                })!);
+            }
             catch (Exception ex)
             {
                 store.Report(ex);
-                return new ValueTask<string>(json.Serialize(new { ProtocolVersion = 1, Accepted = 0 })!);
+                return new ValueTask<string>(json.Serialize(new
+                {
+                    ProtocolVersion = 1,
+                    Accepted = 0
+                })!);
             }
         }),
-    new RouteAction<KillerReport>("/pbt/killer",
-        (url, request, session, output, token) =>
+        new RouteAction<KillerReport>("/pbt/killer", (url, request, session, output, token) =>
         {
-            try { return new ValueTask<string>(json.Serialize(new { ProtocolVersion = 1, Accepted = store.Capture(request, session) })!); }
+            try
+            {
+                return new ValueTask<string>(json.Serialize(new
+                {
+                    ProtocolVersion = 1,
+                    Accepted = store.Capture(request, session)
+                })!);
+            }
             catch (Exception ex)
             {
                 store.Report(ex);
-                return new ValueTask<string>(json.Serialize(new { ProtocolVersion = 1, Accepted = false })!);
+                return new ValueTask<string>(json.Serialize(new
+                {
+                    ProtocolVersion = 1,
+                    Accepted = false
+                })!);
             }
         }),
-    new RouteAction<MatchingRequest>("/pbt/world/matching",
-        (url, request, session, output, token) =>
+        new RouteAction<MatchingRequest>("/pbt/world/matching", (url, request, session, output, token) =>
         {
             (int Seconds, int Looking, int Matched, MatchedServer? Server) matching = (0, 0, 0, null);
-            try { matching = store.Matching(request.Map, session); }
-            catch (Exception ex) { store.Report(ex); }
-            return new ValueTask<string>(json.Serialize(new { ProtocolVersion = 1, matching.Seconds, matching.Looking, matching.Matched, matching.Server })!);
-        }),
-    new RouteAction<MatchingRequest>("/pbt/world/matching/host",
-        (url, request, session, output, token) =>
-        {
-            (int Seconds, int Looking, long ElapsedMs) host = (0, 0, 0);
-            try { host = store.HostMatching(request.Map); }
-            catch (Exception ex) { store.Report(ex); }
-            return new ValueTask<string>(json.Serialize(new { ProtocolVersion = 1, host.Seconds, host.Looking, host.ElapsedMs })!);
-        }),
-    new RouteAction("/pbt/world/raid",
-        (url, request, session, output, token) =>
-        {
-            int loaded = 0;
-            try { loaded = store.RaidCareers(session); }
-            catch (Exception ex) { store.Report(ex); }
-            return new ValueTask<object>(json.Serialize(new { ProtocolVersion = 1, Loaded = loaded })!);
-        }),
-    new RouteAction("/pbt/world/maps",
-        (url, request, session, output, token) =>
-        {
-            try { return new ValueTask<object>(json.Serialize(new { ProtocolVersion = 1, Maps = store.MapIndicators() })!); }
+            try
+            {
+                matching = store.Matching(request.Map, session);
+            }
             catch (Exception ex)
             {
                 store.Report(ex);
-                return new ValueTask<object>(json.Serialize(new { ProtocolVersion = 1, Maps = new { } })!);
+            }
+
+            return new ValueTask<string>(json.Serialize(new
+            {
+                ProtocolVersion = 1,
+                matching.Seconds,
+                matching.Looking,
+                matching.Matched,
+                matching.Server
+            })!);
+        }),
+        new RouteAction<MatchingRequest>("/pbt/world/matching/host", (url, request, session, output, token) =>
+        {
+            (int Seconds, int Looking, long ElapsedMs) host = (0, 0, 0);
+            try
+            {
+                host = store.HostMatching(request.Map);
+            }
+            catch (Exception ex)
+            {
+                store.Report(ex);
+            }
+
+            return new ValueTask<string>(json.Serialize(new
+            {
+                ProtocolVersion = 1,
+                host.Seconds,
+                host.Looking,
+                host.ElapsedMs
+            })!);
+        }),
+        new RouteAction("/pbt/world/raid", (url, request, session, output, token) =>
+        {
+            int loaded = 0;
+            try
+            {
+                loaded = store.RaidCareers(session);
+            }
+            catch (Exception ex)
+            {
+                store.Report(ex);
+            }
+
+            return new ValueTask<object>(json.Serialize(new
+            {
+                ProtocolVersion = 1,
+                Loaded = loaded
+            })!);
+        }),
+        new RouteAction("/pbt/world/maps", (url, request, session, output, token) =>
+        {
+            try
+            {
+                return new ValueTask<object>(json.Serialize(new
+                {
+                    ProtocolVersion = 1,
+                    Maps = store.MapIndicators()
+                })!);
+            }
+            catch (Exception ex)
+            {
+                store.Report(ex);
+                return new ValueTask<object>(json.Serialize(new
+                {
+                    ProtocolVersion = 1,
+                    Maps = new
+                    {
+                    }
+                })!);
             }
         }),
-    new RouteAction<EndLocalRaidRequestData>("/client/match/local/end",
-        (url, request, session, output, token) =>
+        new RouteAction<EndLocalRaidRequestData>("/client/match/local/end", (url, request, session, output, token) =>
         {
             store.ResetReservations(session);
             store.RecordRaidLoss(request, session);
             return new ValueTask<string>(output ?? "");
         }),
-    new RouteAction<CheatReportRequest>("/client/report/send",
-        (url, request, session, output, token) =>
+        new RouteAction<CheatReportRequest>("/client/report/send", (url, request, session, output, token) =>
         {
-            try { store.ReportCheater(request, session); }
-            catch (Exception ex) { store.Report(ex); }
+            try
+            {
+                store.ReportCheater(request, session);
+            }
+            catch (Exception ex)
+            {
+                store.Report(ex);
+            }
+
             return new ValueTask<string>(output ?? "");
         }),
-    new RouteAction("/pbt/status",
-        (url, request, session, output, token) =>
-            new ValueTask<object>(json.Serialize(new { ProtocolVersion = 1, ActivityProtocolVersion = 1, HideoutAccessProtocolVersion = 1, Ready = store.Ready, GenerationMode = store.GenerationMode, ApbsMatched = store.ApbsMatched, ApbsFallback = store.ApbsFallback, CheatReports = store.CheatReports })!))
-]) { }
+        new RouteAction("/pbt/status", (url, request, session, output, token) => new ValueTask<object>(json.Serialize(new
+        {
+            ProtocolVersion = 1,
+            ActivityProtocolVersion = 1,
+            HideoutAccessProtocolVersion = 1,
+            store.Ready,
+            store.GenerationMode,
+            store.ApbsMatched,
+            store.ApbsFallback,
+            store.CheatReports
+        })!))
+    ])
+    {
+    }
+}
