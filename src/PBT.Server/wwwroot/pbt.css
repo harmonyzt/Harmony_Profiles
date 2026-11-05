@@ -384,7 +384,7 @@
     }
 }
 
-@media (prefers-reduced-motion: reduce) {
+@media(prefers-reduced-motion:reduce) {
 
     .pbt-editor .fb-subnav li,
     .pbt-editor .fb-subnav .fb-active::before {
@@ -451,7 +451,7 @@
     gap: 6px
 }
 
-.pbt-editor .fb-breadcrumb li + li::before {
+.pbt-editor .fb-breadcrumb li+li::before {
     content: "";
     width: 6px;
     height: 6px;
@@ -493,7 +493,7 @@
     min-width: 0
 }
 
-.pbt-editor .fb-card > h2 + .fb-muted {
+.pbt-editor .fb-card>h2+.fb-muted {
     margin-bottom: 4px;
     color: var(--fb-text);
     line-height: 1.6
@@ -749,7 +749,7 @@
     font-weight: 500
 }
 
-.pbt-editor .fb-progress-list div span + span {
+.pbt-editor .fb-progress-list div span+span {
     color: var(--fb-muted);
     font-weight: 400
 }
@@ -762,7 +762,7 @@
     overflow: hidden
 }
 
-.pbt-editor .fb-progress > span {
+.pbt-editor .fb-progress>span {
     display: block;
     height: 100%;
     border-radius: inherit;
@@ -836,7 +836,7 @@
     gap: 12px
 }
 
-.pbt-editor .fb-person > span:last-child {
+.pbt-editor .fb-person>span:last-child {
     display: flex;
     flex-direction: column
 }
@@ -1043,15 +1043,15 @@
     transition: transform .15s
 }
 
-.pbt-editor .fb-switch input:checked + .fb-switch-track {
+.pbt-editor .fb-switch input:checked+.fb-switch-track {
     background: var(--fb-primary)
 }
 
-.pbt-editor .fb-switch input:checked + .fb-switch-track::after {
+.pbt-editor .fb-switch input:checked+.fb-switch-track::after {
     transform: translateX(20px)
 }
 
-.pbt-editor .fb-switch input:focus-visible + .fb-switch-track {
+.pbt-editor .fb-switch input:focus-visible+.fb-switch-track {
     box-shadow: 0 0 0 4px var(--fb-primary-soft)
 }
 
@@ -1662,7 +1662,7 @@
     }
 }
 
-@media (max-width: 1280px) {
+@media(max-width:1280px) {
     .pbt-editor .fb-stats {
         grid-template-columns: repeat(2, minmax(0, 1fr))
     }
@@ -1676,7 +1676,7 @@
     }
 }
 
-@media (max-width: 1024px) {
+@media(max-width:1024px) {
     .pbt-editor {
         grid-template-columns: 1fr
     }
@@ -1707,7 +1707,7 @@
     }
 }
 
-@media (max-width: 640px) {
+@media(max-width:640px) {
 
     .pbt-editor .fb-brand small,
     .pbt-editor .fb-pill {
@@ -1765,27 +1765,27 @@
     transform: scale(1.15) rotate(-6deg)
 }
 
-.pbt-editor .fb-content > * {
+.pbt-editor .fb-content>* {
     animation: fb-rise .35s cubic-bezier(.2, .7, .2, 1) both
 }
 
-.pbt-editor .fb-content > :nth-child(2) {
+.pbt-editor .fb-content> :nth-child(2) {
     animation-delay: .05s
 }
 
-.pbt-editor .fb-content > :nth-child(3) {
+.pbt-editor .fb-content> :nth-child(3) {
     animation-delay: .1s
 }
 
-.pbt-editor .fb-content > :nth-child(4) {
+.pbt-editor .fb-content> :nth-child(4) {
     animation-delay: .15s
 }
 
-.pbt-editor .fb-content > :nth-child(5) {
+.pbt-editor .fb-content> :nth-child(5) {
     animation-delay: .2s
 }
 
-.pbt-editor .fb-content > :nth-child(n+6) {
+.pbt-editor .fb-content> :nth-child(n+6) {
     animation-delay: .25s
 }
 
@@ -1804,7 +1804,7 @@
     transition: background .15s
 }
 
-.pbt-editor .fb-progress > span {
+.pbt-editor .fb-progress>span {
     transform-origin: left;
     animation: fb-grow-x .7s cubic-bezier(.2, .7, .2, 1) both
 }
@@ -1861,13 +1861,12 @@
     }
 }
 
-@media (prefers-reduced-motion: reduce) {
+@media(prefers-reduced-motion:reduce) {
     .pbt-editor * {
         transition: none !important;
         animation: none !important
     }
 }
-
 /* Player names open their profile */
 .pbt-editor .fb-name-link {
     border: 0;
@@ -1966,7 +1965,7 @@
     min-width: 0
 }
 
-.pbt-editor .fb-profile-id > span:last-child {
+.pbt-editor .fb-profile-id>span:last-child {
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -2021,7 +2020,7 @@
     flex-wrap: wrap
 }
 
-.pbt-editor .fb-purse > div {
+.pbt-editor .fb-purse>div {
     display: flex;
     flex-direction: column;
     gap: 2px
@@ -2069,7 +2068,7 @@
     animation: fb-money-in .7s .2s steps(14, end) both
 }
 
-.pbt-editor .fb-purse > div:last-child .fb-money {
+.pbt-editor .fb-purse>div:last-child .fb-money {
     font-size: 22px;
     line-height: 1.35;
     animation: fb-money-in .6s .3s steps(12, end) both
@@ -2080,28 +2079,17 @@
     transition: transform .15s, box-shadow .15s
 }
 
-.pbt-editor .fb-profile-stats .fb-stat:nth-child(1) {
-    animation-delay: .08s
-}
-
-.pbt-editor .fb-profile-stats .fb-stat:nth-child(2) {
-    animation-delay: .14s
-}
-
-.pbt-editor .fb-profile-stats .fb-stat:nth-child(3) {
-    animation-delay: .2s
-}
-
-.pbt-editor .fb-profile-stats .fb-stat:nth-child(4) {
-    animation-delay: .26s
-}
+.pbt-editor .fb-profile-stats .fb-stat:nth-child(1) { animation-delay: .08s }
+.pbt-editor .fb-profile-stats .fb-stat:nth-child(2) { animation-delay: .14s }
+.pbt-editor .fb-profile-stats .fb-stat:nth-child(3) { animation-delay: .2s }
+.pbt-editor .fb-profile-stats .fb-stat:nth-child(4) { animation-delay: .26s }
 
 .pbt-editor .fb-profile-stats .fb-stat:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 16px #0000001f
 }
 
-.pbt-editor .fb-profile > section:not(.fb-profile-hero) {
+.pbt-editor .fb-profile>section:not(.fb-profile-hero) {
     animation: fb-rise .4s .3s cubic-bezier(.2, .7, .2, 1) both
 }
 
@@ -2125,21 +2113,10 @@
     border-bottom: 0
 }
 
-.pbt-editor .fb-gear-log li:nth-child(2) {
-    animation-delay: .05s
-}
-
-.pbt-editor .fb-gear-log li:nth-child(3) {
-    animation-delay: .1s
-}
-
-.pbt-editor .fb-gear-log li:nth-child(4) {
-    animation-delay: .15s
-}
-
-.pbt-editor .fb-gear-log li:nth-child(n+5) {
-    animation-delay: .2s
-}
+.pbt-editor .fb-gear-log li:nth-child(2) { animation-delay: .05s }
+.pbt-editor .fb-gear-log li:nth-child(3) { animation-delay: .1s }
+.pbt-editor .fb-gear-log li:nth-child(4) { animation-delay: .15s }
+.pbt-editor .fb-gear-log li:nth-child(n+5) { animation-delay: .2s }
 
 .pbt-editor .fb-gear-icon {
     display: grid;
@@ -2217,14 +2194,14 @@
     }
 }
 
-@media (max-width: 640px) {
+@media(max-width:640px) {
     .pbt-editor .fb-purse {
         width: 100%;
         justify-content: space-between
     }
 }
 
-@media (prefers-reduced-motion: reduce) {
+@media(prefers-reduced-motion:reduce) {
     .pbt-editor .fb-profile * {
         animation: none !important
     }

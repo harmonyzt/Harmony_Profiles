@@ -1,39 +1,35 @@
 using System.Text;
 
-namespace PBT.Server
+namespace PBT.Server;
+
+internal static class AtomicFile
 {
-    internal static class AtomicFile
+    // durable: false skips the fsync. The replace is still atomic, only a power cut can lose the write.
+    // backup: false skips the .bak copy, for stores with tens of thousands of files.
+    public static void Write(string path, string content, bool durable = true, bool backup = true) =>
+        Write(path, Encoding.UTF8.GetBytes(content), durable, backup);
+
+    public static void Write(string path, ReadOnlySpan<byte> bytes, bool durable = true, bool backup = true)
     {
-        // durable: false skips the fsync. The replace is still atomic, only a power cut can lose the write.
-        // backup: false skips the .bak copy, for stores with tens of thousands of files.
-        public static void Write(string path, string content, bool durable = true, bool backup = true)
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
         {
-            Write(path, Encoding.UTF8.GetBytes(content), durable, backup);
+            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                stream.Write(bytes);
+                stream.Flush(flushToDisk: durable);
+            }
+            if (!backup)
+                File.Move(temporary, path, overwrite: true);
+            else if (File.Exists(path))
+                File.Replace(temporary, path, path + ".bak");
+            else
+                File.Move(temporary, path);
         }
-
-        public static void Write(string path, ReadOnlySpan<byte> bytes, bool durable = true, bool backup = true)
+        finally
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            try
-            {
-                using (FileStream stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-                {
-                    stream.Write(bytes);
-                    stream.Flush(durable);
-                }
-
-                if (!backup)
-                    File.Move(temporary, path, true);
-                else if (File.Exists(path))
-                    File.Replace(temporary, path, path + ".bak");
-                else
-                    File.Move(temporary, path);
-            }
-            finally
-            {
-                if (File.Exists(temporary)) File.Delete(temporary);
-            }
+            if (File.Exists(temporary)) File.Delete(temporary);
         }
     }
 }

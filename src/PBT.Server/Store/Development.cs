@@ -1,363 +1,311 @@
-using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
+using SPTarkov.Server.Core.Models.Common;
+using SPTarkov.Server.Core.Models.Eft.Common.Tables;
+using SPTarkov.Server.Core.Models.Eft.Hideout;
 
-namespace PBT.Server
+namespace PBT.Server;
+
+public sealed partial class PopulationStore
 {
-    public sealed partial class PopulationStore
+    private readonly Dictionary<string, JsonObject> nativeCharacters = new();
+
+    private JsonObject NativeCharacter(string side, string edition = "Standard")
     {
-        private static readonly ConcurrentDictionary<string, double> stableCache = new ConcurrentDictionary<string, double>();
-        private readonly Dictionary<string, JsonObject> nativeCharacters = new Dictionary<string, JsonObject>();
+        string key = side + ":" + edition;
+        if (nativeCharacters.TryGetValue(key, out var cached)) return cached;
+        if (!templates.Profiles.TryGetValue(edition, out var profile))
+            throw new InvalidDataException("Native edition template is missing: " + edition);
+        var source = (side == "Bear" ? profile.Bear : profile.Usec)?.Character
+            ?? throw new InvalidDataException("Native character template is missing for " + key);
+        var character = JsonNode.Parse(json.Serialize(source)!)!.AsObject();
+        nativeCharacters.Add(key, character);
+        return character;
+    }
 
-        private JsonObject NativeCharacter(string side, string edition = "Standard")
+    private void EnsureDevelopment(Career c)
+    {
+        if (c.DevelopmentVersion > 2) throw new InvalidDataException("Unknown career development version.");
+        if (c.DevelopmentVersion == 2) return;
+        var native = NativeCharacter(c.Side, c.Edition);
+        if (c.DevelopmentVersion == 0)
         {
-            string key = side + ":" + edition;
-            if (nativeCharacters.TryGetValue(key, out JsonObject? cached)) return cached;
-            if (!templates.Profiles.TryGetValue(edition, out var profile))
-                throw new InvalidDataException("Native edition template is missing: " + edition);
-            var source = (side == "Bear" ? profile.Bear : profile.Usec)?.Character ?? throw new InvalidDataException("Native character template is missing for " + key);
-            JsonObject character = JsonNode.Parse(json.Serialize(source)!)!.AsObject();
-            nativeCharacters.Add(key, character);
-            return character;
+            c.AreaLevels = new();
+            c.CustomizationStashId = StableId(c.Id + ":customization-stash");
+            // Raid history runs at roughly half the current level on average.
+            int level = Math.Max(1, Level(c.Experience) / 2);
+            int deaths = Math.Max(0, c.Raids - c.Survived);
+            c.WealthRubles = Math.Clamp(100000 + c.Survived * RaidIncome(c, level, true) - deaths * RaidIncome(c, level, false), 100000, MaximumWealth);
         }
-
-        private void EnsureDevelopment(Career c)
+        foreach (var baseline in native["Hideout"]!["Areas"]!.AsArray().OfType<JsonObject>())
         {
-            if (c.DevelopmentVersion > 2) throw new InvalidDataException("Unknown career development version.");
-            if (c.DevelopmentVersion == 2) return;
-            JsonObject native = NativeCharacter(c.Side, c.Edition);
-            if (c.DevelopmentVersion == 0)
-            {
-                c.AreaLevels = new Dictionary<int, int>();
-                c.CustomizationStashId = StableId(c.Id + ":customization-stash");
-                // Raid history runs at roughly half the current level on average.
-                int level = Math.Max(1, Level(c.Experience) / 2);
-                int deaths = Math.Max(0, c.Raids - c.Survived);
-                c.WealthRubles = Math.Clamp(100000 + c.Survived * RaidIncome(c, level, true) - deaths * RaidIncome(c, level, false), 100000, MaximumWealth);
-            }
-
-            foreach (JsonObject baseline in native["Hideout"]!["Areas"]!.AsArray().OfType<JsonObject>())
-            {
-                int type = baseline["type"]!.GetValue<int>(), level = baseline["level"]!.GetValue<int>();
-                if (level > AreaLevel(c, type)) c.AreaLevels[type] = level;
-            }
-
-            c.DevelopmentVersion = 2;
-            dirty = true;
+            int type = baseline["type"]!.GetValue<int>(), level = baseline["level"]!.GetValue<int>();
+            if (level > AreaLevel(c, type)) c.AreaLevels[type] = level;
         }
+        c.DevelopmentVersion = 2;
+        dirty = true;
+    }
 
-        private string StashTemplate(Career c)
+    private string StashTemplate(Career c)
+    {
+        var native = NativeCharacter(c.Side, c.Edition);
+        int baseline = native["Hideout"]!["Areas"]!.AsArray().OfType<JsonObject>()
+            .First(a => a["type"]!.GetValue<int>() == 3)["level"]!.GetValue<int>();
+        if (AreaLevel(c, 3) > baseline)
         {
-            JsonObject native = NativeCharacter(c.Side, c.Edition);
-            int baseline = native["Hideout"]!["Areas"]!.AsArray().OfType<JsonObject>().First(a => a["type"]!.GetValue<int>() == 3)["level"]!.GetValue<int>();
-            if (AreaLevel(c, 3) > baseline)
-            {
-                var area = hideout.Areas.FirstOrDefault(a => (int?)a.Type == 3);
-                if (area?.Stages?.TryGetValue(AreaLevel(c, 3).ToString(), out var stage) == true && stage.Container is MongoId container && !container.IsEmpty
-                    && templates.Items.ContainsKey(container))
-                    return container.ToString();
-            }
-
-            JsonObject inventory = native["Inventory"]!.AsObject();
-            string root = inventory["stash"]!.GetValue<string>();
-            return inventory["items"]!.AsArray().OfType<JsonObject>().First(i => i["_id"]?.ToString() == root && i["parentId"] is null)["_tpl"]!.GetValue<string>();
+            var area = hideout.Areas.FirstOrDefault(a => (int?)a.Type == 3);
+            if (area?.Stages?.TryGetValue(AreaLevel(c, 3).ToString(), out var stage) == true
+                && stage.Container is MongoId container && !container.IsEmpty && templates.Items.ContainsKey(container))
+                return container.ToString();
         }
+        var inventory = native["Inventory"]!.AsObject();
+        string root = inventory["stash"]!.GetValue<string>();
+        return inventory["items"]!.AsArray().OfType<JsonObject>()
+            .First(i => i["_id"]?.ToString() == root && i["parentId"] is null)["_tpl"]!.GetValue<string>();
+    }
 
-        private void SyncStashTemplate(Career c, JsonObject stash)
+    private void SyncStashTemplate(Career c, JsonObject stash)
+    {
+        string template = StashTemplate(c);
+        string? root = stash["stash"]?.ToString();
+        var item = (stash["items"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault(i => i["_id"]?.ToString() == root);
+        if (item is not null) item["_tpl"] = template;
+    }
+
+    // Only prestige reads the stash, so it is rolled then unless a previous prestige stored one.
+    private JsonObject CareerStash(Career c)
+    {
+        var stash = Assets(c).Stash?.DeepClone().AsObject()
+            ?? GenerateStash(c, NativeCharacter(c.Side, c.Edition)["Inventory"]!.AsObject());
+        SyncStashTemplate(c, stash);
+        return stash;
+    }
+
+    private JsonObject GenerateStash(Career c, JsonObject inventory)
+    {
+        string oldRoot = inventory["stash"]!.GetValue<string>();
+        var all = inventory["items"]!.AsArray().OfType<JsonObject>().ToArray();
+        int wanted = Math.Clamp(8 + (int)(CycleHours(c) / 30), 8, 60);
+        var roots = all.Where(x => x["parentId"]?.GetValue<string>() == oldRoot)
+            .OrderBy(x => Stable(c.Id + ":" + x["_id"])).Take(wanted).ToArray();
+        bool changed;
+        var allowedRoots = roots.Select(x => x["_id"]!.GetValue<string>()).ToHashSet();
+        var keep = new HashSet<string>(allowedRoots);
+        do
         {
-            string template = StashTemplate(c);
-            string? root = stash["stash"]?.ToString();
-            JsonObject? item = (stash["items"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault(i => i["_id"]?.ToString() == root);
-            if (item is not null) item["_tpl"] = template;
+            changed = false;
+            foreach (var item in all)
+                if (item["parentId"] is JsonValue parent && keep.Contains(parent.GetValue<string>()))
+                    changed |= keep.Add(item["_id"]!.GetValue<string>());
+        } while (changed);
+        keep.Add(oldRoot);
+        var ids = keep.ToDictionary(id => id, _ => NewId());
+        var result = new JsonArray();
+        foreach (var item in all.Where(x => keep.Contains(x["_id"]!.GetValue<string>())
+            && (x["_id"]!.ToString() == oldRoot && x["parentId"] is null
+                || x["parentId"] is not null && keep.Contains(x["parentId"]!.ToString())))
+            .DistinctBy(x => x["_id"]!.ToString()))
+        {
+            var copy = item.DeepClone().AsObject();
+            copy["_id"] = ids[item["_id"]!.GetValue<string>()];
+            if (item["parentId"] is JsonValue parent && ids.TryGetValue(parent.GetValue<string>(), out var newParent))
+                copy["parentId"] = newParent;
+            result.Add(copy);
         }
+        return new JsonObject { ["stash"] = ids[oldRoot], ["items"] = result };
+    }
 
-        // Only prestige reads the stash, so it is rolled then unless a previous prestige stored one.
-        private JsonObject CareerStash(Career c)
+    private void Develop(Career c)
+    {
+        EnsureDevelopment(c);
+        AdvanceHideout(c, CycleHours(c));
+        EnsureShowcase(c);
+        c.Achievements = EarnedMilestones(c, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+        // No dirty flag here. Callers mark it, so world-sim raids can wait for the slower world save.
+    }
+
+    // Skill progress only ever grows with cycle hours, so it is computed instead of stored.
+    private static double SkillProgress(Career c, string id, double native, double hours)
+    {
+        double rate = id is "Endurance" or "Strength" ? 2.5 : 1.3;
+        return Math.Max(native, Math.Min(5100, c.SkillCarry.GetValueOrDefault(id) + hours * rate * (.5 + Stable(c.Id + ":" + id))));
+    }
+
+    private double SkillProgress(Career c, string? id)
+    {
+        var native = NativeCharacter(c.Side, c.Edition)["Skills"]?["Common"]?.AsArray().OfType<JsonObject>()
+            .FirstOrDefault(s => s["Id"]?.GetValue<string>() == id);
+        return native is null ? 0 : SkillProgress(c, id!, native["Progress"]?.GetValue<double>() ?? 0, CycleHours(c));
+    }
+
+    private JsonObject CareerSkills(Career c)
+    {
+        var skills = NativeCharacter(c.Side, c.Edition)["Skills"]!.DeepClone().AsObject();
+        double hours = CycleHours(c);
+        if (skills["Common"] is JsonArray common)
+            foreach (var skill in common.OfType<JsonObject>())
+                skill["Progress"] = SkillProgress(c, skill["Id"]!.GetValue<string>(), skill["Progress"]?.GetValue<double>() ?? 0, hours);
+        return skills;
+    }
+
+    private int TraderLoyalty(Career c, MongoId id)
+    {
+        if (!traders.TryGetValue(id, out var trader) || trader?.Base.LoyaltyLevels is null) return 0;
+        double hours = CycleHours(c);
+        int playerLevel = Level(c.Experience);
+        double sales = hours * (c.Archetype == "Timmy" ? 3000 : 12000);
+        double standing = Math.Min(1.5, hours / 800);
+        int loyalty = 0;
+        for (int i = 0; i < trader.Base.LoyaltyLevels.Count; i++)
         {
-            JsonObject stash = Assets(c).Stash?.DeepClone().AsObject() ?? GenerateStash(c, NativeCharacter(c.Side, c.Edition)["Inventory"]!.AsObject());
-            SyncStashTemplate(c, stash);
-            return stash;
+            var stage = trader.Base.LoyaltyLevels[i];
+            if (playerLevel >= (stage.MinLevel ?? 1) && sales >= (stage.MinSalesSum ?? 0)
+                && standing >= (stage.MinStanding ?? 0)) loyalty = i + 1;
+            else break;
         }
+        return loyalty;
+    }
 
-        private JsonObject GenerateStash(Career c, JsonObject inventory)
+    private HideoutArea[] HideoutAreas() => hideout.Areas.Concat(hideout.CustomAreas ?? []).Where(a => a.IsEnabled != false && a.Type is not null)
+        .GroupBy(a => (int)a.Type!.Value).Select(g => g.First()).ToArray();
+
+    private void AdvanceHideout(Career c, double hours)
+    {
+        var allAreas = HideoutAreas();
+        var levels = new Dictionary<int, int>(c.AreaLevels);
+        foreach (var area in allAreas) levels.TryAdd((int)area.Type!.Value, 0);
+        bool upgraded;
+        do
         {
-            string oldRoot = inventory["stash"]!.GetValue<string>();
-            JsonObject[] all = inventory["items"]!.AsArray().OfType<JsonObject>().ToArray();
-            int wanted = Math.Clamp(8 + (int)(CycleHours(c) / 30), 8, 60);
-            JsonObject[] roots = all.Where(x => x["parentId"]?.GetValue<string>() == oldRoot).OrderBy(x => Stable(c.Id + ":" + x["_id"])).Take(wanted).ToArray();
-            bool changed;
-            HashSet<string> allowedRoots = roots.Select(x => x["_id"]!.GetValue<string>()).ToHashSet();
-            HashSet<string> keep = new HashSet<string>(allowedRoots);
-            do
-            {
-                changed = false;
-                foreach (JsonObject item in all)
-                {
-                    if (item["parentId"] is JsonValue parent && keep.Contains(parent.GetValue<string>()))
-                        changed |= keep.Add(item["_id"]!.GetValue<string>());
-                }
-            } while (changed);
-
-            keep.Add(oldRoot);
-            Dictionary<string, string> ids = keep.ToDictionary(id => id, _ => NewId());
-            JsonArray result = new JsonArray();
-            foreach (JsonObject item in all.Where(x => keep.Contains(x["_id"]!.GetValue<string>())
-                                                       && (x["_id"]!.ToString() == oldRoot && x["parentId"] is null
-                                                           || x["parentId"] is not null && keep.Contains(x["parentId"]!.ToString()))).DistinctBy(x => x["_id"]!.ToString()))
-            {
-                JsonObject copy = item.DeepClone().AsObject();
-                copy["_id"] = ids[item["_id"]!.GetValue<string>()];
-                if (item["parentId"] is JsonValue parent && ids.TryGetValue(parent.GetValue<string>(), out string? newParent))
-                    copy["parentId"] = newParent;
-                result.Add(copy);
-            }
-
-            return new JsonObject
-            {
-                ["stash"] = ids[oldRoot],
-                ["items"] = result
-            };
-        }
-
-        private void Develop(Career c)
-        {
-            EnsureDevelopment(c);
-            AdvanceHideout(c, CycleHours(c));
-            EnsureShowcase(c);
-            c.Achievements = EarnedMilestones(c, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            // No dirty flag here. Callers mark it, so world-sim raids can wait for the slower world save.
-        }
-
-        // Skill progress only ever grows with cycle hours, so it is computed instead of stored.
-        private static double SkillProgress(Career c, string id, double native, double hours)
-        {
-            double rate = id is "Endurance" or "Strength" ? 2.5 : 1.3;
-            return Math.Max(native, Math.Min(5100, c.SkillCarry.GetValueOrDefault(id) + hours * rate * (.5 + Stable(c.Id + ":" + id))));
-        }
-
-        private double SkillProgress(Career c, string? id)
-        {
-            JsonObject? native = NativeCharacter(c.Side, c.Edition)["Skills"]?["Common"]?.AsArray().OfType<JsonObject>().FirstOrDefault(s => s["Id"]?.GetValue<string>() == id);
-            return native is null ? 0 : SkillProgress(c, id!, native["Progress"]?.GetValue<double>() ?? 0, CycleHours(c));
-        }
-
-        private JsonObject CareerSkills(Career c)
-        {
-            JsonObject skills = NativeCharacter(c.Side, c.Edition)["Skills"]!.DeepClone().AsObject();
-            double hours = CycleHours(c);
-            if (skills["Common"] is JsonArray common)
-                foreach (JsonObject skill in common.OfType<JsonObject>())
-                {
-                    skill["Progress"] = SkillProgress(c, skill["Id"]!.GetValue<string>(), skill["Progress"]?.GetValue<double>() ?? 0, hours);
-                }
-
-            return skills;
-        }
-
-        private int TraderLoyalty(Career c, MongoId id)
-        {
-            if (!traders.TryGetValue(id, out var trader) || trader?.Base.LoyaltyLevels is null) return 0;
-            double hours = CycleHours(c);
-            int playerLevel = Level(c.Experience);
-            double sales = hours * (c.Archetype == "Timmy" ? 3000 : 12000);
-            double standing = Math.Min(1.5, hours / 800);
-            int loyalty = 0;
-            for (int i = 0; i < trader.Base.LoyaltyLevels.Count; i++)
-            {
-                var stage = trader.Base.LoyaltyLevels[i];
-                if (playerLevel >= (stage.MinLevel ?? 1) && sales >= (stage.MinSalesSum ?? 0) && standing >= (stage.MinStanding ?? 0)) loyalty = i + 1;
-                else break;
-            }
-
-            return loyalty;
-        }
-
-        private HideoutArea[] HideoutAreas()
-        {
-            return hideout.Areas.Concat(hideout.CustomAreas ?? []).Where(a => a.IsEnabled != false && a.Type is not null).GroupBy(a => (int)a.Type!.Value).Select(g => g.First())
-                .ToArray();
-        }
-
-        private void AdvanceHideout(Career c, double hours)
-        {
-            var allAreas = HideoutAreas();
-            Dictionary<int, int> levels = new Dictionary<int, int>(c.AreaLevels);
-            foreach (var area in allAreas)
-            {
-                levels.TryAdd((int)area.Type!.Value, 0);
-            }
-
-            bool upgraded;
-            do
-            {
-                upgraded = false;
-                foreach (var area in allAreas.OrderBy(a => Stable(c.Id + ":area:" + (int)a.Type!.Value)))
-                {
-                    int type = (int)area.Type!.Value;
-                    int next = levels[type] + 1;
-                    if (area.Stages is null || !area.Stages.TryGetValue(next.ToString(), out var stage)) continue;
-                    double focus = .65 + Stable(c.Id + ":focus:" + type);
-                    int maximum = area.Stages.Keys.Select(k => int.TryParse(k, out int n) ? n : 0).Max();
-                    if (type is 21 or 22 || next > DesiredHideoutLevel(c, type, hours, maximum)) continue;
-                    double firstStageHours = type is 0 or 1 or 2 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 15 ? 2 : 10;
-                    double threshold = firstStageHours * next * next / (focus * policy.Hideout.ConstructionSpeed);
-                    if (hours < threshold || !AreaRequirements(area.Requirements, levels)) continue;
-                    double cost = StageCost(c, stage, levels) * policy.Hideout.MaterialCostMultiplier;
-                    // Players keep money for a few kits instead of spending their last ruble on the hideout.
-                    if (!double.IsFinite(cost) || cost > c.WealthRubles - KitCost(c) * 3) continue;
-                    c.WealthRubles -= cost;
-                    c.HideoutInvestment += cost;
-                    levels[type] = next;
-                    upgraded = true;
-                }
-            } while (upgraded);
-
-            foreach ((int type, int level) in levels)
-            {
-                if (level > 0) c.AreaLevels[type] = level;
-            }
-        }
-
-        // Root IDs are stable per career.
-        private (JsonObject Hideout, JsonObject AreaStashes, JsonArray Items) BuildHideout(Career c)
-        {
-            JsonObject result = NativeCharacter(c.Side, c.Edition)["Hideout"]!.DeepClone().AsObject();
-            result["Seed"] = (StableId(c.Id + ":hideout-seed") + StableId(c.Id + ":hideout-seed:2"))[..32];
-            result["HideoutCounters"] = new JsonObject
-            {
-                ["fuelCounter"] = 0,
-                ["airFilterCounter"] = 0,
-                ["waterFilterCounter"] = 0,
-                ["craftingTimeCounter"] = 0
-            };
-            JsonArray states = result["Areas"]!.AsArray();
-            JsonObject areaStashes = new JsonObject();
-            JsonArray items = new JsonArray(new JsonObject
-            {
-                ["_id"] = c.CustomizationStashId,
-                ["_tpl"] = "673c7b00cbf4b984b5099181"
-            });
-            foreach (var area in HideoutAreas())
+            upgraded = false;
+            foreach (var area in allAreas.OrderBy(a => Stable(c.Id + ":area:" + (int)a.Type!.Value)))
             {
                 int type = (int)area.Type!.Value;
-                JsonObject? state = states.OfType<JsonObject>().FirstOrDefault(a => a["type"]!.GetValue<int>() == type);
-                if (state is null)
-                    states.Add(state = new JsonObject
-                    {
-                        ["type"] = type,
-                        ["level"] = 0,
-                        ["active"] = false,
-                        ["constructing"] = false,
-                        ["completeTime"] = 0,
-                        ["passiveBonusesEnabled"] = false,
-                        ["slots"] = new JsonArray()
-                    });
-                int level = AreaLevel(c, type);
-                if (area.Stages is null || !area.Stages.TryGetValue(level.ToString(), out var stage)) continue;
-                if (state["level"]!.GetValue<int>() != level)
-                {
-                    state["constructing"] = false;
-                    state["completeTime"] = 0;
-                }
-
-                state["level"] = level;
-                state["active"] = level > 0 && area.NeedsFuel != true;
-                state["passiveBonusesEnabled"] = level > 0 && area.NeedsFuel != true;
-                int count = stage.Slots ?? 0;
-                if (count is < 0 or > 128) continue;
-                JsonArray slots = new JsonArray();
-                for (int i = 0; i < count; i++)
-                {
-                    slots.Add(new JsonObject
-                    {
-                        ["locationIndex"] = i
-                    });
-                }
-
-                state["slots"] = slots;
-                if (stage.Container is not MongoId container || container.IsEmpty || !templates.Items.ContainsKey(container)) continue;
-                if (type == 3) container = new MongoId(StashTemplate(c));
-                string root = StableId(c.Id + ":area-stash:" + type);
-                areaStashes[type.ToString()] = root;
-                items.Add(new JsonObject
-                {
-                    ["_id"] = root,
-                    ["_tpl"] = container.ToString()
-                });
+                int next = levels[type] + 1;
+                if (area.Stages is null || !area.Stages.TryGetValue(next.ToString(), out var stage)) continue;
+                double focus = .65 + Stable(c.Id + ":focus:" + type);
+                int maximum = area.Stages.Keys.Select(k => int.TryParse(k, out int n) ? n : 0).Max();
+                if (type is 21 or 22 || next > DesiredHideoutLevel(c, type, hours, maximum)) continue;
+                double firstStageHours = type is 0 or 1 or 2 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 15 ? 2 : 10;
+                double threshold = firstStageHours * next * next / (focus * policy.Hideout.ConstructionSpeed);
+                if (hours < threshold || !AreaRequirements(area.Requirements, levels)) continue;
+                double cost = StageCost(c, stage, levels) * policy.Hideout.MaterialCostMultiplier;
+                // Players keep money for a few kits instead of spending their last ruble on the hideout.
+                if (!double.IsFinite(cost) || cost > c.WealthRubles - KitCost(c) * 3) continue;
+                c.WealthRubles -= cost;
+                c.HideoutInvestment += cost;
+                levels[type] = next;
+                upgraded = true;
             }
+        } while (upgraded);
+        foreach (var (type, level) in levels)
+            if (level > 0) c.AreaLevels[type] = level;
+    }
 
-            return (result, areaStashes, items);
-        }
-
-        private static bool AreaRequirements(List<HideoutAreaRequirement>? requirements, Dictionary<int, int> levels)
+    // Root IDs are stable per career.
+    private (JsonObject Hideout, JsonObject AreaStashes, JsonArray Items) BuildHideout(Career c)
+    {
+        var result = NativeCharacter(c.Side, c.Edition)["Hideout"]!.DeepClone().AsObject();
+        result["Seed"] = (StableId(c.Id + ":hideout-seed") + StableId(c.Id + ":hideout-seed:2"))[..32];
+        result["HideoutCounters"] = new JsonObject
+            { ["fuelCounter"] = 0, ["airFilterCounter"] = 0, ["waterFilterCounter"] = 0, ["craftingTimeCounter"] = 0 };
+        var states = result["Areas"]!.AsArray();
+        var areaStashes = new JsonObject();
+        var items = new JsonArray(new JsonObject { ["_id"] = c.CustomizationStashId, ["_tpl"] = "673c7b00cbf4b984b5099181" });
+        foreach (var area in HideoutAreas())
         {
-            return requirements is null || requirements.All(r => r.Type == "Area" && r.AreaType is int type && levels.GetValueOrDefault(type) >= (r.RequiredLevel ?? 0));
+            int type = (int)area.Type!.Value;
+            var state = states.OfType<JsonObject>().FirstOrDefault(a => a["type"]!.GetValue<int>() == type);
+            if (state is null)
+                states.Add(state = new JsonObject { ["type"] = type, ["level"] = 0, ["active"] = false,
+                    ["constructing"] = false, ["completeTime"] = 0, ["passiveBonusesEnabled"] = false, ["slots"] = new JsonArray() });
+            int level = AreaLevel(c, type);
+            if (area.Stages is null || !area.Stages.TryGetValue(level.ToString(), out var stage)) continue;
+            if (state["level"]!.GetValue<int>() != level) { state["constructing"] = false; state["completeTime"] = 0; }
+            state["level"] = level;
+            state["active"] = level > 0 && area.NeedsFuel != true;
+            state["passiveBonusesEnabled"] = level > 0 && area.NeedsFuel != true;
+            int count = stage.Slots ?? 0;
+            if (count is < 0 or > 128) continue;
+            var slots = new JsonArray();
+            for (int i = 0; i < count; i++) slots.Add(new JsonObject { ["locationIndex"] = i });
+            state["slots"] = slots;
+            if (stage.Container is not MongoId container || container.IsEmpty || !templates.Items.ContainsKey(container)) continue;
+            if (type == 3) container = new MongoId(StashTemplate(c));
+            string root = StableId(c.Id + ":area-stash:" + type);
+            areaStashes[type.ToString()] = root;
+            items.Add(new JsonObject { ["_id"] = root, ["_tpl"] = container.ToString() });
         }
+        return (result, areaStashes, items);
+    }
 
-        private double StageCost(Career c, Stage stage, Dictionary<int, int> levels)
+    private static bool AreaRequirements(List<HideoutAreaRequirement>? requirements, Dictionary<int, int> levels) =>
+        requirements is null || requirements.All(r => r.Type == "Area" && r.AreaType is int type
+            && levels.GetValueOrDefault(type) >= (r.RequiredLevel ?? 0));
+
+    private double StageCost(Career c, Stage stage, Dictionary<int, int> levels)
+    {
+        double cost = 0;
+        foreach (var r in stage.Requirements ?? [])
         {
-            double cost = 0;
-            foreach (var r in stage.Requirements ?? [])
+            switch (r.Type)
             {
-                switch (r.Type)
-                {
-                    case "Area":
-                        if (r.AreaType is not int type || levels.GetValueOrDefault(type) < (r.RequiredLevel ?? 0)) return double.PositiveInfinity;
-                        break;
-                    case "Skill":
-                        if (SkillProgress(c, r.SkillName) < (r.SkillLevel ?? 0) * 100) return double.PositiveInfinity;
-                        break;
-                    case "TraderLoyalty":
-                        if (TraderLoyalty(c, r.TraderId) < (r.LoyaltyLevel ?? 0))
-                            return double.PositiveInfinity;
-                        break;
-                    case "Item":
-                        if (!templates.Items.ContainsKey(r.TemplateId) || r.Count is not int count || count < 0) return double.PositiveInfinity;
-                        // Money has no flea price.
-                        double price = templates.Prices.TryGetValue(r.TemplateId, out double flea) ? flea : HandbookPrices().GetValueOrDefault(r.TemplateId.ToString(), 10000);
-                        cost += Math.Max(1, price) * count;
-                        if (r.IsSpawnedInSession == true && c.Raids < count) return double.PositiveInfinity;
-                        break;
-                    default: return double.PositiveInfinity;
-                }
+                case "Area":
+                    if (r.AreaType is not int type || levels.GetValueOrDefault(type) < (r.RequiredLevel ?? 0)) return double.PositiveInfinity;
+                    break;
+                case "Skill":
+                    if (SkillProgress(c, r.SkillName) < (r.SkillLevel ?? 0) * 100) return double.PositiveInfinity;
+                    break;
+                case "TraderLoyalty":
+                    if (TraderLoyalty(c, r.TraderId) < (r.LoyaltyLevel ?? 0))
+                        return double.PositiveInfinity;
+                    break;
+                case "Item":
+                    if (!templates.Items.ContainsKey(r.TemplateId) || r.Count is not int count || count < 0) return double.PositiveInfinity;
+                    // Money has no flea price.
+                    double price = templates.Prices.TryGetValue(r.TemplateId, out double flea) ? flea
+                        : HandbookPrices().GetValueOrDefault(r.TemplateId.ToString(), 10000);
+                    cost += Math.Max(1, price) * count;
+                    if (r.IsSpawnedInSession == true && c.Raids < count) return double.PositiveInfinity;
+                    break;
+                default: return double.PositiveInfinity;
             }
-
-            return cost;
         }
+        return cost;
+    }
 
-        private void ApplyAppearance(Career c, BotBase bot)
+    private void ApplyAppearance(Career c, BotBase bot)
+    {
+        if (bot.Customization is null) return;
+        MongoId? Asset(string key)
         {
-            if (bot.Customization is null) return;
-
-            MongoId? Asset(string key)
-            {
-                string? id = c.Customization[key]?.GetValue<string>();
-                return Wearable(key, id) ? new MongoId(id!) : (MongoId?)null;
-            }
-
-            if (settings.PersistentFaceAndVoice)
-            {
-                bot.Customization.Head = Asset("Head") ?? bot.Customization.Head;
-                bot.Customization.Voice = Asset("Voice") ?? bot.Customization.Voice;
-            }
-
-            if (settings.PersistentClothing && Asset("Body") is MongoId body && Asset("Feet") is MongoId feet && Asset("Hands") is MongoId hands)
-            {
-                bot.Customization.Body = body;
-                bot.Customization.Feet = feet;
-                bot.Customization.Hands = hands;
-            }
+            string? id = c.Customization[key]?.GetValue<string>();
+            return Wearable(key, id) ? new MongoId(id!) : (MongoId?)null;
         }
-
-        // Cached, the hash added up on the world tick. Timestamped keys keep coming, so it is capped.
-        private static double Stable(string key)
+        if (settings.PersistentFaceAndVoice)
         {
-            if (stableCache.TryGetValue(key, out double value)) return value;
-            if (stableCache.Count > 200_000) stableCache.Clear();
-            value = BitConverter.ToUInt32(SHA256.HashData(Encoding.UTF8.GetBytes(key)), 0) / (double)uint.MaxValue;
-            stableCache.TryAdd(key, value);
-            return value;
+            bot.Customization.Head = Asset("Head") ?? bot.Customization.Head;
+            bot.Customization.Voice = Asset("Voice") ?? bot.Customization.Voice;
         }
+        if (settings.PersistentClothing && Asset("Body") is MongoId body && Asset("Feet") is MongoId feet
+            && Asset("Hands") is MongoId hands)
+        {
+            bot.Customization.Body = body;
+            bot.Customization.Feet = feet;
+            bot.Customization.Hands = hands;
+        }
+    }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, double> stableCache = new();
+
+    // Cached, the hash added up on the world tick. Timestamped keys keep coming, so it is capped.
+    private static double Stable(string key)
+    {
+        if (stableCache.TryGetValue(key, out double value)) return value;
+        if (stableCache.Count > 200_000) stableCache.Clear();
+        value = BitConverter.ToUInt32(SHA256.HashData(Encoding.UTF8.GetBytes(key)), 0) / (double)uint.MaxValue;
+        stableCache.TryAdd(key, value);
+        return value;
     }
 }

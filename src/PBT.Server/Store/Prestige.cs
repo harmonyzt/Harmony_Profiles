@@ -1,320 +1,261 @@
-using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using SPTarkov.Server.Core.Helpers.Profile;
+using SPTarkov.Server.Core.Models.Common;
 
-namespace PBT.Server
+namespace PBT.Server;
+
+public sealed partial class PopulationStore
 {
-    public sealed partial class PopulationStore
+    private SimulationPolicy policy = new();
+    private JsonArray prestigeDefinitions = new();
+    private static double TotalSeconds(Career c) => c.RaidSeconds + c.Observed.ActiveSeconds;
+    private static double CycleHours(Career c) => Math.Max(0, TotalSeconds(c) - c.PrestigeCycleStartSeconds) / 3600;
+
+    private void LoadFeatures()
     {
-        private SimulationPolicy policy = new SimulationPolicy();
-        private JsonArray prestigeDefinitions = new JsonArray();
-
-        private static double TotalSeconds(Career c)
+        string path = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(directory)!, "simulation.json");
+        bool write = !File.Exists(path);
+        if (!write) policy = JsonSerializer.Deserialize<SimulationPolicy>(File.ReadAllText(path))
+            ?? throw new InvalidDataException("Simulation policy is empty.");
+        // Files from before the stats rework have single raid lengths and inflated kill rates.
+        if (policy.ProgressionPriors?.Any(p => p is not null && p.SurvivedMinutes == 0 && p.DeathMinutes == 0) == true)
         {
-            return c.RaidSeconds + c.Observed.ActiveSeconds;
+            policy.ProgressionPriors = new SimulationPolicy().ProgressionPriors;
+            write = true;
+            logger.Info("[PBT] Replaced pre-rework raid history priors in simulation.json with the new defaults.");
         }
-
-        private static double CycleHours(Career c)
+        // The old 1% and 2% story chances made outcomes almost never show up.
+        if (policy.PostRaidDeathChance == .01 && policy.PostRaidRegearChance == .02)
         {
-            return Math.Max(0, TotalSeconds(c) - c.PrestigeCycleStartSeconds) / 3600;
+            var defaults = new SimulationPolicy();
+            policy.PostRaidDeathChance = defaults.PostRaidDeathChance;
+            policy.PostRaidRegearChance = defaults.PostRaidRegearChance;
+            write = true;
+            logger.Info("[PBT] Raised the old post-raid story chances in simulation.json to the new defaults.");
         }
-
-        private void LoadFeatures()
+        // At the old default of 1 most accounts never got past the gym wall.
+        if (policy.Hideout is { BuiltChanceMultiplier: 1 } hideout)
         {
-            string path = Path.Combine(Path.GetDirectoryName(directory)!, "simulation.json");
-            bool write = !File.Exists(path);
-            if (!write) policy = JsonSerializer.Deserialize<SimulationPolicy>(File.ReadAllText(path)) ?? throw new InvalidDataException("Simulation policy is empty.");
-            // Files from before the stats rework have single raid lengths and inflated kill rates.
-            if (policy.ProgressionPriors?.Any(p => p is not null && p.SurvivedMinutes == 0 && p.DeathMinutes == 0) == true)
-            {
-                policy.ProgressionPriors = new SimulationPolicy().ProgressionPriors;
-                write = true;
-                logger.Info("[PBT] Replaced pre-rework raid history priors in simulation.json with the new defaults.");
-            }
-
-            // The old 1% and 2% story chances made outcomes almost never show up.
-            if (policy.PostRaidDeathChance == .01 && policy.PostRaidRegearChance == .02)
-            {
-                SimulationPolicy defaults = new SimulationPolicy();
-                policy.PostRaidDeathChance = defaults.PostRaidDeathChance;
-                policy.PostRaidRegearChance = defaults.PostRaidRegearChance;
-                write = true;
-                logger.Info("[PBT] Raised the old post-raid story chances in simulation.json to the new defaults.");
-            }
-
-            // At the old default of 1 most accounts never got past the gym wall.
-            if (policy.Hideout is { BuiltChanceMultiplier: 1 } hideout)
-            {
-                hideout.BuiltChanceMultiplier = new HideoutProgressionSettings().BuiltChanceMultiplier;
-                write = true;
-                logger.Info("[PBT] Raised the old hideout built chance multiplier in simulation.json to the new default.");
-            }
-
-            policy.Validate();
-            if (write)
-                AtomicFile.Write(path, JsonSerializer.Serialize(policy, new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                }));
-            prestigeDefinitions = JsonNode.Parse(json.Serialize(templates.Prestige)!)?["elements"]?.DeepClone().AsArray() ?? new JsonArray();
-            foreach (Career c in population.Careers.Values)
-            {
-                if (c.FeatureVersion != 0) continue;
-                c.PrestigeLevel = Math.Max(c.PrestigeLevel, c.LastGeneratedPrestige);
-                if (c.PrestigeLevel > 0) c.PrestigeCycleStartSeconds = TotalSeconds(c);
-                c.FeatureVersion = 1;
-            }
+            hideout.BuiltChanceMultiplier = new HideoutProgressionSettings().BuiltChanceMultiplier;
+            write = true;
+            logger.Info("[PBT] Raised the old hideout built chance multiplier in simulation.json to the new default.");
         }
-
-        private bool PrestigeConditions(Career c, JsonArray conditions)
+        policy.Validate();
+        if (write) AtomicFile.Write(path, JsonSerializer.Serialize(policy, new JsonSerializerOptions { WriteIndented = true }));
+        prestigeDefinitions = JsonNode.Parse(json.Serialize(templates.Prestige)!)?["elements"]?.DeepClone().AsArray() ?? new();
+        foreach (var c in population.Careers.Values)
         {
-            foreach (JsonObject condition in conditions.OfType<JsonObject>())
-            {
-                string[] allowed =
-                [
-                    "id", "index", "dynamicLocale", "visibilityConditions", "globalQuestCounterId", "parentId", "value",
-                    "compareMethod", "target", "status", "availableAfter", "dispersion", "areaType", "conditionType",
-                    "minDurability", "maxDurability", "dogtagLevel", "onlyFoundInRaid", "isEncoded",
-                    // Content Backport - Prestiges keeps a metadata copy in "props" and a false "isFinisher" on its conditions.
-                    "props", "isFinisher"
-                ];
-                if (condition.Any(p => p.Value is not null && !allowed.Contains(p.Key)) || condition["visibilityConditions"] is JsonArray { Count: > 0 }
-                                                                                        || !string.IsNullOrEmpty(condition["globalQuestCounterId"]?.ToString())
-                                                                                        || !string.IsNullOrEmpty(condition["parentId"]?.ToString())
-                                                                                        || (condition["availableAfter"]?.GetValue<double>() ?? 0) > 0
-                                                                                        || (condition["dispersion"]?.GetValue<double>() ?? 0) > 0) return false;
-                double value = condition["value"]?.GetValue<double>() ?? 0;
-                if (condition["compareMethod"] is { } compare && compare.ToString() != ">=") return false;
-                switch (condition["conditionType"]?.ToString())
-                {
-                    case "Level":
-                        if (Level(c.Experience) < value) return false;
-                        break;
-                    case "Skill":
-                        if (SkillProgress(c, condition["target"]?.ToString()) / 100 < value) return false;
-                        break;
-                    case "HideoutArea":
-                        int area = condition["areaType"]?.GetValue<int>() ?? -1;
-                        if (AreaLevel(c, area) < value) return false;
-                        break;
-                    case "Quest":
-                        string id = condition["target"]?.ToString() ?? "";
-                        if (!IsId(id) || !templates.Quests.ContainsKey(new MongoId(id)) || condition["status"] is not JsonArray statuses
-                            || !statuses.Any(s => s?.GetValue<int>() == 4) || CycleHours(c) < policy.MinimumPrestigeCycleHours * (1 + c.PrestigeLevel * .25)) return false;
-                        break;
-                    case "HasItem":
-                        if (condition["target"] is not JsonArray { Count: 1 } targets || targets[0]?.ToString() != "5449016a4bdc2d6f028b456f" || c.WealthRubles < value
-                            || condition["onlyFoundInRaid"]?.GetValue<bool>() == true || condition["isEncoded"]?.GetValue<bool>() == true
-                            || (condition["dogtagLevel"]?.GetValue<double>() ?? 0) > 0 || (condition["minDurability"]?.GetValue<double>() ?? 0) > 0
-                            || (condition["maxDurability"]?.GetValue<double>() ?? 100) < 100)
-                            return false;
-                        break;
-                    default: return false;
-                }
-            }
-
-            return conditions.Count > 0 && conditions.All(c => c is JsonObject);
+            if (c.FeatureVersion != 0) continue;
+            c.PrestigeLevel = Math.Max(c.PrestigeLevel, c.LastGeneratedPrestige);
+            if (c.PrestigeLevel > 0) c.PrestigeCycleStartSeconds = TotalSeconds(c);
+            c.FeatureVersion = 1;
         }
+    }
 
-        // Common skills kept through a prestige, at the definition's transfer rate. Null if the rates are unusable.
-        private Dictionary<string, double>? PrestigeSkillCarry(Career c, JsonObject definition)
+    private bool PrestigeConditions(Career c, JsonArray conditions)
+    {
+        foreach (var condition in conditions.OfType<JsonObject>())
         {
-            JsonObject? transfer = definition["transferConfigs"]?.AsObject();
-            if (transfer?["skillConfig"]?["transferMultiplier"] is not JsonValue skillRate || transfer["masteringConfig"]?["transferMultiplier"] is not JsonValue masteryRate
-                                                                                           || skillRate.GetValue<double>() is < 0 or > 1
-                                                                                           || masteryRate.GetValue<double>() is < 0 or > 1) return null;
-            return CareerSkills(c)["Common"]!.AsArray().OfType<JsonObject>()
-                .ToDictionary(s => s["Id"]!.ToString(), s => (s["Progress"]?.GetValue<double>() ?? 0) * skillRate.GetValue<double>());
-        }
-
-        private static int PrestigeLevelRequirement(JsonObject definition)
-        {
-            return (int)(definition["conditions"]?.AsArray().OfType<JsonObject>().FirstOrDefault(c => c["conditionType"]?.ToString() == "Level")?["value"]?.GetValue<double>()
-                         ?? 55);
-        }
-
-        // Some accounts start with earlier prestige cycles behind them, each played up to that prestige's level requirement.
-        private void AddPrestigeBackstory(Career c)
-        {
-            InitialPrestigeSettings start = policy.InitialPrestige;
-            if (!policy.EnablePrestige || c.Archetype == "Timmy" || Random.Shared.NextDouble() >= start.Share) return;
-            int cycles = 1;
-            while (cycles < prestigeDefinitions.Count && Random.Shared.NextDouble() < start.Repeat)
+            string[] allowed = ["id", "index", "dynamicLocale", "visibilityConditions", "globalQuestCounterId", "parentId", "value",
+                "compareMethod", "target", "status", "availableAfter", "dispersion", "areaType", "conditionType",
+                "minDurability", "maxDurability", "dogtagLevel", "onlyFoundInRaid", "isEncoded",
+                // Content Backport - Prestiges keeps a metadata copy in "props" and a false "isFinisher" on its conditions.
+                "props", "isFinisher"];
+            if (condition.Any(p => p.Value is not null && !allowed.Contains(p.Key))
+                || condition["visibilityConditions"] is JsonArray { Count: > 0 }
+                || !string.IsNullOrEmpty(condition["globalQuestCounterId"]?.ToString())
+                || !string.IsNullOrEmpty(condition["parentId"]?.ToString())
+                || (condition["availableAfter"]?.GetValue<double>() ?? 0) > 0
+                || (condition["dispersion"]?.GetValue<double>() ?? 0) > 0) return false;
+            double value = condition["value"]?.GetValue<double>() ?? 0;
+            if (condition["compareMethod"] is { } compare && compare.ToString() != ">=") return false;
+            switch (condition["conditionType"]?.ToString())
             {
-                cycles++;
-            }
-
-            for (int i = 0; i < cycles && i < prestigeDefinitions.Count; i++)
-            {
-                if (prestigeDefinitions[i] is not JsonObject definition) return;
-                int required = PrestigeLevelRequirement(definition);
-                int floor = profileHelper.GetExperience(required) ?? 0;
-                int ceiling = profileHelper.GetExperience(required + 1) ?? floor;
-                int experience = floor + (int)((ceiling - floor) * Random.Shared.NextDouble() * .9);
-                AddRaids(c, RaidsToReach(c, experience) * (.85 + Random.Shared.NextDouble() * .35) * RaidDuration(c, false));
-                if (PrestigeSkillCarry(c, definition) is not { } carry) return;
-                c.SkillCarry = carry;
-                c.PrestigeLevel = i + 1;
-                c.PrestigeCycleStartSeconds = TotalSeconds(c);
-                c.PrestigeHistory.Add(new PrestigeRecord(c.PrestigeLevel, definition["id"]!.ToString(), 0, TotalSeconds(c) / 3600, experience, 0));
+                case "Level": if (Level(c.Experience) < value) return false; break;
+                case "Skill":
+                    if (SkillProgress(c, condition["target"]?.ToString()) / 100 < value) return false;
+                    break;
+                case "HideoutArea":
+                    int area = condition["areaType"]?.GetValue<int>() ?? -1;
+                    if (AreaLevel(c, area) < value) return false;
+                    break;
+                case "Quest":
+                    string id = condition["target"]?.ToString() ?? "";
+                    if (!IsId(id) || !templates.Quests.ContainsKey(new MongoId(id))
+                        || condition["status"] is not JsonArray statuses || !statuses.Any(s => s?.GetValue<int>() == 4)
+                        || CycleHours(c) < policy.MinimumPrestigeCycleHours * (1 + c.PrestigeLevel * .25)) return false;
+                    break;
+                case "HasItem":
+                    if (condition["target"] is not JsonArray { Count: 1 } targets || targets[0]?.ToString() != "5449016a4bdc2d6f028b456f"
+                        || c.WealthRubles < value || condition["onlyFoundInRaid"]?.GetValue<bool>() == true
+                        || condition["isEncoded"]?.GetValue<bool>() == true || (condition["dogtagLevel"]?.GetValue<double>() ?? 0) > 0
+                        || (condition["minDurability"]?.GetValue<double>() ?? 0) > 0
+                        || (condition["maxDurability"]?.GetValue<double>() ?? 100) < 100)
+                        return false;
+                    break;
+                default: return false;
             }
         }
+        return conditions.Count > 0 && conditions.All(c => c is JsonObject);
+    }
 
-        private void DatePrestigeBackstory(Career c, long now)
+    // Common skills kept through a prestige, at the definition's transfer rate. Null if the rates are unusable.
+    private Dictionary<string, double>? PrestigeSkillCarry(Career c, JsonObject definition)
+    {
+        var transfer = definition["transferConfigs"]?.AsObject();
+        if (transfer?["skillConfig"]?["transferMultiplier"] is not JsonValue skillRate
+            || transfer["masteringConfig"]?["transferMultiplier"] is not JsonValue masteryRate
+            || skillRate.GetValue<double>() is < 0 or > 1 || masteryRate.GetValue<double>() is < 0 or > 1) return null;
+        return CareerSkills(c)["Common"]!.AsArray().OfType<JsonObject>()
+            .ToDictionary(s => s["Id"]!.ToString(), s => (s["Progress"]?.GetValue<double>() ?? 0) * skillRate.GetValue<double>());
+    }
+
+    private static int PrestigeLevelRequirement(JsonObject definition) => (int)(definition["conditions"]?.AsArray().OfType<JsonObject>()
+        .FirstOrDefault(c => c["conditionType"]?.ToString() == "Level")?["value"]?.GetValue<double>() ?? 55);
+
+    // Some accounts start with earlier prestige cycles behind them, each played up to that prestige's level requirement.
+    private void AddPrestigeBackstory(Career c)
+    {
+        var start = policy.InitialPrestige;
+        if (!policy.EnablePrestige || c.Archetype == "Timmy" || Random.Shared.NextDouble() >= start.Share) return;
+        int cycles = 1;
+        while (cycles < prestigeDefinitions.Count && Random.Shared.NextDouble() < start.Repeat) cycles++;
+        for (int i = 0; i < cycles && i < prestigeDefinitions.Count; i++)
         {
-            double lifetime = Math.Max(1, TotalSeconds(c) / 3600);
-            for (int i = 0; i < c.PrestigeHistory.Count; i++)
-            {
-                PrestigeRecord record = c.PrestigeHistory[i];
-                long utc = c.RegisteredUtc + (long)((now - c.RegisteredUtc) * Math.Clamp(record.LifetimeHours / lifetime, 0, 1));
-                c.PrestigeHistory[i] = record with
-                {
-                    Utc = utc
-                };
-                c.LastPrestigeUtc = utc;
-                if (IsId(record.DefinitionId) && PrestigeHelper.PrestigeAchievements.TryGetValue(new MongoId(record.DefinitionId), out var achievement))
-                    c.Achievements[achievement.ToString()] = utc;
-            }
+            if (prestigeDefinitions[i] is not JsonObject definition) return;
+            int required = PrestigeLevelRequirement(definition);
+            int floor = profileHelper.GetExperience(required) ?? 0;
+            int ceiling = profileHelper.GetExperience(required + 1) ?? floor;
+            int experience = floor + (int)((ceiling - floor) * Random.Shared.NextDouble() * .9);
+            AddRaids(c, RaidsToReach(c, experience) * (.85 + Random.Shared.NextDouble() * .35) * RaidDuration(c, false));
+            if (PrestigeSkillCarry(c, definition) is not { } carry) return;
+            c.SkillCarry = carry;
+            c.PrestigeLevel = i + 1;
+            c.PrestigeCycleStartSeconds = TotalSeconds(c);
+            c.PrestigeHistory.Add(new(c.PrestigeLevel, definition["id"]!.ToString(), 0, TotalSeconds(c) / 3600, experience, 0));
         }
+    }
 
-        private void TryPrestige(Career c, long now)
+    private void DatePrestigeBackstory(Career c, long now)
+    {
+        double lifetime = Math.Max(1, TotalSeconds(c) / 3600);
+        for (int i = 0; i < c.PrestigeHistory.Count; i++)
         {
-            if (!policy.EnablePrestige || c.PrestigeLevel >= prestigeDefinitions.Count || IsObservedActive(c, now) || now < c.StoryHoldUntilUtc
-                || reservedCareers.Values.Any(ids => ids.Contains(c.Id)) || CycleHours(c) < policy.MinimumPrestigeCycleHours
-                || prestigeDefinitions[c.PrestigeLevel] is not JsonObject definition || definition["conditions"] is not JsonArray conditions
-                || !PrestigeConditions(c, conditions)) return;
-            Career next = JsonSerializer.Deserialize<Career>(JsonSerializer.Serialize(c))!;
-            string definitionId = definition["id"]!.ToString();
-            JsonObject? transfer = definition["transferConfigs"]?.AsObject();
-            if (PrestigeSkillCarry(c, definition) is not { } skillCarry) return;
-            JsonObject stash = CareerStash(c);
-            List<JsonArray> carried = PrestigeCarry(stash, transfer["stashConfig"] as JsonObject);
-            int oldXp = next.Experience;
-            next.PrestigeLevel++;
-            next.LastPrestigeUtc = now;
-            next.PrestigeCycleStartSeconds = TotalSeconds(next);
-            next.Experience = profileHelper.GetExperience(1) ?? 0;
-            next.PendingRaidSeconds = 0;
-            next.CurrentSurvivalStreak = 0;
-            next.DevelopmentVersion = 0;
-            EnsureDevelopment(next);
-            next.SkillCarry = skillCarry;
-            next.WealthRubles = 100000;
-            next.HideoutInvestment = 0;
-            // A fresh start, not a death, so the new kit is due right away.
-            next.NeedsRegear = true;
-            next.DiedUtc = 0;
-            next.NextGearAttemptUtc = 0;
-            next.EquipmentIsSimulated = true;
-            next.LastEquipmentAccount = 0;
-            string stashRoot = stash["stash"]!.ToString();
-            JsonNode root = stash["items"]!.AsArray().OfType<JsonObject>().First(i => i["_id"]!.ToString() == stashRoot).DeepClone();
-            JsonArray items = new JsonArray(root);
-            foreach (JsonArray tree in carried)
-            {
-                tree[0]!["parentId"] = stashRoot;
-                foreach (JsonNode? item in tree)
-                {
-                    items.Add(item!.DeepClone());
-                }
-            }
-
-            stash["items"] = items;
-            SyncStashTemplate(next, stash);
-            if (IsId(definitionId) && PrestigeHelper.PrestigeAchievements.TryGetValue(new MongoId(definitionId), out var achievement))
-                next.Achievements[achievement.ToString()] = now;
-            next.PrestigeHistory.Add(new PrestigeRecord(next.PrestigeLevel, definitionId, now, TotalSeconds(next) / 3600, oldXp, carried.Sum(t => t.Count)));
-            foreach (PropertyInfo property in typeof(Career).GetProperties())
-            {
-                property.SetValue(c, property.GetValue(next));
-            }
-
-            SetEquipment(c, EmptyEquipment());
-            CareerAssets assets = Assets(c);
-            assets.Stash = stash;
-            assets.Changed();
-            dirty = true;
-            // Startup catch-up can prestige dozens at once, so those only count toward the Ready line.
-            if (Ready) logger.Info($"[PBT] {c.Name} prestiged to {c.PrestigeLevel}.");
-            else startupPrestiges++;
+            var record = c.PrestigeHistory[i];
+            long utc = c.RegisteredUtc + (long)((now - c.RegisteredUtc) * Math.Clamp(record.LifetimeHours / lifetime, 0, 1));
+            c.PrestigeHistory[i] = record with { Utc = utc };
+            c.LastPrestigeUtc = utc;
+            if (IsId(record.DefinitionId) && PrestigeHelper.PrestigeAchievements.TryGetValue(new MongoId(record.DefinitionId), out var achievement))
+                c.Achievements[achievement.ToString()] = utc;
         }
+    }
 
-        private List<JsonArray> PrestigeCarry(JsonObject stash, JsonObject? config)
+    private void TryPrestige(Career c, long now)
+    {
+        if (!policy.EnablePrestige || c.PrestigeLevel >= prestigeDefinitions.Count || IsObservedActive(c, now) || now < c.StoryHoldUntilUtc
+            || reservedCareers.Values.Any(ids => ids.Contains(c.Id)) || CycleHours(c) < policy.MinimumPrestigeCycleHours
+            || prestigeDefinitions[c.PrestigeLevel] is not JsonObject definition
+            || definition["conditions"] is not JsonArray conditions || !PrestigeConditions(c, conditions)) return;
+        var next = JsonSerializer.Deserialize<Career>(JsonSerializer.Serialize(c))!;
+        string definitionId = definition["id"]!.ToString();
+        var transfer = definition["transferConfigs"]?.AsObject();
+        if (PrestigeSkillCarry(c, definition) is not { } skillCarry) return;
+        var stash = CareerStash(c);
+        var carried = PrestigeCarry(stash, transfer["stashConfig"] as JsonObject);
+        int oldXp = next.Experience;
+        next.PrestigeLevel++;
+        next.LastPrestigeUtc = now;
+        next.PrestigeCycleStartSeconds = TotalSeconds(next);
+        next.Experience = profileHelper.GetExperience(1) ?? 0;
+        next.PendingRaidSeconds = 0;
+        next.CurrentSurvivalStreak = 0;
+        next.DevelopmentVersion = 0;
+        EnsureDevelopment(next);
+        next.SkillCarry = skillCarry;
+        next.WealthRubles = 100000;
+        next.HideoutInvestment = 0;
+        // A fresh start, not a death, so the new kit is due right away.
+        next.NeedsRegear = true;
+        next.DiedUtc = 0;
+        next.NextGearAttemptUtc = 0;
+        next.EquipmentIsSimulated = true;
+        next.LastEquipmentAccount = 0;
+        string stashRoot = stash["stash"]!.ToString();
+        var root = stash["items"]!.AsArray().OfType<JsonObject>().First(i => i["_id"]!.ToString() == stashRoot).DeepClone();
+        var items = new JsonArray(root);
+        foreach (var tree in carried)
         {
-            List<JsonArray> result = new List<JsonArray>();
-            if (config is null || stash["items"] is not JsonArray source) return result;
-            int columns = Math.Clamp(config["xCellCount"]?.GetValue<int>() ?? 0, 0, 20);
-            int rows = Math.Clamp(config["yCellCount"]?.GetValue<int>() ?? 0, 0, 30);
-            HashSet<string> included = config["filters"]?["includedItems"]?.AsArray().Select(v => v!.ToString()).ToHashSet() ?? [];
-            HashSet<string> excluded = config["filters"]?["excludedItems"]?.AsArray().Select(v => v!.ToString()).ToHashSet() ?? [];
-            int x = 0, y = 0, rowHeight = 0;
-            foreach (JsonObject item in source.OfType<JsonObject>().Where(i => i["parentId"]?.ToString() == stash["stash"]?.ToString()))
-            {
-                string tpl = item["_tpl"]!.ToString();
-                if (tpl is "5449016a4bdc2d6f028b456f" or "5696686a4bdc2da3298b456a" or "569668774bdc2da2298b4568") continue;
-                if (excluded.Any(f => ItemBasedOn(tpl, f)) || !included.Any(f => ItemBasedOn(tpl, f))) continue;
-                var props = templates.Items[new MongoId(tpl)].Properties;
-                int width = Math.Max(1, props?.Width ?? 1), height = Math.Max(1, props?.Height ?? 1);
-                if (width > columns || height > rows) continue;
-                if (x + width > columns)
-                {
-                    x = 0;
-                    y += rowHeight;
-                    rowHeight = 0;
-                }
-
-                if (y + height > rows) continue;
-                JsonArray tree = ItemTree(source, item["_id"]!.ToString());
-                tree[0]!["location"] = new JsonObject
-                {
-                    ["x"] = x,
-                    ["y"] = y,
-                    ["r"] = 0,
-                    ["isSearched"] = true
-                };
-                x += width;
-                rowHeight = Math.Max(rowHeight, height);
-                result.Add(tree);
-            }
-
-            return result;
+            tree[0]!["parentId"] = stashRoot;
+            foreach (var item in tree) items.Add(item!.DeepClone());
         }
+        stash["items"] = items;
+        SyncStashTemplate(next, stash);
+        if (IsId(definitionId) && PrestigeHelper.PrestigeAchievements.TryGetValue(new MongoId(definitionId), out var achievement))
+            next.Achievements[achievement.ToString()] = now;
+        next.PrestigeHistory.Add(new(next.PrestigeLevel, definitionId, now, TotalSeconds(next) / 3600, oldXp, carried.Sum(t => t.Count)));
+        foreach (var property in typeof(Career).GetProperties()) property.SetValue(c, property.GetValue(next));
+        SetEquipment(c, EmptyEquipment());
+        var assets = Assets(c);
+        assets.Stash = stash;
+        assets.Changed();
+        dirty = true;
+        // Startup catch-up can prestige dozens at once, so those only count toward the Ready line.
+        if (Ready) logger.Info($"[PBT] {c.Name} prestiged to {c.PrestigeLevel}.");
+        else startupPrestiges++;
+    }
 
-        private bool ItemBasedOn(string tpl, string ancestor)
+    private List<JsonArray> PrestigeCarry(JsonObject stash, JsonObject? config)
+    {
+        var result = new List<JsonArray>();
+        if (config is null || stash["items"] is not JsonArray source) return result;
+        int columns = Math.Clamp(config["xCellCount"]?.GetValue<int>() ?? 0, 0, 20);
+        int rows = Math.Clamp(config["yCellCount"]?.GetValue<int>() ?? 0, 0, 30);
+        var included = config["filters"]?["includedItems"]?.AsArray().Select(v => v!.ToString()).ToHashSet() ?? [];
+        var excluded = config["filters"]?["excludedItems"]?.AsArray().Select(v => v!.ToString()).ToHashSet() ?? [];
+        int x = 0, y = 0, rowHeight = 0;
+        foreach (var item in source.OfType<JsonObject>().Where(i => i["parentId"]?.ToString() == stash["stash"]?.ToString()))
         {
-            HashSet<string> seen = new HashSet<string>();
-            while (IsId(tpl) && seen.Add(tpl) && templates.Items.TryGetValue(new MongoId(tpl), out var item))
-            {
-                if (tpl == ancestor) return true;
-                tpl = item.Parent.ToString();
-            }
-
-            return false;
+            string tpl = item["_tpl"]!.ToString();
+            if (tpl is "5449016a4bdc2d6f028b456f" or "5696686a4bdc2da3298b456a" or "569668774bdc2da2298b4568") continue;
+            if (excluded.Any(f => ItemBasedOn(tpl, f)) || !included.Any(f => ItemBasedOn(tpl, f))) continue;
+            var props = templates.Items[new MongoId(tpl)].Properties;
+            int width = Math.Max(1, props?.Width ?? 1), height = Math.Max(1, props?.Height ?? 1);
+            if (width > columns || height > rows) continue;
+            if (x + width > columns) { x = 0; y += rowHeight; rowHeight = 0; }
+            if (y + height > rows) continue;
+            var tree = ItemTree(source, item["_id"]!.ToString());
+            tree[0]!["location"] = new JsonObject { ["x"] = x, ["y"] = y, ["r"] = 0, ["isSearched"] = true };
+            x += width; rowHeight = Math.Max(rowHeight, height);
+            result.Add(tree);
         }
+        return result;
+    }
 
-        private static int AreaLevel(Career c, int area)
+    private bool ItemBasedOn(string tpl, string ancestor)
+    {
+        var seen = new HashSet<string>();
+        while (IsId(tpl) && seen.Add(tpl) && templates.Items.TryGetValue(new MongoId(tpl), out var item))
         {
-            return c.AreaLevels.GetValueOrDefault(area);
+            if (tpl == ancestor) return true;
+            tpl = item.Parent.ToString();
         }
+        return false;
+    }
 
-        private static JsonArray ItemTree(JsonArray items, string root)
+    private static int AreaLevel(Career c, int area) => c.AreaLevels.GetValueOrDefault(area);
+
+    private static JsonArray ItemTree(JsonArray items, string root)
+    {
+        var keep = new HashSet<string> { root };
+        bool changed;
+        do
         {
-            HashSet<string> keep = new HashSet<string>
-            {
-                root
-            };
-            bool changed;
-            do
-            {
-                changed = false;
-                foreach (JsonObject item in items.OfType<JsonObject>())
-                {
-                    if (item["parentId"] is { } parent && keep.Contains(parent.ToString())) changed |= keep.Add(item["_id"]!.ToString());
-                }
-            } while (changed);
-
-            return new JsonArray(items.OfType<JsonObject>().Where(i => keep.Contains(i["_id"]!.ToString())).OrderByDescending(i => i["_id"]!.ToString() == root)
-                .Select(i => i.DeepClone()).ToArray());
-        }
+            changed = false;
+            foreach (var item in items.OfType<JsonObject>())
+                if (item["parentId"] is { } parent && keep.Contains(parent.ToString())) changed |= keep.Add(item["_id"]!.ToString());
+        } while (changed);
+        return new JsonArray(items.OfType<JsonObject>().Where(i => keep.Contains(i["_id"]!.ToString()))
+            .OrderByDescending(i => i["_id"]!.ToString() == root).Select(i => i.DeepClone()).ToArray());
     }
 }
