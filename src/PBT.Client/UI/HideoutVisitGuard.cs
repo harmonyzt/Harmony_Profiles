@@ -1,10 +1,9 @@
-using System;
 using System.Reflection;
 using EFT.UI;
 using EFT.UI.SessionEnd;
 using HarmonyLib;
 
-namespace PBT.Client;
+namespace PBT.Client.UI;
 
 // Visiting a hideout from the raid-end screens throws in Player.InitVisuals until the menu has rebuilt the player.
 internal static class HideoutVisitGuard
@@ -41,15 +40,24 @@ internal static class HideoutVisitGuard
             if (!sessionEnd)
             {
                 // The screen is reused, so undo our own disable once the menu is back.
-                if (ReferenceEquals(button, disabled)) { button.Interactable = true; disabled = null; }
+                if (ReferenceEquals(button, disabled))
+                {
+                    button.Interactable = true;
+                    disabled = null;
+                }
+
                 return;
             }
+
             if (!button.Interactable) return;
             button.Interactable = false;
             button.SetTooltips(Reason, Reason);
             disabled = button;
         }
-        catch (Exception ex) { Plugin.Report("Hideout visit guard failed: " + ex.Message); }
+        catch (Exception ex)
+        {
+            Plugin.Report("Hideout visit guard failed: " + ex.Message);
+        }
     }
 
     private static bool BeforeLoad()

@@ -67,24 +67,33 @@ internal static class RaidActivity
         observing = Supported;
         nextUpload = Time.realtimeSinceStartup + 60;
         if (observing)
-            foreach (var player in world.RegisteredPlayers) Registered(player);
+            foreach (var player in world.RegisteredPlayers)
+                Registered(player);
     }
 
     private static void Registered(IPlayer __0)
     {
-        try { Register(__0); }
-        catch (Exception ex) { Plugin.Report("Raid activation observation failed: " + ex.Message); }
+        try
+        {
+            Register(__0);
+        }
+        catch (Exception ex)
+        {
+            Plugin.Report("Raid activation observation failed: " + ex.Message);
+        }
     }
 
     private static void Register(IPlayer __0)
     {
-        if (!observing || __0 is not Player player || !player.IsAI || bots.Count >= 512
-            || player.Profile.Side is not (EPlayerSide.Bear or EPlayerSide.Usec)
-            || bots.ContainsKey(player.ProfileId) || player.HealthController?.IsAlive != true
-            || !int.TryParse(player.Profile.AccountId, out int account) || account < 1500000000 || account >= 2000000000) return;
+        if (!observing || __0 is not Player player || !player.IsAI || bots.Count >= 512 || player.Profile.Side is not (EPlayerSide.Bear or EPlayerSide.Usec)
+            || bots.ContainsKey(player.ProfileId) || player.HealthController?.IsAlive != true || !int.TryParse(player.Profile.AccountId, out int account) || account < 1500000000
+            || account >= 2000000000) return;
         bots.Add(player.ProfileId, new Observation
         {
-            AccountId = account, RuntimeProfileId = player.ProfileId, Player = player, Started = Time.realtimeSinceStartup
+            AccountId = account,
+            RuntimeProfileId = player.ProfileId,
+            Player = player,
+            Started = Time.realtimeSinceStartup
         });
     }
 
@@ -106,7 +115,9 @@ internal static class RaidActivity
             bot.Died = true;
             bot.Stopped ??= Time.realtimeSinceStartup;
         }
-        catch { }
+        catch
+        {
+        }
     }
 
     internal static void Killed(Player victim, IPlayer aggressor, bool alreadyFound)
@@ -119,10 +130,17 @@ internal static class RaidActivity
             if (aggressor is Player { IsYourPlayer: true })
             {
                 dead.KilledByPlayer = true;
-                try { RecordContext(dead, victim); }
-                catch (Exception ex) { Plugin.Trace("Kill context unavailable: " + ex.Message); }
+                try
+                {
+                    RecordContext(dead, victim);
+                }
+                catch (Exception ex)
+                {
+                    Plugin.Trace("Kill context unavailable: " + ex.Message);
+                }
             }
         }
+
         if (aggressor != null && bots.TryGetValue(aggressor.ProfileId, out var killer))
         {
             if (victim.IsYourPlayer) killer.KilledPlayer = true;
@@ -134,6 +152,7 @@ internal static class RaidActivity
                 else killer.BearKills++;
             }
         }
+
         if (victim.IsYourPlayer) End();
     }
 
@@ -143,7 +162,12 @@ internal static class RaidActivity
         var exits = currentWorld?.ExfiltrationController?.ExfiltrationPoints;
         if (exits != null)
             foreach (var exit in exits)
-                if (exit != null && Vector3.Distance(exit.transform.position, victim.Position) <= 30) { dead.NearExtract = true; break; }
+                if (exit != null && Vector3.Distance(exit.transform.position, victim.Position) <= 30)
+                {
+                    dead.NearExtract = true;
+                    break;
+                }
+
         long value = 0;
         var items = victim.Profile?.Inventory?.AllRealPlayerItems;
         if (items != null)
@@ -157,14 +181,21 @@ internal static class RaidActivity
         if (!observing || Time.realtimeSinceStartup < nextUpload || !pending.IsCompleted) return;
         nextUpload = Time.realtimeSinceStartup + 60;
         if (currentWorld != null)
-            foreach (var player in currentWorld.RegisteredPlayers) Registered(player);
+            foreach (var player in currentWorld.RegisteredPlayers)
+                Registered(player);
         Flush();
     }
 
     internal static void End()
     {
-        try { EndCore(); }
-        catch (Exception ex) { Plugin.Report("Raid observation finalization failed: " + ex.Message); }
+        try
+        {
+            EndCore();
+        }
+        catch (Exception ex)
+        {
+            Plugin.Report("Raid observation finalization failed: " + ex.Message);
+        }
     }
 
     private static void EndCore()
@@ -177,7 +208,9 @@ internal static class RaidActivity
         if (bots.Count > 0)
         {
             int died = 0;
-            foreach (var bot in bots.Values) if (bot.Died) died++;
+            foreach (var bot in bots.Values)
+                if (bot.Died)
+                    died++;
             Plugin.Trace($"Raid over: met {bots.Count} PBT career{(bots.Count == 1 ? "" : "s")} on {map}, {died} died.");
         }
     }
@@ -190,17 +223,33 @@ internal static class RaidActivity
             loggedCount = bots.Count;
             Plugin.Trace($"{bots.Count} PBT career{(bots.Count == 1 ? "" : "s")} in this raid so far.");
         }
+
         foreach (var bot in bots.Values) CheckDead(bot);
         var entries = new JArray();
         foreach (var bot in bots.Values)
             entries.Add(new JObject
             {
-                ["AccountId"] = bot.AccountId, ["RuntimeProfileId"] = bot.RuntimeProfileId,
+                ["AccountId"] = bot.AccountId,
+                ["RuntimeProfileId"] = bot.RuntimeProfileId,
                 ["ActiveSeconds"] = Math.Max(0, Math.Min(21600, (int)((bot.Stopped ?? Time.realtimeSinceStartup) - bot.Started))),
-                ["Finished"] = bot.Stopped.HasValue, ["Died"] = bot.Died, ["PmcKills"] = bot.PmcKills, ["ScavKills"] = bot.ScavKills, ["UsecKills"] = bot.UsecKills, ["BearKills"] = bot.BearKills,
-                ["KilledByPlayer"] = bot.KilledByPlayer, ["KilledPlayer"] = bot.KilledPlayer, ["NearExtract"] = bot.NearExtract, ["LootValue"] = bot.LootValue
+                ["Finished"] = bot.Stopped.HasValue,
+                ["Died"] = bot.Died,
+                ["PmcKills"] = bot.PmcKills,
+                ["ScavKills"] = bot.ScavKills,
+                ["UsecKills"] = bot.UsecKills,
+                ["BearKills"] = bot.BearKills,
+                ["KilledByPlayer"] = bot.KilledByPlayer,
+                ["KilledPlayer"] = bot.KilledPlayer,
+                ["NearExtract"] = bot.NearExtract,
+                ["LootValue"] = bot.LootValue
             });
-        string payload = new JObject { ["ProtocolVersion"] = 1, ["RaidId"] = raid, ["Map"] = map, ["Bots"] = entries }.ToString(Formatting.None);
+        string payload = new JObject
+        {
+            ["ProtocolVersion"] = 1,
+            ["RaidId"] = raid,
+            ["Map"] = map,
+            ["Bots"] = entries
+        }.ToString(Formatting.None);
         pending = SendAfter(pending, payload);
     }
 
@@ -212,6 +261,9 @@ internal static class RaidActivity
             var response = JObject.Parse(await RequestHandler.PostJsonAsync("/pbt/activity", payload));
             if (response.Value<int>("ProtocolVersion") != 1) Plugin.Report("Raid observation protocol mismatch.");
         }
-        catch (Exception ex) { Plugin.Report("Raid observation upload failed; later cumulative reports can retry. " + ex.Message); }
+        catch (Exception ex)
+        {
+            Plugin.Report("Raid observation upload failed; later cumulative reports can retry. " + ex.Message);
+        }
     }
 }

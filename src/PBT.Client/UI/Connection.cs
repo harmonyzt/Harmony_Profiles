@@ -1,4 +1,3 @@
-using System;
 using Comfort.Common;
 using EFT;
 using EFT.UI;
@@ -6,12 +5,13 @@ using HarmonyLib;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 
-namespace PBT.Client;
+namespace PBT.Client.UI;
 
 // Ping and packet loss from the server matching put you on, shown by the game's own RTT and loss icons.
 internal static class Connection
 {
     private const float Step = .5f;
+
     // Off on Fika clients (they show their real ping to the host) and on the headless.
     internal static bool Allowed = true;
     internal static bool Fika;
@@ -26,7 +26,12 @@ internal static class Connection
     internal static void Install(Harmony harmony)
     {
         var shot = AccessTools.Method(typeof(Player), nameof(Player.OnMakingShot));
-        if (shot is null) { Plugin.Report("Connection fight detection unavailable."); return; }
+        if (shot is null)
+        {
+            Plugin.Report("Connection fight detection unavailable.");
+            return;
+        }
+
         harmony.Patch(shot, postfix: new HarmonyMethod(typeof(Connection), nameof(Shot)));
     }
 
@@ -41,10 +46,11 @@ internal static class Connection
         bad = s.Value<bool>("Bad");
         simulate = s.Value<bool>("Simulate");
         lossEvents = s.Value<bool>("LossEvents");
+        
         Plugin.Trace($"Matched into {name} ({s.Value<string>("Region")}), ~{ping} ms{(bad ? ", bad server" : "")}.");
     }
 
-    // Gunfire near you is when a bad server drops packets.
+    // Gunfire near you is when a bad server drops packet
     private static void Shot(Player __instance)
     {
         if (!bad || !Singleton<GameWorld>.Instantiated) return;
@@ -63,32 +69,49 @@ internal static class Connection
 #pragma warning restore CS0618
         var game = Singleton<AbstractGame>.Instantiated ? Singleton<AbstractGame>.Instance : null;
         var me = Singleton<GameWorld>.Instantiated ? Singleton<GameWorld>.Instance.MainPlayer : null;
+        
         if (!Allowed || !simulate || server.Length == 0 || !inRaid || game is null || me is null)
         {
-            if (!inRaid) { startedAt = -1; dropAt = -1; dropped = false; spike = 0; }
+            if (!inRaid)
+            {
+                startedAt = -1;
+                dropAt = -1;
+                dropped = false;
+                spike = 0;
+            }
+
             if (touched) Set(0, 0, false);
             return;
         }
+
         var random = UnityEngine.Random.value;
         if (game.Status is GameStatus.Stopping or GameStatus.SoftStopping or GameStatus.Stopped)
         {
             if (touched) Set(0, 0, false);
             return;
         }
-        // Live always spikes while the countdown runs.
+
+        // EFT always spikes while the countdown runs
         if (game.Status != GameStatus.Started)
         {
             spike = UnityEngine.Random.Range(170, 251);
             Set(spike, 0, false);
             return;
         }
+
         if (startedAt < 0) startedAt = now;
         if (dropAt >= 0)
         {
-            if (now >= dropAt) { dropAt = -1; Drop(game, me); }
+            if (now >= dropAt)
+            {
+                dropAt = -1;
+                Drop(game, me);
+            }
             else Set(UnityEngine.Random.Range(900, 2501), UnityEngine.Random.Range(40, 101), true);
+
             return;
         }
+
         double rtt = ping + (UnityEngine.Random.value * 2 - 1) * jitter;
         if (random < .03f) rtt += UnityEngine.Random.Range(30, 91);
         float settle = now - startedAt;
@@ -105,6 +128,7 @@ internal static class Connection
                 Plugin.Trace($"Connection to {server} is dropping.");
             }
         }
+
         Set(Math.Max(20, Math.Round(rtt)), lost, lost >= 15);
     }
 
@@ -123,20 +147,34 @@ internal static class Connection
         {
             Set(0, 0, false);
             string profile = me.ProfileId;
-            if (!MonoBehaviourSingleton<PreloaderUI>.Instantiated) { End(game, profile); return; }
-            var window = MonoBehaviourSingleton<PreloaderUI>.Instance.ShowCriticalErrorScreen("Server connection lost",
-                $"Connection to the game server ({server}) was lost.", ErrorScreen.EButtonType.OkButton, 30f);
+            if (!MonoBehaviourSingleton<PreloaderUI>.Instantiated)
+            {
+                End(game, profile);
+                return;
+            }
+
+            var window = MonoBehaviourSingleton<PreloaderUI>.Instance.ShowCriticalErrorScreen("Server connection lost", $"Connection to the game server ({server}) was lost.",
+                ErrorScreen.EButtonType.OkButton, 30f);
+
             // A window that never opened has no result, so the timer still ends the raid.
-            await System.Threading.Tasks.Task.WhenAny(window.WindowResult, System.Threading.Tasks.Task.Delay(32000));
+            await Task.WhenAny(window.WindowResult, Task.Delay(32000));
             End(game, profile);
         }
-        catch (Exception ex) { Plugin.Report("Connection lost event failed: " + ex.Message); }
+        catch (Exception ex)
+        {
+            Plugin.Report("Connection lost event failed: " + ex.Message);
+        }
     }
 
     private static void End(AbstractGame game, string profile)
     {
-        if (game.Status != GameStatus.Started || game is not BaseLocalGame<EftGamePlayerOwner> local) return;
+        if (game.Status != GameStatus.Started || game is not BaseLocalGame<EftGamePlayerOwner> local)
+        {
+            return;
+        }
+
         Plugin.Trace("Server connection lost, leaving the raid as missing in action.");
+
         local.Stop(profile, ExitStatus.MissingInAction, null);
     }
 }

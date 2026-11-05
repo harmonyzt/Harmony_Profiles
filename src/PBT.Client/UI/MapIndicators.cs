@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using EFT.UI;
 using HarmonyLib;
 using JsonType;
@@ -11,7 +7,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace PBT.Client;
+namespace PBT.Client.UI;
 
 // Signal bars for each map's share of the simulated online, plus its average queue, at the top right of the map name.
 internal static class MapIndicators
@@ -34,7 +30,10 @@ internal static class MapIndicators
     {
         var show = AccessTools.Method(typeof(LocationButton), nameof(LocationButton.Show));
         if (show is null || AccessTools.Field(typeof(LocationButton), "_spawnableToggle") is null)
+        {
             throw new MissingMethodException("Map selection button contract changed.");
+        }
+        
         harmony.Patch(show, postfix: new HarmonyMethod(typeof(MapIndicators), nameof(Shown)));
     }
 
@@ -51,7 +50,10 @@ internal static class MapIndicators
                 fetching = Fetch();
             }
         }
-        catch (Exception ex) { Plugin.Report("Map online indicator failed: " + ex.Message); }
+        catch (Exception ex)
+        {
+            Plugin.Report("Map online indicator failed: " + ex.Message);
+        }
     }
 
     private static async Task Fetch()
@@ -59,18 +61,26 @@ internal static class MapIndicators
         try
         {
             var response = JObject.Parse(await RequestHandler.GetJsonAsync("/pbt/world/maps"));
-            if (response.Value<int>("ProtocolVersion") != 1 || response["Maps"] is not JObject maps) return;
+            if (response.Value<int>("ProtocolVersion") != 1 || response["Maps"] is not JObject maps)
+            {
+                return;
+            }
+            
             var next = new Dictionary<string, Stat>(StringComparer.OrdinalIgnoreCase);
             foreach (var map in maps.Properties())
                 next[map.Name] = new Stat
                 {
-                    Share = map.Value.Value<double>("Share"), QueueSeconds = map.Value.Value<int>("QueueSeconds"),
+                    Share = map.Value.Value<double>("Share"),
+                    QueueSeconds = map.Value.Value<int>("QueueSeconds"),
                     WeeklyBoss = map.Value.Value<bool>("WeeklyBoss")
                 };
             stats = next;
             changed = true;
         }
-        catch (Exception ex) { Plugin.Report("Map online fetch failed: " + ex.Message); }
+        catch (Exception ex)
+        {
+            Plugin.Report("Map online fetch failed: " + ex.Message);
+        }
     }
 
     // Unity objects are only touched on the main thread.
@@ -80,7 +90,12 @@ internal static class MapIndicators
         changed = false;
         foreach (var pair in buttons.ToArray())
         {
-            if (pair.Key == null) { buttons.Remove(pair.Key!); continue; }
+            if (pair.Key == null)
+            {
+                buttons.Remove(pair.Key!);
+                continue;
+            }
+
             Apply(pair.Key, pair.Value);
         }
     }
@@ -95,6 +110,7 @@ internal static class MapIndicators
             root.gameObject.SetActive(false);
             return;
         }
+
         root.gameObject.SetActive(true);
         root.anchoredPosition = new Vector2(Mathf.Min(label.preferredWidth, label.rectTransform.rect.width) / 2 + 3, -2);
         int bars = stat.Share >= .15 ? 4 : stat.Share >= .09 ? 3 : stat.Share >= .04 ? 2 : stat.Share > 0 ? 1 : 0;
@@ -110,7 +126,13 @@ internal static class MapIndicators
     {
         if (!id.StartsWith("factory4", StringComparison.OrdinalIgnoreCase)) return stats.TryGetValue(id, out stat!);
         bool day = stats.TryGetValue("factory4_day", out var d), night = stats.TryGetValue("factory4_night", out var n);
-        stat = !day ? n! : !night ? d : new Stat { Share = d.Share + n.Share, QueueSeconds = Math.Min(d.QueueSeconds, n.QueueSeconds), WeeklyBoss = d.WeeklyBoss || n.WeeklyBoss };
+        stat = !day ? n! :
+            !night ? d : new Stat
+            {
+                Share = d.Share + n.Share,
+                QueueSeconds = Math.Min(d.QueueSeconds, n.QueueSeconds),
+                WeeklyBoss = d.WeeklyBoss || n.WeeklyBoss
+            };
         return day || night;
     }
 
@@ -130,6 +152,7 @@ internal static class MapIndicators
             bar.sizeDelta = new Vector2(3, 3 + i * 3);
             bar.GetComponent<Image>().raycastTarget = false;
         }
+
         var text = new GameObject("Queue", typeof(RectTransform), typeof(TextMeshProUGUI)).GetComponent<TextMeshProUGUI>();
         text.rectTransform.SetParent(root, false);
         text.rectTransform.anchorMin = text.rectTransform.anchorMax = text.rectTransform.pivot = Vector2.zero;
