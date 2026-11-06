@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using EFT;
 using HarmonyLib;
 using Newtonsoft.Json;

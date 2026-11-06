@@ -9,42 +9,56 @@ public sealed partial class PopulationStore
         public double Mean { get; } = (Hours.Average() * Weekday * 5 + Hours.Average() * Weekend * 2) / 7;
     }
 
-    // Weights per hour, interpolated between points and wrapping past midnight. The first point is hour 0.
-    private static double[] Curve(params (int Hour, double Weight)[] points)
-    {
-        var hours = new double[24];
-        for (int h = 0; h < 24; h++)
-        {
-            int i = points.Length - 1;
-            while (points[i].Hour > h) i--;
-            var (h0, w0) = points[i];
-            var (h1, w1) = i + 1 < points.Length ? points[i + 1] : (24, points[0].Weight);
-            hours[h] = w0 + (w1 - w0) * (h - h0) / (h1 - h0);
-        }
+    private sealed record ScheduleSet(PeakHourSettings Settings, Schedule[] Schedules);
 
-        return hours;
+    private ScheduleSet? scheduleSet;
+
+    // Rebuilt only when the saved peak settings are replaced
+    private Schedule[] Schedules
+    {
+        get
+        {
+            var peak = policy.World.Peak;
+            var cached = scheduleSet;
+            if (cached is not null && ReferenceEquals(cached.Settings, peak)) return cached.Schedules;
+            var built = new ScheduleSet(peak, BuildSchedules(peak));
+            scheduleSet = built;
+            return built.Schedules;
+        }
     }
 
-    private static readonly Schedule[] Schedules =
-    [
-        new("Evenings", 40, Curve((0, .5), (2, .1), (8, .05), (16, .5), (19, 2.2), (22, 2), (23, 1.2)), 1, 1.25),
-        new("Night owl", 15, Curve((0, 2.2), (3, 1.8), (6, .2), (12, .1), (19, .6), (22, 1.6)), 1, 1.1),
-        new("Afternoons", 15, Curve((0, .1), (9, .2), (13, 1.8), (17, 2), (20, .8), (23, .2)), 1, 1.1),
-        new("Weekends", 15, Curve((0, .8), (3, .2), (9, .4), (13, 1.5), (18, 2), (23, 1.2)), .35, 2.6),
-        new("Mornings", 5, Curve((0, .05), (6, .6), (8, 2), (12, 1.6), (15, .4), (20, .1)), 1, 1),
-        new("Anytime", 10, Curve((0, .8), (6, .5), (12, 1), (18, 1.3)), 1, 1.1)
-    ];
-
-    private static Schedule ScheduleOf(Career c)
+    private static Schedule[] BuildSchedules(PeakHourSettings peak)
     {
-        double roll = Stable(c.Id + ":schedule") * Schedules.Sum(s => s.Share);
-        foreach (var s in Schedules)
+        var result = new List<Schedule>();
+        foreach (var source in peak.Schedules)
+        {
+            if (source.Share <= 0 || source.Hours is not { Length: 24 } || (source.Weekday <= 0 && source.Weekend <= 0)) continue;
+            var hours = new double[24];
+            for (int h = 0; h < 24; h++)
+            {
+                int from = ((h - peak.ShiftHours) % 24 + 24) % 24;
+                hours[h] = Math.Max(0, 1 + (source.Hours[from] - 1) * peak.Strength);
+            }
+
+            if (hours.Sum() <= 0) continue;
+            result.Add(new Schedule(source.Name, source.Share, hours, source.Weekday, source.Weekend * peak.WeekendBoost));
+        }
+
+        // Validation guarantees a usable schedule, but keep a flat fallback so a bad hand-edited file never stops play.
+        return result.Count > 0 ? result.ToArray() : [new Schedule("Anytime", 1, Enumerable.Repeat(1d, 24).ToArray(), 1, 1)];
+    }
+
+    private Schedule ScheduleOf(Career c)
+    {
+        var schedules = Schedules;
+        double roll = Stable(c.Id + ":schedule") * schedules.Sum(s => s.Share);
+        foreach (var s in schedules)
         {
             roll -= s.Share;
             if (roll < 0) return s;
         }
 
-        return Schedules[^1];
+        return schedules[^1];
     }
 
     private double ScheduleWeight(Career c, DateTime local)

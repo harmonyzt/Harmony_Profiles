@@ -204,6 +204,7 @@ public sealed class WorldSettings
 
     // Fewer careers online late at night (your local time), more on evenings and weekends.
     public bool PeakHours { get; set; } = true;
+    public PeakHourSettings Peak { get; set; } = new();
 
     // The client shows Matching / Looking for server before a raid, capped at this many seconds.
     public bool SimulateMatching { get; set; } = true;
@@ -222,7 +223,95 @@ public sealed class WorldSettings
             || NameMapBoost is < 1 or > 10 || !double.IsFinite(QueueTimeMultiplier) || QueueTimeMultiplier is < .1 or > 10 || MaximumMatchingSeconds is < 0 or > 600)
             throw new InvalidDataException("World chances must be 0-1, boosts 1-5 (streamer and name boosts 1-10), queue multiplier 0.1-10 and matching 0-600 seconds.");
         if (!PopulationStore.Regions.Contains(Location)) throw new InvalidDataException("Location must be EU, US or Asia.");
+        if (Peak is null) throw new InvalidDataException("Peak hour policy is missing.");
+        Peak.Validate();
     }
+}
+
+// Who is online when. Each schedule is a kind of player with its own hourly weights; shares decide how many
+// accounts follow it. Online rate multiplier stays the overall volume control, these settings move it around the clock.
+public sealed class PeakHourSettings
+{
+    // 0 plays the same all day, 1 is the default curves, higher exaggerates the peaks and troughs.
+    public double Strength { get; set; } = 1;
+
+    // Moves every schedule forward (+) or back (-) in hours, for players whose clock is not the default region.
+    public int ShiftHours { get; set; }
+
+    // Extra multiplier for Saturday and Sunday on top of each schedule's own weekend factor.
+    public double WeekendBoost { get; set; } = 1;
+
+    public List<PeakSchedule> Schedules { get; set; } =
+    [
+        new()
+        {
+            Name = "Evenings", Share = 40, Weekday = 1, Weekend = 1.25,
+            Hours = Curve((0, .5), (2, .1), (8, .05), (16, .5), (19, 2.2), (22, 2), (23, 1.2))
+        },
+        new()
+        {
+            Name = "Night owl", Share = 15, Weekday = 1, Weekend = 1.1,
+            Hours = Curve((0, 2.2), (3, 1.8), (6, .2), (12, .1), (19, .6), (22, 1.6))
+        },
+        new()
+        {
+            Name = "Afternoons", Share = 15, Weekday = 1, Weekend = 1.1,
+            Hours = Curve((0, .1), (9, .2), (13, 1.8), (17, 2), (20, .8), (23, .2))
+        },
+        new()
+        {
+            Name = "Weekends", Share = 15, Weekday = .35, Weekend = 2.6,
+            Hours = Curve((0, .8), (3, .2), (9, .4), (13, 1.5), (18, 2), (23, 1.2))
+        },
+        new()
+        {
+            Name = "Mornings", Share = 5, Weekday = 1, Weekend = 1,
+            Hours = Curve((0, .05), (6, .6), (8, 2), (12, 1.6), (15, .4), (20, .1))
+        },
+        new()
+        {
+            Name = "Anytime", Share = 10, Weekday = 1, Weekend = 1.1,
+            Hours = Curve((0, .8), (6, .5), (12, 1), (18, 1.3))
+        }
+    ];
+
+    // Weights per hour, interpolated between points and wrapping past midnight. The first point is hour 0.
+    public static double[] Curve(params (int Hour, double Weight)[] points)
+    {
+        var hours = new double[24];
+        for (int h = 0; h < 24; h++)
+        {
+            int i = points.Length - 1;
+            while (points[i].Hour > h) i--;
+            var (h0, w0) = points[i];
+            var (h1, w1) = i + 1 < points.Length ? points[i + 1] : (24, points[0].Weight);
+            hours[h] = w0 + (w1 - w0) * (h - h0) / (h1 - h0);
+        }
+
+        return hours;
+    }
+
+    public void Validate()
+    {
+        if (!double.IsFinite(Strength) || Strength is < 0 or > 4 || ShiftHours is < -12 or > 12 || !double.IsFinite(WeekendBoost) || WeekendBoost is < .25 or > 4)
+            throw new InvalidDataException("Peak strength must be 0-4, the shift -12 to 12 hours and the weekend boost 0.25-4.");
+        if (Schedules is null || Schedules.Count is < 1 or > 12
+            || Schedules.Any(s => s is null || string.IsNullOrWhiteSpace(s.Name) || s.Name.Length > 40 || s.Share is < 0 or > 1000
+                || !double.IsFinite(s.Weekday) || s.Weekday is < 0 or > 5 || !double.IsFinite(s.Weekend) || s.Weekend is < 0 or > 5
+                || (s.Weekday == 0 && s.Weekend == 0) || s.Hours is not { Length: 24 } || s.Hours.Any(h => !double.IsFinite(h) || h is < 0 or > 100)))
+            throw new InvalidDataException("Peak schedules need a name, a 0-1000 share, 0-5 weekday and weekend factors and 24 hourly weights from 0 to 100.");
+        if (Schedules.Sum(s => s.Share) <= 0 || Schedules.All(s => s.Hours.Sum() <= 0))
+            throw new InvalidDataException("At least one peak schedule needs a share and some daily hours.");
+    }
+}
+
+public sealed class PeakSchedule
+{
+    public string Name { get; set; } = "";
+    public int Share { get; set; } = 10;
+    public double Weekday { get; set; } = 1;
+    public double Weekend { get; set; } = 1;
+    public double[] Hours { get; set; } = PeakHourSettings.Curve((0, 1));
 }
 
 public sealed class CheaterHelmet

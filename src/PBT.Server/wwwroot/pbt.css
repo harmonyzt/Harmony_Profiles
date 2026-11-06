@@ -830,6 +830,63 @@
     min-width: 90px
 }
 
+.pbt-editor .fb-hour-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(58px, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+    white-space: normal
+}
+
+.pbt-editor .fb-hour-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: var(--fb-muted);
+    font-size: 11px
+}
+
+.pbt-editor .fb-table td .fb-hour-grid input {
+    min-width: 0;
+    width: 100%
+}
+
+.pbt-editor .fb-peak-mix {
+    margin-top: 0
+}
+
+.pbt-editor .fb-peak-mix>.fb-label {
+    display: flex;
+    color: var(--fb-text);
+    font-size: 14px;
+    font-weight: 500
+}
+
+.pbt-editor .fb-peak-mix .fb-grid {
+    margin-top: 12px
+}
+
+.pbt-editor .fb-advanced {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--fb-border)
+}
+
+.pbt-editor .fb-advanced>summary {
+    cursor: pointer;
+    color: var(--fb-muted);
+    font-size: 13px;
+    font-weight: 600
+}
+
+.pbt-editor .fb-advanced[open]>summary {
+    margin-bottom: 12px
+}
+
+.pbt-editor .fb-table-gap {
+    margin-top: 16px
+}
+
 .pbt-editor .fb-person {
     display: flex;
     align-items: center;
