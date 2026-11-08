@@ -35,6 +35,7 @@ internal sealed class ApbsGearFactory
         generator = Service(patch, "_customBotInventoryGenerator");
         equipmentHelper = Service(patch, "_botEquipmentHelper");
         lootGenerator = Service(patch, "_customBotLootGenerator");
+        
         loot = lootGenerator.GetType().GetMethod("GenerateLoot", [
             typeof(MongoId), typeof(MongoId), typeof(BotType),
             typeof(BotGenerationDetails), typeof(BotBaseInventory), typeof(int), typeof(int)

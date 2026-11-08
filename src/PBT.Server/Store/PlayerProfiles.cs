@@ -37,6 +37,7 @@ public sealed partial class PopulationStore
             double kit = c.NeedsRegear ? 0 : KitValue(CareerEquipment(c));
             UpdateQuests(c, log: false);
             var (recentQuests, activeQuests) = QuestSummary(c);
+            
             return new(c.Id, c.Name, c.Side, c.Archetype, Level(c.Experience), c.PrestigeLevel, c.Experience, Notable(c), state, status, since > 0 ? now - since : 0,
                 c.RegisteredUtc, Shown("OnlineTime", (long)OnlineSeconds(c)), raids, survived, killed, Shown("ExitStatus/MissingInAction/Pmc", c.MissingRaids),
                 Shown("ExitStatus/Left/Pmc", c.AwolRaids), Shown("ExitStatus/Runner/Pmc", c.RunThroughRaids), pmcKills, Shown("KilledSavage", c.ScavKills + c.Observed.ScavKills),

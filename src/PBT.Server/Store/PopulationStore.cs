@@ -509,6 +509,7 @@ public sealed partial class PopulationStore(
                 Customization = customization,
                 Map = MapKey(details.Location)
             };
+            
             // Persist the alias before publishing it to a bot. Runtime bot IDs and all inventory IDs stay native.
             WriteEncounter(encounter);
             encounters.Add(encounter.AccountId, encounter);

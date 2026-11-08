@@ -1341,6 +1341,50 @@
     letter-spacing: .05em
 }
 
+.pbt-editor .fb-hero-arrow {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: clamp(64px, 13%, 150px);
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #fff;
+    cursor: pointer;
+    opacity: .82;
+    transition: opacity .2s
+}
+
+.pbt-editor .fb-hero-arrow:hover,
+.pbt-editor .fb-hero-arrow:focus-visible {
+    opacity: 1
+}
+
+.pbt-editor .fb-hero-arrow:focus-visible {
+    outline: 2px solid #ffffffb3;
+    outline-offset: -6px
+}
+
+.pbt-editor .fb-hero-arrow svg {
+    width: 44px;
+    height: 44px;
+    stroke-width: 2.2;
+    filter: drop-shadow(0 2px 8px #0009)
+}
+
+.pbt-editor .fb-hero-prev {
+    left: 0
+}
+
+.pbt-editor .fb-hero-next {
+    right: 0
+}
+
 .pbt-editor .fb-hero-dots {
     position: absolute;
     left: 0;
@@ -1801,6 +1845,24 @@
 
     .pbt-editor .fb-slide-stats {
         gap: 16px
+    }
+
+    .pbt-editor .fb-hero-arrow {
+        width: 56px;
+        height: 100%
+    }
+
+    .pbt-editor .fb-hero-arrow svg {
+        width: 32px;
+        height: 32px
+    }
+
+    .pbt-editor .fb-hero-prev {
+        left: 0
+    }
+
+    .pbt-editor .fb-hero-next {
+        right: 0
     }
 
     .pbt-editor .fb-bar-label {

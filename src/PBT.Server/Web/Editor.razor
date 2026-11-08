@@ -17,7 +17,7 @@
     <link rel="icon" type="image/png" href="/pbt-assets/icon-128.png"/>
 </HeadContent>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-<link href="/pbt-assets/pbt.css?v=20261103-watching" rel="stylesheet"/>
+<link href="/pbt-assets/pbt.css?v=20261108-peak-hero" rel="stylesheet"/>
 <div class="pbt-editor" data-theme="@(dark ? "dark" : "light")">
 <nav class="fb-topbar">
     <button type="button" class="fb-icon-button fb-menu" aria-label="Toggle navigation" aria-expanded="@(menuOpen ? "true" : "false")" @onclick="() => menuOpen = !menuOpen">
@@ -201,6 +201,16 @@ else if (page == "Overview")
         </div>
         @if (maps.Count > 1)
         {
+            <button type="button" class="fb-hero-arrow fb-hero-prev" aria-label="Previous map" title="Previous map" @onclick="() => SlideBy(-1)">
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="m12 5-5 5 5 5"/>
+                </svg>
+            </button>
+            <button type="button" class="fb-hero-arrow fb-hero-next" aria-label="Next map" title="Next map" @onclick="() => SlideBy(1)">
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="m8 5 5 5-5 5"/>
+                </svg>
+            </button>
             <div class="fb-hero-dots">
                 @for (int index = 0; index < maps.Count; index++)
                 {
@@ -1201,11 +1211,73 @@ else if (page == "World")
         </div>
     </section>
     <section class="fb-card">
-        <h2>Matching screen</h2>
-        <p class="fb-muted">Before a raid the loading screen shows Matching with a timer, then Looking for server (5-15 s), Preparing the game and Awaiting response. The players queueing for your map are the ones that load into your raid. With Fika the host runs it and the group sees the same status. Not used on transits.</p>
+        <h2>Peak hours</h2>
+        <p class="fb-muted">Players come online on daily schedules. These settings move those hours around the clock and between weekdays and weekends; the online rate multiplier still sets the overall volume.</p>
         <div class="fb-switch-row">
             <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.World.PeakHours"/><span class="fb-switch-track"></span>Peak hours@(Tip("Fewer players come online late at night (your PC's clock) and more on evenings and weekends, so queues and raids follow the time of day."))</label>
         </div>
+        <div class="fb-grid fb-grid-3">
+            <label class="fb-field">
+                <span class="fb-label">Peak strength@(Tip("0 plays the same all day, 1 keeps the default curves, and higher values exaggerate the peaks and troughs."))</span><input type="number" min="0" max="4" step="0.05" @bind="simulation.World.Peak.Strength"/>
+            </label>
+            <label class="fb-field">
+                <span class="fb-label">Shift by hours@(Tip("Moves every schedule forward (+) or back (-) in hours, for clocks outside the default region."))</span><input type="number" min="-12" max="12" step="1" @bind="simulation.World.Peak.ShiftHours"/>
+            </label>
+            <label class="fb-field">
+                <span class="fb-label">Weekend boost@(Tip("Extra multiplier for Saturday and Sunday on top of each schedule's own weekend factor."))</span><input type="number" min="0.25" max="4" step="0.05" @bind="simulation.World.Peak.WeekendBoost"/>
+            </label>
+        </div>
+        <details class="fb-advanced">
+            <summary>Player mix and hourly weights</summary>
+            <p class="fb-muted">Shares decide how many accounts follow each schedule. Weekday and weekend factors scale their hours. Hourly weights are relative, from 0 to 100.</p>
+            <div class="fb-peak-mix">
+                <span class="fb-label">Player mix</span>
+                <div class="fb-grid">
+                    @foreach (var schedule in simulation.World.Peak.Schedules)
+                    {
+                        <label class="fb-field">
+                            <span class="fb-label">@schedule.Name share</span><input type="number" min="0" max="1000" step="1" @bind="schedule.Share"/>
+                        </label>
+                    }
+                </div>
+            </div>
+            <div class="fb-table-scroll fb-table-gap">
+                <table class="fb-table">
+                    <thead>
+                    <tr><th>Schedule</th><th>Weekday</th><th>Weekend</th><th>Hourly weights</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var schedule in simulation.World.Peak.Schedules)
+                    {
+                        <tr>
+                            <td><strong>@schedule.Name</strong></td>
+                            <td><input aria-label="@schedule.Name weekday factor" type="number" min="0" max="5" step="0.05" @bind="schedule.Weekday"/></td>
+                            <td><input aria-label="@schedule.Name weekend factor" type="number" min="0" max="5" step="0.05" @bind="schedule.Weekend"/></td>
+                            <td class="fb-muted">0:00 to 23:00</td>
+                        </tr>
+                        <tr>
+                            <td colspan="4">
+                                <div class="fb-hour-grid">
+                                    @for (int hour = 0; hour < 24; hour++)
+                                    {
+                                        int h = hour;
+                                        <label>
+                                            <span>@h:00</span>
+                                            <input aria-label="@schedule.Name hour @h" type="number" min="0" max="100" step="0.1" @bind="schedule.Hours[h]"/>
+                                        </label>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </details>
+    </section>
+    <section class="fb-card">
+        <h2>Matching screen</h2>
+        <p class="fb-muted">Before a raid the loading screen shows Matching with a timer, then Looking for server (5-15 s), Preparing the game and Awaiting response. The players queueing for your map are the ones that load into your raid. With Fika the host runs it and the group sees the same status. Not used on transits.</p>
         <div class="fb-switch-row">
             <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.World.SimulateMatching"/><span class="fb-switch-track"></span>Simulate matching@(Tip("Wait for a match based on the map's simulated queue before the raid starts."))</label>
         </div>
@@ -1687,6 +1759,13 @@ else
         noticeTimer?.Dispose();
         noticeTimer = null;
         message = "";
+    }
+
+    private void SlideBy(int offset)
+    {
+        if (world?.Maps is not { Count: > 1 } maps) return;
+        slide = (slide + offset + maps.Count) % maps.Count;
+        slideHeld = true;
     }
 
     private void Go(string next)

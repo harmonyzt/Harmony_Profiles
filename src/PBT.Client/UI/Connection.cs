@@ -7,12 +7,13 @@ using UnityEngine;
 
 namespace PBT.Client.UI;
 
-// Ping and packet loss from the server matching put you on, shown by the game's own RTT and loss icons.
+// Ping and packet loss from the server matching put you on
+// Shown by the game's own RTT and loss icons
 internal static class Connection
 {
     private const float Step = .5f;
 
-    // Off on Fika clients (they show their real ping to the host) and on the headless.
+    // Off on Fika clients
     internal static bool Allowed = true;
     internal static bool Fika;
     private static string server = "";
