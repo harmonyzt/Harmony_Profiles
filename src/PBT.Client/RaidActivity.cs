@@ -32,6 +32,9 @@ internal static class RaidActivity
     private static string raid = "";
     private static string map = "";
     private static int loggedCount;
+    private static int expected;
+    private static bool exhausted;
+    private static bool recounting;
     private static bool observing;
     private static float nextUpload;
     private static GameWorld? currentWorld;
@@ -58,6 +61,8 @@ internal static class RaidActivity
         bots.Clear();
         deaths.Clear();
         loggedCount = 0;
+        expected = 0;
+        exhausted = false;
         raid = raidId;
         map = world.LocationId ?? "";
         currentWorld = world;
@@ -92,6 +97,40 @@ internal static class RaidActivity
             Player = player,
             Started = Time.realtimeSinceStartup
         });
+        Plugin.Trace($"PBT bot spawned: {player.Profile.Nickname} (level {player.Profile.Info?.Level}, {player.Profile.Side}), {bots.Count}"
+                     + (expected > 0 ? $" of {expected}" : "") + " PBT careers so far.");
+        if (expected > 0 && bots.Count >= expected) _ = Recount();
+    }
+
+    // The server count arrives a moment after raid start, so spawns that came first are checked here too.
+    internal static void Expect(int count)
+    {
+        expected = count;
+        if (observing && count > 0 && bots.Count >= count) _ = Recount();
+    }
+
+    // More PMCs can be generated mid-raid, so ask again before calling the pool empty.
+    private static async Task Recount()
+    {
+        if (exhausted || recounting) return;
+        recounting = true;
+        try
+        {
+            var response = JObject.Parse(await RequestHandler.GetJsonAsync("/pbt/world/raid"));
+            int loaded = response.Value<int>("Loaded");
+            if (loaded > expected) expected = loaded;
+            if (!observing || bots.Count < expected) return;
+            exhausted = true;
+            Plugin.Trace($"All {expected} PBT careers of this raid have spawned. PMCs spawning from now on are regular bots unless the server generates more.");
+        }
+        catch (Exception ex)
+        {
+            Plugin.Report("PBT raid count unavailable: " + ex.Message);
+        }
+        finally
+        {
+            recounting = false;
+        }
     }
 
     private static void Unregistered(IPlayer __0)

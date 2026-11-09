@@ -357,6 +357,7 @@ public sealed partial class PopulationStore
             
             if (candidates.Length == 0)
             {
+                PoolNotice(session, "empty", $"No PBT career left for a {scope.Details.Side} PMC at level {minimum}-{maximum} on {map}. Further PMCs like it are plain APBS bots.");
                 ApbsFallback++;
                 return false;
             }
@@ -364,6 +365,8 @@ public sealed partial class PopulationStore
             (Career Career, int Level, double Weight)[] nearest;
             var mates = squadNext.TryGetValue(session, out var next) ? candidates.Where(c => next.Contains(c.Career.Id)).ToArray() : [];
             var matched = candidates.Where(c => MatchBoost(session, map, c.Career.Id) > 1).ToArray();
+            if (matched.Length == 0 && lobbies.TryGetValue(session, out var lobby) && lobby.Map == map && lobby.Careers.Count > 0)
+                PoolNotice(session, "lobby", $"All {lobby.Careers.Count} lobby careers on {map} are used up. Further PMCs come from the wider PBT population.");
             if (mates.Length > 0 && Random.Shared.NextDouble() < .85)
             {
                 nearest = mates.Select(c => (c.Career, c.Level, c.Weight)).ToArray();
@@ -400,6 +403,8 @@ public sealed partial class PopulationStore
             used.Add(selected.Career.Id);
             QueueSquadmates(session, selected.Career, used);
             ApbsMatched++;
+            logger.Info($"[PBT] PMC {used.Count} on {map} is {selected.Career.Name} (level {selected.Level}), "
+                        + (policy.RetainProfileGearInRaid ? "gear from the PBT profile." : "gear rolled by APBS."));
             
             return true;
         }

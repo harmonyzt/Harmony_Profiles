@@ -258,7 +258,6 @@ internal static class Matching
     internal static void RaidStarted()
     {
         onlineWording = false;
-        if (!matched) return;
         matched = false;
         _ = LogRaid();
     }
@@ -269,7 +268,9 @@ internal static class Matching
         {
             var response = JObject.Parse(await RequestHandler.GetJsonAsync("/pbt/world/raid"));
             if (response.Value<int>("ProtocolVersion") != 1) return;
-            Plugin.Trace($"Raid started with {response.Value<int>("Loaded")} PBT profile(s).");
+            int loaded = response.Value<int>("Loaded");
+            RaidActivity.Expect(loaded);
+            Plugin.Trace($"Raid started with {loaded} PBT profile(s) generated. Their gear and identity come from PBT careers.");
         }
         catch (Exception ex)
         {

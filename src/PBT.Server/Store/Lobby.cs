@@ -12,6 +12,7 @@ public sealed partial class PopulationStore
     private readonly Dictionary<string, Lobby> lobbies = new();
     private readonly Dictionary<string, HashSet<string>> squadNext = new();
     private MatchTimeline? lastMatch;
+    private readonly HashSet<string> poolNotices = new();
 
     public (int Seconds, int Looking, int Matched, MatchedServer? Server) Matching(string map, MongoId session)
     {
@@ -27,6 +28,8 @@ public sealed partial class PopulationStore
             foreach (string id in queued) activities[id].Until = Math.Max(activities[id].Until, now + seconds + looking + 120);
             lobbies[session.ToString()] = new(key, queued, now, server.Name);
             squadNext.Remove(session.ToString());
+            poolNotices.RemoveWhere(n => n.StartsWith(session.ToString(), StringComparison.Ordinal));
+            if (queued.Count > 0) logger.Info($"[PBT] Matched {key} on {server.Name}: {queued.Count} PBT careers in the lobby. They spawn first, wearing their PBT gear.");
             lastMatch = seconds > 0 ? new(key, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), seconds, looking) : null;
             return (seconds, looking, queued.Count, server);
         }
@@ -117,6 +120,12 @@ public sealed partial class PopulationStore
         lock (gate) return reservedCareers.TryGetValue(session.ToString(), out var used) ? used.Count : 0;
     }
 
+    // Caller holds the gate. Logs each pool running dry once per raid.
+    private void PoolNotice(string session, string kind, string message)
+    {
+        if (poolNotices.Add(session + ":" + kind)) logger.Info("[PBT] " + message);
+    }
+
     // Caller holds the gate.
     private double MatchBoost(string session, string map, string id) =>
         lobbies.TryGetValue(session, out var lobby) && lobby.Map == map && lobby.Careers.Contains(id) && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - lobby.Utc < 1800 ? 10 : 1;
@@ -136,5 +145,6 @@ public sealed partial class PopulationStore
     {
         lobbies.Remove(session);
         squadNext.Remove(session);
+        poolNotices.RemoveWhere(n => n.StartsWith(session, StringComparison.Ordinal));
     }
 }
