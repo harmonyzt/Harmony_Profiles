@@ -40,6 +40,26 @@ internal enum CheaterType
     Troll
 }
 
+// How a cheater type aims. Turn speed in degrees a second, reaction in seconds, the cone (degrees) its aimbot snaps within,
+// then per-shot hit and headshot chances, trigger hold and pause in seconds, and the rest it takes after a kill.
+internal readonly record struct AimProfile(
+    float Turn,
+    float ReactMin,
+    float ReactMax,
+    float Snap,
+    float Hit,
+    float Head,
+    float BurstMin,
+    float BurstMax,
+    float PauseMin,
+    float PauseMax,
+    float RestMin,
+    float RestMax);
+
+// How a cheater type hunts: how far its ESP hunts, kills it goes looking for in a raid, seconds it roams between hunts,
+// chance a scav is worth chasing, and seconds without getting anywhere before it gives up on a target.
+internal readonly record struct HuntProfile(float Range, int KillsMin, int KillsMax, float GapMin, float GapMax, float Scavs, float GiveUp);
+
 // Which bots in this raid are cheaters, their type and the cheats they rolled. The movement itself lives in CheaterBrain, which needs BigBrain.
 internal static class CheaterRoster
 {
@@ -54,10 +74,30 @@ internal static class CheaterRoster
     private static readonly Dictionary<CheaterType, (Cheat Always, Cheat May)> Kits = new()
     {
         [CheaterType.Closet] = (Cheat.None, Cheat.Aimbot | Cheat.Esp),
-        [CheaterType.Looter] = (Cheat.Vacuum, Cheat.Esp | Cheat.Aimbot | Cheat.Speedhack),
+        [CheaterType.Looter] = (Cheat.None, Cheat.Vacuum | Cheat.Esp | Cheat.Aimbot | Cheat.Speedhack),
         [CheaterType.Hunter] = (Cheat.Esp | Cheat.Aimbot, Cheat.Speedhack | Cheat.BunnyHop | Cheat.FightTeleport | Cheat.Godmode | Cheat.VoiceSpam),
         [CheaterType.Rage] = (Cheat.Aimbot, Cheat.All & ~(Cheat.Vacuum | Cheat.Stalker)),
         [CheaterType.Troll] = (Cheat.Stalker | Cheat.VoiceSpam, Cheat.Godmode | Cheat.FightTeleport | Cheat.Speedhack | Cheat.Spinbot | Cheat.Aimbot)
+    };
+
+    // Closet cheaters aim about as fast as a good player and miss plenty. Rage cheaters snap hard but still have to turn and react.
+    private static readonly Dictionary<CheaterType, AimProfile> Profiles = new()
+    {
+        [CheaterType.Closet] = new(300, .35f, .6f, 4, .5f, .25f, .12f, .3f, .35f, .7f, 30, 60),
+        [CheaterType.Looter] = new(360, .35f, .6f, 6, .55f, .3f, .15f, .35f, .3f, .6f, 30, 60),
+        [CheaterType.Troll] = new(450, .3f, .5f, 10, .65f, .4f, .2f, .45f, .25f, .5f, 15, 30),
+        [CheaterType.Hunter] = new(540, .25f, .45f, 12, .75f, .5f, .25f, .5f, .2f, .45f, 12, 25),
+        [CheaterType.Rage] = new(900, .15f, .3f, 25, .85f, .7f, .4f, .8f, .15f, .35f, 4, 10)
+    };
+
+    // Looters never hunt. Closet cheaters only set up on someone close. Hunters go for a handful of players with long roams in between. Rage keeps going.
+    private static readonly Dictionary<CheaterType, HuntProfile> Hunts = new()
+    {
+        [CheaterType.Closet] = new(80, 2, 4, 60, 150, .2f, 40),
+        [CheaterType.Looter] = new(0, 0, 0, 0, 0, 0, 30),
+        [CheaterType.Troll] = new(150, 1, 2, 90, 180, 0, 60),
+        [CheaterType.Hunter] = new(400, 3, 6, 45, 120, .25f, 90),
+        [CheaterType.Rage] = new(250, 8, 14, 15, 45, 1, 60)
     };
 
     private static ConfigEntry<bool>? debugLog;
@@ -71,6 +111,8 @@ internal static class CheaterRoster
 
     // Suspicion per account. Blatant play builds it up and the in-raid anticheat bans on it.
     private static readonly Dictionary<int, float> heat = new();
+    private static readonly Dictionary<Player, float> lastHit = new();
+    internal static float RaidStart;
     private static readonly HashSet<Player> speeders = new();
     private static readonly HashSet<Player> driven = new();
     private static readonly Dictionary<Player, Player> aims = new();
@@ -85,6 +127,13 @@ internal static class CheaterRoster
     internal static bool Behaviour => behaviour && BrainInstalled;
     internal static float TargetsYou => play.Value<float?>("TargetsYou") ?? .35f;
     internal static float Rivalry => play.Value<float?>("Rivalry") ?? .5f;
+
+    // 1 at the default accuracy of 0.7.
+    private static float Accuracy => Mathf.Clamp01(play.Value<float?>("AimAccuracy") ?? .7f) / .7f;
+    internal static float ReactionScale => Mathf.Clamp(play.Value<float?>("ReactionTime") ?? 1f, .5f, 3f);
+    internal static HuntProfile HuntOf(Player player) => Hunts.TryGetValue(TypeOf(player), out var hunt) ? hunt : Hunts[CheaterType.Closet];
+
+    internal static AimProfile AimOf(Player player) => Profiles.TryGetValue(TypeOf(player), out var aim) ? aim : Profiles[CheaterType.Closet];
     private static float SpeedMultiplier => Mathf.Clamp(play.Value<float?>("SpeedMultiplier") ?? 2.2f, 1, 6);
 
     internal static void Install(Harmony harmony, ConfigFile config)
@@ -117,6 +166,8 @@ internal static class CheaterRoster
         nextLine.Clear();
         nextEsp.Clear();
         heat.Clear();
+        lastHit.Clear();
+        RaidStart = Time.time;
         speeders.Clear();
         driven.Clear();
         aims.Clear();
@@ -178,6 +229,8 @@ internal static class CheaterRoster
 
     internal static bool Has(Player player, Cheat cheat) => (CheatsOf(player) & cheat) != 0;
 
+    internal static float SinceHit(Player player) => lastHit.TryGetValue(player, out float t) ? Time.time - t : float.MaxValue;
+
     internal static void Suspect(Player player, float amount)
     {
         int account = Account(player);
@@ -205,25 +258,29 @@ internal static class CheaterRoster
     {
         if (!Behaviour || accounts.Count == 0) return true;
         if (damageInfo.Player?.iPlayer is Player shooter && shooter != __instance && IsCheater(shooter)) Suspect(shooter, bodyPartType == EBodyPart.Head ? .35f : .12f);
-        if (!IsCheater(__instance) || !Has(__instance, Cheat.Godmode)) return true;
+        if (!IsCheater(__instance)) return true;
+        lastHit[__instance] = Time.time;
+        if (!Has(__instance, Cheat.Godmode)) return true;
         Suspect(__instance, .3f);
         return false;
     }
 
-    // Only a shot with a clear line gets bent onto the target, so an aimbot never shoots through walls.
+    // Bends a shot onto the target only if the gun already points roughly at it, the type's hit roll comes up and the line is clear.
+    // So an aimbot still has to turn first, misses now and then, and never shoots through walls.
     private static void Aimbot(Player.FirearmController __instance, Vector3 shotPosition, ref Vector3 shotDirection)
     {
-        if (!behaviour || accounts.Count == 0 || __instance._player is not { IsAI: true } shooter || !IsCheater(shooter) || !Has(shooter, Cheat.Aimbot)) return;
+        if (!behaviour || accounts.Count == 0 || __instance._player is not { IsAI: true } shooter || !IsCheater(shooter) || !Has(shooter, Cheat.Aimbot | Cheat.Spinbot)) return;
         if (!aims.TryGetValue(shooter, out var target)) target = shooter.AIData?.BotOwner?.Memory?.GoalEnemy?.Person as Player;
         if (target == null || target.HealthController?.IsAlive != true) return;
 
-        bool closet = TypeOf(shooter) == CheaterType.Closet;
-        // A closet cheater lets a few shots go wide and aims mostly at the body, so it doesn't stand out.
-        if (closet && UnityEngine.Random.value < .15f) return;
-        var bone = closet && UnityEngine.Random.value < .7f ? target.PlayerBones.Ribcage : target.PlayerBones.Head;
-        var point = bone.position;
+        var aim = AimOf(shooter);
+        var point = (UnityEngine.Random.value < aim.Head ? target.PlayerBones.Head : target.PlayerBones.Ribcage).position;
+        var want = (point - shotPosition).normalized;
+        // A spinbot's body faces anywhere, so it snaps from any angle.
+        if (Vector3.Angle(shotDirection, want) > (Has(shooter, Cheat.Spinbot) ? 180 : aim.Snap)) return;
+        if (UnityEngine.Random.value >= Mathf.Clamp01(aim.Hit * Accuracy)) return;
         if (Physics.Linecast(shotPosition, point, LayersMaskController.HighPolyWithTerrainMask)) return;
-        shotDirection = (point - shotPosition).normalized;
+        shotDirection = want;
     }
 
     private static void Speedhack(MovementContext __instance, ref Vector3 motion, out float __state)
@@ -274,6 +331,7 @@ internal static class CheaterRoster
         foreach (var player in alive)
         {
             if (Has(player, Cheat.VoiceSpam)) Spam(player, now);
+            if (Has(player, Cheat.Vacuum)) Vacuum(player);
             if (BrainInstalled && Has(player, Cheat.Speedhack))
             {
                 speeders.Add(player);
@@ -291,11 +349,14 @@ internal static class CheaterRoster
         int account = Account(cheater);
         if (nextEsp.TryGetValue(account, out float next) && now < next || cheater.AIData?.BotOwner is not { BotsGroup: { } group } owner) return;
         nextEsp[account] = now + UnityEngine.Random.Range(5f, 10f);
+        var mind = CheaterMind.Of(cheater);
+        if (Time.time < mind.RestUntil) return;
         Player? found = null;
-        float best = 150 * 150;
+        float best = 80 * 80;
         foreach (var p in Singleton<GameWorld>.Instance.AllAlivePlayersList)
         {
-            if (p is null || p == cheater || p.HealthController?.IsAlive != true || !string.IsNullOrEmpty(cheater.GroupId) && p.GroupId == cheater.GroupId) continue;
+            if (p is null || p == cheater || p.HealthController?.IsAlive != true || !string.IsNullOrEmpty(cheater.GroupId) && p.GroupId == cheater.GroupId
+                || mind.Ignores(p) || !mind.Worth(cheater, p)) continue;
             float weight = !p.IsAI ? 1 / Math.Max(.05f, TargetsYou * 2) : IsCheater(p) ? 1 / Math.Max(.05f, Rivalry * 2) : 1;
             float d = (p.Position - cheater.Position).sqrMagnitude * weight;
             if (d < best)
@@ -354,6 +415,44 @@ internal static class CheaterRoster
         {
             Log("Ban report failed: " + ex.Message);
         }
+    }
+
+    // Every few minutes pulls a handful of the most valuable loose items within 200 m straight into its bag, without moving.
+    // Once the bag is "full" it extracts. Needs no BigBrain, so it runs for any cheater with the cheat.
+    private static void Vacuum(Player player)
+    {
+        var mind = CheaterMind.Of(player);
+        if (mind.Left || Time.time < mind.NextPull) return;
+        mind.NextPull = Time.time + UnityEngine.Random.Range(90f, 240f);
+        if (mind.Looted >= mind.Capacity)
+        {
+            mind.Left = true;
+            Log($"{player.Profile.Nickname} vacuumed {mind.Looted} items and extracted.");
+            player.AIData?.BotOwner?.LeaveData?.RemoveFromMap();
+            return;
+        }
+
+        var world = Singleton<GameWorld>.Instance;
+        var loot = world.LootItems;
+        var picks = new List<(EFT.Interactive.LootItem Item, int Price)>();
+        for (int i = 0; i < loot.Count; i++)
+        {
+            var item = loot.GetByIndex(i);
+            if (item?.Item is null || item.Item.QuestItem || (item.transform.position - player.Position).sqrMagnitude > 200 * 200) continue;
+            picks.Add((item, item.Item.Template.CreditsPrice * Math.Max(1, item.Item.StackObjectsCount)));
+        }
+
+        int take = Math.Min(UnityEngine.Random.Range(2, 6), mind.Capacity - mind.Looted);
+        foreach (var (item, price) in picks.OrderByDescending(p => p.Price).Take(take))
+        {
+            Log($"{player.Profile.Nickname} vacuumed {item.Item.TemplateId} ({price:N0} RUB) from {Vector3.Distance(item.transform.position, player.Position):0} m.");
+            world.DestroyLoot(item);
+            mind.Looted++;
+            Suspect(player, 1);
+        }
+
+        // Nothing left nearby: that counts as a full bag.
+        if (picks.Count == 0) mind.Looted = mind.Capacity;
     }
 
     // "Scav ahead" or "Hold fire" nonstop, lines piling over each other like a voice-line macro.

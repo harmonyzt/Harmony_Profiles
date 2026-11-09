@@ -489,7 +489,7 @@ public sealed class CheaterPlaySettings
     public double Fly { get; set; } = .05;
 
     // Teleports to the map's best loot, takes it and extracts.
-    public double Vacuum { get; set; } = .3;
+    public double Vacuum { get; set; } = .6;
 
     // Pops up in front of you and stares, then usually starts shooting.
     public double Stalker { get; set; } = .1;
@@ -501,6 +501,12 @@ public sealed class CheaterPlaySettings
 
     // Chance a cheater that spots another cheater goes after it instead.
     public double Rivalry { get; set; } = .5;
+
+    // Scales every type's aimbot hit chance. 0.7 is each type's normal; rage cheaters hit far more than closet ones either way.
+    public double AimAccuracy { get; set; } = .7;
+
+    // Scales every type's reaction time (0.5 to 3). Higher is slower.
+    public double ReactionTime { get; set; } = 1;
 
     // In-raid anticheat: chance per minute an average cheater is banned on the spot.
     public double BanPerMinute { get; set; } = .02;
@@ -522,10 +528,10 @@ public sealed class CheaterPlaySettings
     {
         if (Types is null) throw new InvalidDataException("Cheater types are missing.");
         Types.Validate();
-        double[] chances = [Aimbot, Esp, Godmode, Speedhack, Spinbot, BunnyHop, FightTeleport, Fly, Vacuum, Stalker, VoiceSpam, TargetsYou, Rivalry, BanPerMinute];
+        double[] chances = [Aimbot, Esp, Godmode, Speedhack, Spinbot, BunnyHop, FightTeleport, Fly, Vacuum, Stalker, VoiceSpam, TargetsYou, Rivalry, AimAccuracy, BanPerMinute];
         if (chances.Any(c => !double.IsFinite(c) || c is < 0 or > 1) || !double.IsFinite(SpeedMultiplier) || SpeedMultiplier is < 1 or > 6
-            || !double.IsFinite(BlatantBanBoost) || BlatantBanBoost is < 0 or > 3)
-            throw new InvalidDataException("Cheater play chances must be 0 to 1, the speed multiplier 1 to 6 and the blatant ban boost 0 to 3.");
+            || !double.IsFinite(BlatantBanBoost) || BlatantBanBoost is < 0 or > 3 || !double.IsFinite(ReactionTime) || ReactionTime is < .5 or > 3)
+            throw new InvalidDataException("Cheater play chances must be 0 to 1, the speed multiplier 1 to 6, the blatant ban boost 0 to 3 and reaction time 0.5 to 3.");
     }
 }
 

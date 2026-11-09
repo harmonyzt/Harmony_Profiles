@@ -1263,19 +1263,19 @@ else if (page == "Cheaters")
             <p class="fb-muted">Each cheater is one type. Shares are relative, so they need not add up to 1. A type decides which cheats below it can roll at all.</p>
             <div class="fb-grid">
                 <label class="fb-field">
-                    <span class="fb-label">Closet@(Tip("Aimbot or ESP, otherwise plays like anyone else on its normal AI. Aims mostly at the body and misses now and then, so it is hard to tell apart."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Types.Closet"/>
+                    <span class="fb-label">Closet@(Tip("Aimbot or ESP, otherwise plays like anyone else. In a fight it works angles: crouched behind cover with its crosshair following you through the wall, short peeks and leans, and a new angle after a few peeks or a hit. With ESP it waits until you look away. Aims mostly at the body and misses now and then."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Types.Closet"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Looter@(Tip("In for money. Teleports to the map's best loot, takes it and extracts. Can have ESP, aimbot or speedhack, but avoids fights."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Types.Looter"/>
+                    <span class="fb-label">Looter@(Tip("In for money or quests. Loots and quests on its normal AI (Looting Bots or Questing Bots if you run them), keeps away from PMCs and you, running to cover when one gets within 70 m, and only fights players when cornered or shot. Fights scavs like anyone. Can have loot vacuum, ESP, aimbot or speedhack."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Types.Looter"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Hunter@(Tip("In for kills. Always ESP and aimbot, hunts players across the map. Can add speedhack, bunny hop, fight teleports and godmode."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Types.Hunter"/>
+                    <span class="fb-label">Hunter@(Tip("In for kills. Always ESP and aimbot. Hunts a handful of players a raid: circles round behind you, then works an angle and opens up when you look away or are busy with someone else. Can add speedhack, bunny hop, fight teleports and godmode."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Types.Hunter"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Rage@(Tip("Everything on. Always aimbot, and can roll any cheat: spinbot, flying, teleports, godmode, voice spam. Wipes the lobby."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Types.Rage"/>
+                    <span class="fb-label">Rage@(Tip("Everything on. Always aimbot, and can roll any cheat: spinbot, flying, teleports, godmode, voice spam. Walks straight at you and strafes side to side while it sprays. Never waits for a better moment."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Types.Rage"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Troll@(Tip("Stalks you and spams voice lines, starts shooting when it gets bored."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Types.Troll"/>
+                    <span class="fb-label">Troll@(Tip("Leaves you alone for the first few minutes. Then it visits: pops up off to your side, teabags, jumps and spams voice lines, and vanishes the moment you aim at it. After a few visits, or once you hit it, it sets a trap on an angle near you."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Types.Troll"/>
                 </label>
             </div>
         </section>
@@ -1297,6 +1297,12 @@ else if (page == "Cheaters")
                 <label class="fb-field">
                     <span class="fb-label">Cheater rivalry@(Tip("Chance (0 to 1) a cheater that spots another cheater goes after it instead, and the other one fights back. Two rage cheaters meeting is a show."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Rivalry"/>
                 </label>
+                <label class="fb-field">
+                    <span class="fb-label">Aim accuracy@(Tip("Scales how often an aimbot shot lands (0 to 1). At 0.7 a closet cheater lands about half its aimbot shots, mostly to the body, and a rage cheater most of them, mostly to the head. Either way the gun has to point roughly at you first, so a cheater still has to turn."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.AimAccuracy"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Reaction time@(Tip("Scales how long a cheater takes to shoot once it sees you (0.5 to 3, higher is slower). At 1 a closet cheater takes 0.35 to 0.6 s and a rage cheater 0.15 to 0.3 s, a bit less when it held the angle pre-aimed."))</span><input type="number" min="0.5" max="3" step="0.1" @bind="play.ReactionTime"/>
+                </label>
             </div>
         </section>
         <section class="fb-card">
@@ -1315,7 +1321,7 @@ else if (page == "Cheaters")
                     <span class="fb-label">Bunny hop@(Tip("Chance (0 to 1) a cheater bunny hops, and behind close cover jumps far higher than anyone can to shoot over it."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.BunnyHop"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Teleports in fights@(Tip("Chance (0 to 1) a cheater now and then teleports right next to its target mid-fight."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.FightTeleport"/>
+                    <span class="fb-label">Teleports in fights@(Tip("Chance (0 to 1) a cheater now and then teleports behind its target mid-fight. It shouts a moment before and needs a moment after landing before it can shoot, so you can turn on it."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.FightTeleport"/>
                 </label>
                 <label class="fb-field">
                     <span class="fb-label">Flying@(Tip("Chance (0 to 1) a cheater hovers in the air over its target."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Fly"/>
@@ -1326,10 +1332,7 @@ else if (page == "Cheaters")
             <h2>Map and griefing</h2>
             <div class="fb-grid">
                 <label class="fb-field">
-                    <span class="fb-label">Loot vacuum@(Tip("Chance (0 to 1) a cheater teleports to the map's best loot, takes it and extracts before fighting anyone."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Vacuum"/>
-                </label>
-                <label class="fb-field">
-                    <span class="fb-label">Stalker@(Tip("Chance (0 to 1) a cheater keeps popping up in front of you and stares, before it usually starts shooting."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Stalker"/>
+                    <span class="fb-label">Loot vacuum@(Tip("Chance (0 to 1) a looter has a loot vacuum: every few minutes the best loose items within 200 m vanish into its bag, and once the bag is full it extracts."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Vacuum"/>
                 </label>
                 <label class="fb-field">
                     <span class="fb-label">Voice spam@(Tip("Chance (0 to 1) a cheater spams Scav ahead or Hold fire nonstop. Only heard within 80 m."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.VoiceSpam"/>
@@ -1963,14 +1966,14 @@ else
         "mild" => new CheaterPlaySettings
         {
             Types = new CheaterTypeShares { Closet = .55, Looter = .3, Hunter = .1, Rage = .02, Troll = .03 },
-            Esp = .4, Aimbot = .3, Godmode = 0, Speedhack = .2, SpeedMultiplier = 1.6, Spinbot = .05, BunnyHop = .1, FightTeleport = .05, Fly = 0, Vacuum = .45, Stalker = .05,
-            VoiceSpam = .3, TargetsYou = .2, BanPerMinute = .05
+            Esp = .4, Aimbot = .3, Godmode = 0, Speedhack = .2, SpeedMultiplier = 1.6, Spinbot = .05, BunnyHop = .1, FightTeleport = .05, Fly = 0, Vacuum = .5, Stalker = .05,
+            VoiceSpam = .3, TargetsYou = .2, BanPerMinute = .05, AimAccuracy = .45, ReactionTime = 1.5
         },
         "brutal" => new CheaterPlaySettings
         {
             Types = new CheaterTypeShares { Closet = .15, Looter = .1, Hunter = .3, Rage = .35, Troll = .1 },
-            Esp = .8, Aimbot = .95, Godmode = .4, Speedhack = .6, SpeedMultiplier = 3, Spinbot = .35, BunnyHop = .35, FightTeleport = .5, Fly = .15, Vacuum = .15, Stalker = .2,
-            VoiceSpam = .6, TargetsYou = .7, BanPerMinute = .005
+            Esp = .8, Aimbot = .95, Godmode = .4, Speedhack = .6, SpeedMultiplier = 3, Spinbot = .35, BunnyHop = .35, FightTeleport = .5, Fly = .15, Vacuum = .7, Stalker = .2,
+            VoiceSpam = .6, TargetsYou = .7, BanPerMinute = .005, AimAccuracy = .9, ReactionTime = .75
         },
         _ => new CheaterPlaySettings()
     };
