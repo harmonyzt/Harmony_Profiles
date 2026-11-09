@@ -928,11 +928,6 @@ else if (page == "Personalities")
 }
 else if (page == "Progression")
 {
-    <section class="fb-card">
-        <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.EnableApbsCareerIntegration"/><span class="fb-switch-track"></span>Select persistent players within APBS level ranges@(Tip("When APBS spawns a PMC, reuse an existing player whose level fits APBS's level range, so you meet the same players again."))</label>
-        </div>
-    </section>
     <section class="fb-card fb-flush">
         <div class="fb-card-head fb-padded">
             <div>
@@ -1046,17 +1041,39 @@ else if (page == "Hideout")
 else if (page == "Gear")
 {
     <section class="fb-card">
-        <h2>Loadouts</h2>
-        <p class="fb-muted">APBS builds every loadout. These control which kit it builds and where it is used.</p>
+        <h2>APBS bridge</h2>
+        <p class="fb-muted">APBS builds every PMC. PBT picks which career a PMC is and, with the takeover on, which kit it wears.</p>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.RetainProfileGearInRaid"/><span class="fb-switch-track"></span>Careers wear their profile loadout in raid@(Tip("When a bot spawns in raid, it wears the loadout its profile shows, plus fresh APBS loot. Off means APBS rolls a new kit for each spawn."))</label>
+            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.EnableApbsCareerIntegration"/><span class="fb-switch-track"></span>Select persistent players within APBS level ranges@(Tip("When APBS spawns a PMC, reuse an existing player whose level fits APBS's level range, so you meet the same players again."))</label>
         </div>
+        <div class="fb-switch-row">
+            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.RetainProfileGearInRaid"/><span class="fb-switch-track"></span>APBS takeover in raid@(Tip("On: a career's in-raid PMC wears the kit its PBT profile shows, plus fresh APBS loot. Off: APBS gears the PMC as usual and PBT saves that kit to the career's profile."))</label>
+        </div>
+        @if (simulation.RetainProfileGearInRaid)
+        {
+            @Warn("PBT replaces the gear APBS rolled for these PMCs. Your APBS loadout config is only used when PBT builds a profile kit, not at spawn. PBT refills the magazines itself, so APBS toploading and ammo choices don't apply to them. Loot still comes from APBS.")
+        }
+        <div class="fb-switch-row">
+            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.Cheaters.AlwaysPbtGear"/><span class="fb-switch-track"></span>Cheaters always wear PBT gear@(Tip("Cheater careers wear their PBT kit (welding masks, meta gear) in raid even with the takeover off."))</label>
+        </div>
+    </section>
+    <section class="fb-card">
+        <h2>Loadout features</h2>
+        <p class="fb-muted">These change the kits APBS builds for career profiles. Each one moves the result away from your APBS config, so use them at your discretion.</p>
         <div class="fb-switch-row">
             <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.WealthGearTiers"/><span class="fb-switch-track"></span>Gear follows wealth@(Tip("Broke accounts wear one or two APBS tiers below their level and rich ones one above. Anyone sometimes runs a budget kit or goes all in."))</label>
         </div>
+        @if (simulation.WealthGearTiers)
+        {
+            @Warn("Overrides APBS's level-to-tier table: the tier is shifted by the account's wealth, so kits don't always match the tier APBS would pick for that level.")
+        }
         <div class="fb-switch-row">
             <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.GearProgression"/><span class="fb-switch-track"></span>Gear progression@(Tip("Survivors keep their kit and now and then buy one better piece with their wealth. The dead rebuy, often their usual gun. Off means every raid rolls a whole new kit."))</label>
         </div>
+        @if (simulation.GearProgression)
+        {
+            @Warn("Mixes pieces from different APBS kits (gun and rig from one, armor or helmet from another), so APBS's per-kit rules like weapon and rig pairing or tier caps may not hold.")
+        }
         <div class="fb-grid">
             <label class="fb-field">
                 <span class="fb-label">Upgrade chance@(Tip("Share (0 to 1) of survived raids after which a player shops for one better piece of gear, if they can afford it."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.GearUpgradeChance"/>
@@ -1074,6 +1091,7 @@ else if (page == "Gear")
                 <span class="fb-label">Night kit chance@(Tip("Share (0 to 1) of generated profile loadouts built as night raid kits, which can carry NVGs."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.NightGearChance"/>
             </label>
         </div>
+        @Warn("Night kit chance replaces APBS's own day or night choice for profile kits, since a profile isn't tied to a raid time.")
     </section>
     <section class="fb-card">
         <h2>Showcases</h2>
@@ -1089,6 +1107,7 @@ else if (page == "Gear")
                 <span class="fb-label">Rack gun tier boost, maximum@(Tip("Most APBS gear tiers above the account's own that rack guns are built at. Each rack loadout rolls in this range."))</span><input type="number" min="0" max="6" @bind="simulation.RackTierBoostMaximum"/>
             </label>
         </div>
+        @Warn("Rack guns are built above the account's APBS tier. They are only shown, never carried into raid.")
     </section>
     @SimulationSave
 }
@@ -1583,7 +1602,7 @@ else
     private static string Title(string page) =>
         page switch
         {
-            "Gear" => "Gear & showcases",
+            "Gear" => "APBS & gear",
             "Notable" => "Chads & streamers",
             "Stories" => "Post-raid stories",
             "Messages" => "Bot messages",
@@ -1616,7 +1635,7 @@ else
             "Personalities" => "Starting ranges and progression targets. Edits affect future simulation without rerolling existing accounts.",
             "Progression" => "Level cohorts guide varied account histories. Native requirements remain in force.",
             "Hideout" => "How simulated accounts build and upgrade their hideout.",
-            "Gear" => "Profile loadouts, night kits and weapon racks.",
+            "Gear" => "APBS takeover, profile loadouts and weapon racks.",
             "Notable" => "Better stats and gear for chad and streamer names.",
             "Prestige" => "When simulated accounts prestige, and how many start prestiged.",
             "Stories" => "What happens to the PMCs from your raid after it ends.",
@@ -1653,6 +1672,9 @@ else
                      <path d="M15.5 6.5A6.5 6.5 0 1 0 16.4 12h-2.1a4.5 4.5 0 1 1-1-4.3L11 10h6V4Z"/>
                  </svg>
         };
+
+    private static RenderFragment Warn(string text) =>
+        @<p class="fb-warn" role="note"><span class="fb-warn-icon" aria-hidden="true">!</span><span>@text</span></p>;
 
     private static RenderFragment Tip(string text) =>
         @<span class="fb-tip" tabindex="0" @onclick:preventDefault="true">

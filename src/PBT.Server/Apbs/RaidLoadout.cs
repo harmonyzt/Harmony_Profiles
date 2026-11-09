@@ -60,7 +60,7 @@ public sealed partial class PopulationStore
     {
         lock (gate)
         {
-            if (!policy.RetainProfileGearInRaid || c.Retired || c.NeedsRegear || !c.VisibleLoadout || !c.Side.Equals(side, StringComparison.OrdinalIgnoreCase))
+            if (!(policy.RetainProfileGearInRaid || IsCheater(c) && policy.Cheaters.AlwaysPbtGear) || c.Retired || c.NeedsRegear || !c.VisibleLoadout || !c.Side.Equals(side, StringComparison.OrdinalIgnoreCase))
             {
                 return null;
             }

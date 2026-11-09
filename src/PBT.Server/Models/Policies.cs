@@ -335,6 +335,9 @@ public sealed class CheaterSettings
     public int TierBoost { get; set; } = 4;
     public double HelmetChance { get; set; } = .6;
 
+    // Cheaters wear their PBT kit in raid even with the APBS takeover off.
+    public bool AlwaysPbtGear { get; set; } = true;
+
     public List<CheaterHelmet> Helmets { get; set; } =
     [
         new()

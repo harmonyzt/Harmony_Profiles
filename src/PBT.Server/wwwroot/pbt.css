@@ -563,6 +563,31 @@
     height: 16px
 }
 
+.pbt-editor .fb-warn {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin: 4px 0 14px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    background: var(--fb-yellow-soft);
+    color: var(--fb-yellow-text)
+}
+
+.pbt-editor .fb-warn-icon {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: 12px;
+    background: var(--fb-yellow-text);
+    color: var(--fb-yellow-soft)
+}
+
 .pbt-editor .fb-hint {
     font-size: 13px;
     color: var(--fb-muted);
