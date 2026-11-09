@@ -66,7 +66,8 @@ public sealed partial class PopulationStore
             }
 
             var equipment = CareerEquipment(c);
-            if (!ValidEquipment(equipment) || !EquippedWeapons(equipment).Any())
+            // A kit with no gun or only a sidearm left (looted, stripped) spawns as a fresh APBS roll instead.
+            if (!ValidEquipment(equipment) || !EquippedWeapons(equipment).Any(i => i["slotId"]?.ToString() != "Holster"))
             {
                 return null;
             }

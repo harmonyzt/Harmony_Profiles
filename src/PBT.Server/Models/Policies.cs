@@ -119,6 +119,10 @@ public sealed class SimulationPolicy
 
     public double InsuranceReturnChance { get; set; } = .3;
 
+    // Time a dead account spends in the menu before it rebuys. Capped at 20 minutes.
+    public double RegearMinimumMinutes { get; set; } = 5;
+    public double RegearMaximumMinutes { get; set; } = 20;
+
     // In-raid spawns of a selected career wear the loadout its profile shows instead of a fresh APBS roll.
     public bool RetainProfileGearInRaid { get; set; } = true;
     public bool RealisticSupplies { get; set; } = true;
@@ -168,8 +172,9 @@ public sealed class SimulationPolicy
             throw new InvalidDataException("Achievement shares must be between 0 and 1.");
         if (RackTierBoostMinimum is < 0 or > 6 || RackTierBoostMaximum < RackTierBoostMinimum || RackTierBoostMaximum > 6 || !double.IsFinite(NightGearChance)
             || NightGearChance is < 0 or > 1 || !double.IsFinite(GearUpgradeChance) || GearUpgradeChance is < 0 or > 1 || !double.IsFinite(InsuranceReturnChance)
-            || InsuranceReturnChance is < 0 or > 1)
-            throw new InvalidDataException("Rack tier boost must be a 0-6 range; night gear, upgrade and insurance chances 0-1.");
+            || InsuranceReturnChance is < 0 or > 1 || !double.IsFinite(RegearMinimumMinutes) || !double.IsFinite(RegearMaximumMinutes) || RegearMinimumMinutes < 0
+            || RegearMaximumMinutes < RegearMinimumMinutes || RegearMaximumMinutes > 20)
+            throw new InvalidDataException("Rack tier boost must be a 0-6 range; night gear, upgrade and insurance chances 0-1; regear 0-20 minutes.");
         if (!double.IsFinite(MinimumPrestigeCycleHours) || MinimumPrestigeCycleHours is < 10 or > 10000 || !double.IsFinite(PostRaidDeathChance)
             || !double.IsFinite(PostRaidRegearChance) || PostRaidDeathChance < 0 || PostRaidRegearChance < 0 || PostRaidDeathChance + PostRaidRegearChance > 1
             || !double.IsFinite(RaidDeathChance) || !double.IsFinite(RaidRegearChance) || RaidDeathChance < 0 || RaidRegearChance < 0 || RaidDeathChance + RaidRegearChance > 1

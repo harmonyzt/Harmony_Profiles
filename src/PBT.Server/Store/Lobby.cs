@@ -92,6 +92,7 @@ public sealed partial class PopulationStore
             string[] ids = party.Count > 1 ? party.Select(m => m.Id).ToArray() : [];
             foreach (var m in party)
             {
+                RebuyBeforeRaid(m, now);
                 Set(ActivityOf(m), "Queue", map.Id, now, now, party: ids);
                 server.Add(m.Id);
             }

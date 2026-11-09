@@ -116,6 +116,7 @@ public sealed partial class PopulationStore
 
     private void StartRaid(Career c, Activity a, long now)
     {
+        RebuyBeforeRaid(c, now);
         long until = now + RaidLength(c);
         string[] party = a.Party;
         Set(a, "Raid", a.Map, now, until, party: party);

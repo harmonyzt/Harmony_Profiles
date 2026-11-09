@@ -48,12 +48,35 @@ public sealed partial class PopulationStore
         c.NextGearAttemptUtc = 0;
     }
 
-    private static long RegearDelay(Career c) => 1200 + (long)(Stable(c.Id + ":regear:" + c.DiedUtc) * 2400);
+    private long RegearDelay(Career c) =>
+        (long)((policy.RegearMinimumMinutes + Stable(c.Id + ":regear:" + c.DiedUtc) * (policy.RegearMaximumMinutes - policy.RegearMinimumMinutes)) * 60);
 
-    // Only the delay, not the kit: the world dies faster than APBS can regear it. Views and spawns make it on demand.
-    private static bool WaitingForGear(Career c, long now) => c.NeedsRegear && now - c.DiedUtc < RegearDelay(c);
+    // Too poor to rebuy anything: the account runs scav raids and kits up from what it brings out.
+    private bool Broke(Career c) => c.WealthRubles < KitCost(c) * .15;
 
-    private static bool WantsGear(Career c, long now) => !c.Retired && (c.GearVersion == 0 && c.LastEquipmentAccount == 0 || c.NeedsRegear && now - c.DiedUtc >= RegearDelay(c));
+    // Only the delay, not the kit: the world dies faster than APBS can regear it. A broke account also waits for its scav kit, at most 30 minutes more.
+    private bool WaitingForGear(Career c, long now) =>
+        c.NeedsRegear && (now - c.DiedUtc < RegearDelay(c) || Broke(c) && now - c.DiedUtc < RegearDelay(c) + 1800);
+
+    private bool WantsGear(Career c, long now) => !c.Retired && (c.GearVersion == 0 && c.LastEquipmentAccount == 0 || c.NeedsRegear && now - c.DiedUtc >= RegearDelay(c));
+
+    // The APBS worker lags the death rate, so an account heading into a raid rebuys its last kit on the spot instead of going in without one.
+    private void RebuyBeforeRaid(Career c, long now)
+    {
+        if (!c.NeedsRegear || c.Retired || now - c.DiedUtc < RegearDelay(c) || Broke(c) || IsObservedActive(c, now)) return;
+        var previous = CareerEquipment(c);
+        if (!ValidEquipment(previous) || !HasVisibleLoadout(previous) || !EquippedWeapons(previous).Any()) return;
+        string gun = GearName(previous, "FirstPrimaryWeapon");
+        RecordGear(c, "rebuy", gun.Length > 0 ? $"Rebought the usual {gun} loadout" : "Rebought the usual loadout", -KitCost(c), now);
+        c.EquipmentIsSimulated = true;
+        c.NeedsRegear = false;
+        c.LastEquipmentAccount = 0;
+        c.GearVersion = 1;
+        c.GearPending = false;
+        c.LastGearUpdateUtc = now;
+        c.NextGearAttemptUtc = now + Random.Shared.Next(600, 1801);
+        dirty = true;
+    }
 
     // APBS runs outside the gate so a profile view never stalls bot spawns.
     private void GearForView(int accountId, MongoId session)
@@ -201,9 +224,10 @@ public sealed partial class PopulationStore
 
         // SPT's own cloner. A JSON round trip churned megabytes per regear.
         var isolated = cloner.Clone(source) ?? throw new InvalidDataException("Cannot clone PMC inventory template.");
-        var inventory = gearFactory.Generate(inventoryGenerator, inventoryContainers, session, isolated, career, Level(career.Experience),
-            // Rack guns are favourites, not what the account can afford today.
-            extraTiers > 0 ? TierBoost(career) + extraTiers : TierShift(career, roll: true), Random.Shared.NextDouble() < policy.NightGearChance);
+        // Rack guns are favourites, not what the account can afford today. A broke rebuy is the bottom tier, scav-grade gear.
+        int shift = extraTiers > 0 ? TierBoost(career) + extraTiers : career.NeedsRegear && Broke(career) ? -10 : TierShift(career, roll: true);
+        var inventory = gearFactory.Generate(inventoryGenerator, inventoryContainers, session, isolated, career, Level(career.Experience), shift,
+            Random.Shared.NextDouble() < policy.NightGearChance);
         var equipment = EquipmentTree(ToNode(inventory).AsObject());
 
         if (!ValidEquipment(equipment))
@@ -265,7 +289,7 @@ public sealed partial class PopulationStore
 
         // A backlog of the dead must not starve the shoppers, so a few slots are theirs.
         var shoppers = due.Where(Upgrading).OrderBy(c => c.LastGearUpdateUtc).ThenBy(c => c.AccountId).Take(UpgradeSlots).ToList();
-        foreach (var career in shoppers.Concat(due.Where(c => !Upgrading(c)).OrderByDescending(c => c.NeedsRegear).ThenByDescending(c => c.IsOnline)
+        foreach (var career in shoppers.Concat(due.Where(c => !Upgrading(c)).OrderByDescending(c => c.NeedsRegear).ThenByDescending(c => c.NeedsRegear && Broke(c)).ThenByDescending(c => c.IsOnline)
                      .ThenBy(c => c.LastGearUpdateUtc).ThenBy(c => c.AccountId).Take(GearBatch - shoppers.Count)))
             if (gearRequests.TryAdd(career.Id, session))
             {

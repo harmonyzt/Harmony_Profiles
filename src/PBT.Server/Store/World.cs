@@ -262,6 +262,7 @@ public sealed partial class PopulationStore
             // Start mid-session instead of everyone in the menu at once.
             double roll = Random.Shared.NextDouble();
             var map = PickMap(c);
+            if (map is not null && roll >= .2) RebuyBeforeRaid(c, now);
             if (map is null || roll < .2) EnterMenu(c, a, now);
             else if (roll < .32) Set(a, "Queue", map.Id, now, now + (long)(Random.Shared.NextDouble() * QueueSeconds(map.Id)) + 5);
             else
@@ -370,6 +371,7 @@ public sealed partial class PopulationStore
                         break;
                     }
 
+                    RebuyBeforeRaid(c, now);
                     Set(a, "Queue", map.Id, now, now + QueueSeconds(map.Id));
                     break;
                 case "Queue":
@@ -544,7 +546,7 @@ public sealed partial class PopulationStore
             "Raid" when a.Held && observed.Contains(c.Id) => ("Raid", map + " · your raid", a.Map, a.Since),
             "Raid" => ("Raid", map, a.Map, a.Since),
             "Transit" => ("Transit", "to " + MapLabel(a.Target), a.Target, a.Since),
-            _ when WaitingForGear(c, now) => ("Died", "Gearing up again", "", c.DiedUtc),
+            _ when WaitingForGear(c, now) => ("Died", now - c.DiedUtc >= RegearDelay(c) ? "Running scav raids for a kit" : "Gearing up again", "", c.DiedUtc),
             _ when Tilted(c) && a.Doing.Length == 0 => ("Menu", "Tilted", "", a.Since),
             _ when a.Doing == "AFK" => ("Afk", "", "", a.Since),
             _ => ("Menu", a.Doing.Length > 0 ? a.Doing : "Main menu", "", a.Since)

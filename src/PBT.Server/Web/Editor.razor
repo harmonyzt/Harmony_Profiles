@@ -1065,6 +1065,12 @@ else if (page == "Gear")
                 <span class="fb-label">Insurance return chance@(Tip("Share (0 to 1) of deaths where the player gets their gun and rig back from insurance. Some others rebuy the same loadout."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.InsuranceReturnChance"/>
             </label>
             <label class="fb-field">
+                <span class="fb-label">Regear, minimum minutes@(Tip("Shortest time a dead account stays in the menu before it rebuys a kit."))</span><input type="number" min="0" max="20" step="1" @bind="simulation.RegearMinimumMinutes"/>
+            </label>
+            <label class="fb-field">
+                <span class="fb-label">Regear, maximum minutes@(Tip("Longest time a dead account waits to rebuy, 20 at most. Broke accounts take up to 30 minutes more to bring a scav kit out."))</span><input type="number" min="0" max="20" step="1" @bind="simulation.RegearMaximumMinutes"/>
+            </label>
+            <label class="fb-field">
                 <span class="fb-label">Night kit chance@(Tip("Share (0 to 1) of generated profile loadouts built as night raid kits, which can carry NVGs."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.NightGearChance"/>
             </label>
         </div>

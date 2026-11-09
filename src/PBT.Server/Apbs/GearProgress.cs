@@ -230,6 +230,12 @@ public sealed partial class PopulationStore
             return fresh;
         }
 
+        if (Broke(c))
+        {
+            RecordGear(c, "rebuy", "Ran scav raids and kitted up from what they brought out", 0, now);
+            return fresh;
+        }
+
         double cost = -KitCost(c);
         var previous = CareerEquipment(c);
         string gun = ValidEquipment(previous) ? GearName(previous, "FirstPrimaryWeapon") : "";
