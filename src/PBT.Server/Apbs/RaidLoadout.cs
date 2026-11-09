@@ -44,15 +44,6 @@ public sealed partial class PopulationStore
         {
             store.Report(ex);
         }
-
-        try
-        {
-            store.StockSupplies(career, __result, botId);
-        }
-        catch (Exception ex)
-        {
-            store.Report(ex);
-        }
     }
 
     // Profile loadouts are only weapons and gear, so simulated ones get APBS loot added on top.
@@ -158,8 +149,6 @@ public sealed partial class PopulationStore
                 TrackContainer(botId, inventory, root, slot);
             }
 
-            AddSpareMagazines(botId, inventory, root);
-
             if (needsLoot)
             {
                 gearFactory.AddLoot(botId, session, template, details, inventory);
@@ -235,7 +224,6 @@ public sealed partial class PopulationStore
 
     private static readonly MongoId MagazineClass = new("5448bc234bdc2d3c308b4569");
     private static readonly MongoId CylinderClass = new("627a137bf21bc425b06ab944");
-    private const int SpareMagazines = 3;
 
     private TemplateItem? BoxMagazine(string? tpl) =>
         tpl is not null && IsId(tpl) && templates.Items.TryGetValue(new MongoId(tpl), out var t) && itemHelper.IsOfBaseclass(t.Id, MagazineClass)
@@ -322,56 +310,5 @@ public sealed partial class PopulationStore
         }
         
         return filter.Select(f => f.ToString()).FirstOrDefault(Fits);
-    }
-
-    private void AddSpareMagazines(MongoId botId, BotBaseInventory inventory, string root)
-    {
-        var items = inventory.Items!;
-        foreach (string slot in new[] { "FirstPrimaryWeapon", "SecondPrimaryWeapon", "Holster" })
-        {
-            var weapon = items.FirstOrDefault(i => i.ParentId == root && i.SlotId == slot);
-            var mag = weapon is null ? null : items.FirstOrDefault(i => i.ParentId == weapon.Id.ToString() && i.SlotId == "mod_magazine");
-
-            if (mag is null || BoxMagazine(mag.Template.ToString()) is null)
-            {
-                continue;
-            }
-            
-            // Tube and fixed magazines cannot be swapped, the restock already filled them.
-            if (!templates.Items.TryGetValue(weapon!.Template, out var gun) || gun.Properties?.ReloadMode != ReloadMode.ExternalMagazine)
-            {
-                break;
-            }
-            
-            var holders = items.Where(i => i.ParentId == root && i.SlotId is "TacticalVest" or "Pockets" or "Backpack").Select(i => i.Id.ToString()).ToHashSet();
-            int spares = items.Count(i => i.Template == mag.Template && i.ParentId is { } p && holders.Contains(p));
-            var rounds = items.Where(i => i.ParentId == mag.Id.ToString()).ToList();
-            
-            for (; spares < SpareMagazines; spares++)
-            {
-                var copy = cloner.Clone(mag)!;
-                copy.Id = new MongoId();
-                copy.ParentId = null;
-                copy.SlotId = null;
-                copy.Location = null;
-                var set = new List<Item>
-                {
-                    copy
-                };
-                foreach (var r in rounds)
-                {
-                    var round = cloner.Clone(r)!;
-                    round.Id = new MongoId();
-                    round.ParentId = copy.Id.ToString();
-                    set.Add(round);
-                }
-
-                if (botGeneratorHelper.AddItemWithChildrenToEquipmentSlot(botId, [EquipmentSlots.TacticalVest, EquipmentSlots.Pockets], copy.Id, copy.Template, set, inventory)
-                    != ItemAddedResult.SUCCESS) break;
-            }
-
-            // Spares for the main gun only.
-            break;
-        }
     }
 }

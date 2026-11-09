@@ -536,6 +536,7 @@ public sealed partial class PopulationStore
 
     private (string State, string Status, string Map, long Since) Describe(Career c, long now, HashSet<string> observed)
     {
+        if (c.BannedUtc > 0) return ("Banned", c.BanReason, "", c.BannedUtc);
         var a = activities.GetValueOrDefault(c.Id);
         if (a is null || c.Retired || a.State == "Offline")
             return now - c.DiedUtc < 1800 && c.NeedsRegear ? ("Died", "", "", c.DiedUtc) : ("Offline", "", "", a?.Since ?? 0);
@@ -583,7 +584,7 @@ public sealed partial class PopulationStore
             if (!Ready) throw new InvalidOperationException("PBT has not finished loading.");
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             var observed = ObservedActiveCareers(now);
-            return population.Careers.Values.Where(c => !c.Retired).Select(c => PlayerRow(c, now, observed)).ToList();
+            return population.Careers.Values.Where(c => !c.Retired || c.BannedUtc > 0).Select(c => PlayerRow(c, now, observed)).ToList();
         }
     }
 

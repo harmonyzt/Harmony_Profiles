@@ -78,7 +78,7 @@ public sealed class PbtRouter(JsonUtil json, PopulationStore store) : StaticRout
     }),
     new RouteAction("/pbt/raid/cheaters", (url, request, session, output, token) =>
     {
-        (bool Behaviour, List<int> Cheaters) raid = (false, []);
+        (bool Behaviour, List<int> Cheaters, CheaterPlaySettings Play) raid = (false, [], new CheaterPlaySettings());
         try
         {
             raid = store.RaidCheaters(session);
@@ -92,7 +92,26 @@ public sealed class PbtRouter(JsonUtil json, PopulationStore store) : StaticRout
         {
             ProtocolVersion = 1,
             raid.Behaviour,
-            raid.Cheaters
+            raid.Cheaters,
+            raid.Play
+        })!);
+    }),
+    new RouteAction<CheaterBanRequest>("/pbt/raid/banned", (url, request, session, output, token) =>
+    {
+        bool banned = false;
+        try
+        {
+            banned = store.BannedInRaid(request, session);
+        }
+        catch (Exception ex)
+        {
+            store.Report(ex);
+        }
+
+        return new ValueTask<string>(json.Serialize(new
+        {
+            ProtocolVersion = 1,
+            Banned = banned
         })!);
     }),
     new RouteAction<MatchingRequest>("/pbt/world/matching/poll", (url, request, session, output, token) =>

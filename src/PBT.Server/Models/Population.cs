@@ -22,6 +22,7 @@ public sealed class Population
     public Dictionary<string, Dictionary<string, Friendship>> Friendships { get; set; } = new();
 
     public Dictionary<string, CheaterReport> CheaterReports { get; set; } = new();
+    public long NextBanWaveUtc { get; set; }
 
     // Last death per player session, so a report can hand back what that raid cost.
     public Dictionary<string, RaidLoss> RaidLosses { get; set; } = new();
@@ -125,6 +126,14 @@ public sealed class Career
     public long TiltUntilUtc { get; set; }
     public int QuestsDone { get; set; }
     public long BannedUtc { get; set; }
+
+    // How the ban came about, shown on the profile.
+    public string BanReason { get; set; } = "";
+
+    // A banned cheater's next account, and the account it came back from.
+    public string ReturnedAs { get; set; } = "";
+    public string PreviousAccount { get; set; } = "";
+    public bool AccountBought { get; set; }
     public List<GearEvent> GearHistory { get; set; } = new();
 }
 

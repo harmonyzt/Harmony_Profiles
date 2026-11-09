@@ -125,7 +125,6 @@ public sealed class SimulationPolicy
 
     // In-raid spawns of a selected career wear the loadout its profile shows instead of a fresh APBS roll.
     public bool RetainProfileGearInRaid { get; set; } = true;
-    public bool RealisticSupplies { get; set; } = true;
     public bool EnablePostRaidStories { get; set; } = true;
     public double PostRaidDeathChance { get; set; } = .35;
 
@@ -391,8 +390,11 @@ public sealed class CheaterSettings
         "5bc9c1e2d4351e00367fbcf0" // Antique axe
     ];
 
-    // In-raid cheating (teleports, vacuuming loot, flying, voice spam). Needs BigBrain on the client.
+    // In-raid cheating. Needs BigBrain on the client.
     public bool Behaviour { get; set; } = true;
+
+    // What each cheater bot can do in raid. Every cheater rolls each feature on its own, so one can spinbot and speedhack at once.
+    public CheaterPlaySettings Play { get; set; } = new();
 
     // Debug: this many of the first PMCs in each of your raids are cheaters, whatever their level.
     public int DebugCheatersPerRaid { get; set; }
@@ -402,6 +404,14 @@ public sealed class CheaterSettings
     public double BanMaximumHours { get; set; } = 6;
     public bool ReturnLostGear { get; set; } = true;
     public int RewardRubles { get; set; } = 150000;
+
+    // Chance a banned cheater comes back on a new account, and that the account is a bought high level one instead of a fresh level 1.
+    public double ComebackChance { get; set; } = .75;
+    public double BoughtAccountChance { get; set; } = .35;
+
+    // Out of raid ban waves: every so many hours (0 is off) about this share of cheaters goes, blatant ones first.
+    public double BanWaveHours { get; set; } = 12;
+    public double BanWaveShare { get; set; } = .2;
 
     public void Validate()
     {
@@ -413,6 +423,109 @@ public sealed class CheaterSettings
             || !double.IsFinite(ClosetShare) || ClosetShare is < 0 or > 1 || !double.IsFinite(NakedShare) || NakedShare is < 0 or > 1 || !double.IsFinite(Sa58Chance)
             || Sa58Chance is < 0 or > 1 || Melee is null || Melee.Count > 100 || Melee.Any(m => m is null || m.Length != 24) || DebugCheatersPerRaid is < 0 or > 30)
             throw new InvalidDataException("Cheaters need a 0-0.2 share, 0-1 chances, 1-20 kill multiplier, 0-6 tier boost, 0-720 ban hours and 24-character helmet ids.");
+        if (!double.IsFinite(ComebackChance) || ComebackChance is < 0 or > 1 || !double.IsFinite(BoughtAccountChance) || BoughtAccountChance is < 0 or > 1
+            || !double.IsFinite(BanWaveHours) || BanWaveHours is < 0 or > 720 || !double.IsFinite(BanWaveShare) || BanWaveShare is < 0 or > 1)
+            throw new InvalidDataException("Comeback and ban wave chances must be 0 to 1 and ban waves 0 to 720 hours apart.");
+        if (Play is null) throw new InvalidDataException("Cheater play settings are missing.");
+        Play.Validate();
+    }
+}
+
+// What a cheater is after. Each cheater is one type; the type decides which cheats it can roll.
+public sealed class CheaterTypeShares
+{
+    // Aimbot or ESP, otherwise plays like anyone else. Hard to tell apart.
+    public double Closet { get; set; } = .4;
+
+    // In for money: vacuums the best loot and extracts, fights only when it has to.
+    public double Looter { get; set; } = .25;
+
+    // In for kills: ESP and aimbot, hunts players across the map.
+    public double Hunter { get; set; } = .2;
+
+    // Everything on, wipes the lobby.
+    public double Rage { get; set; } = .1;
+
+    // Stalks and annoys you, kills when it gets bored.
+    public double Troll { get; set; } = .05;
+
+    public CheaterTypeShares Clone() => (CheaterTypeShares)MemberwiseClone();
+
+    public void Validate()
+    {
+        double[] shares = [Closet, Looter, Hunter, Rage, Troll];
+        if (shares.Any(s => !double.IsFinite(s) || s is < 0 or > 1) || shares.Sum() <= 0)
+            throw new InvalidDataException("Cheater type shares must be 0 to 1 and not all 0.");
+    }
+}
+
+// Chances (0 to 1) that a cheater bot has each cheat its type allows.
+public sealed class CheaterPlaySettings
+{
+    public CheaterTypeShares Types { get; set; } = new();
+
+    // Every bullet goes to its target's head. Closet cheaters aim mostly at the body and miss now and then.
+    public double Aimbot { get; set; } = .6;
+
+    // Knows where everyone nearby is, through walls. Never shoots through them.
+    public double Esp { get; set; } = .5;
+
+    // Takes no damage. Bans still kill it.
+    public double Godmode { get; set; } = .1;
+
+    public double Speedhack { get; set; } = .35;
+    public double SpeedMultiplier { get; set; } = 2.2;
+
+    // Spins like a top while walking at its target.
+    public double Spinbot { get; set; } = .15;
+
+    // Bunny hops, and behind close cover jumps far higher than anyone can to shoot over it.
+    public double BunnyHop { get; set; } = .15;
+
+    // In a fight it now and then teleports right next to its target.
+    public double FightTeleport { get; set; } = .2;
+
+    // Hovers in the air over its target.
+    public double Fly { get; set; } = .05;
+
+    // Teleports to the map's best loot, takes it and extracts.
+    public double Vacuum { get; set; } = .3;
+
+    // Pops up in front of you and stares, then usually starts shooting.
+    public double Stalker { get; set; } = .1;
+
+    public double VoiceSpam { get; set; } = .4;
+
+    // Share of fights a cheater picks you over a bot nearby.
+    public double TargetsYou { get; set; } = .35;
+
+    // Chance a cheater that spots another cheater goes after it instead.
+    public double Rivalry { get; set; } = .5;
+
+    // In-raid anticheat: chance per minute an average cheater is banned on the spot.
+    public double BanPerMinute { get; set; } = .02;
+
+    // How much blatant play (teleports, flying, headshots) raises that. 0 bans everyone at the same rate.
+    public double BlatantBanBoost { get; set; } = 1;
+
+    // Tells you when a cheater in your raid gets banned.
+    public bool BanNotice { get; set; } = true;
+
+    public CheaterPlaySettings Clone()
+    {
+        var copy = (CheaterPlaySettings)MemberwiseClone();
+        copy.Types = Types.Clone();
+        return copy;
+    }
+
+    public void Validate()
+    {
+        if (Types is null) throw new InvalidDataException("Cheater types are missing.");
+        Types.Validate();
+        double[] chances = [Aimbot, Esp, Godmode, Speedhack, Spinbot, BunnyHop, FightTeleport, Fly, Vacuum, Stalker, VoiceSpam, TargetsYou, Rivalry, BanPerMinute];
+        if (chances.Any(c => !double.IsFinite(c) || c is < 0 or > 1) || !double.IsFinite(SpeedMultiplier) || SpeedMultiplier is < 1 or > 6
+            || !double.IsFinite(BlatantBanBoost) || BlatantBanBoost is < 0 or > 3)
+            throw new InvalidDataException("Cheater play chances must be 0 to 1, the speed multiplier 1 to 6 and the blatant ban boost 0 to 3.");
     }
 }
 

@@ -166,14 +166,14 @@ public sealed partial class PopulationStore
     }
 
     // Caller holds the gate. Account aliases of this raid's cheaters, so the client can run their in-raid behaviour.
-    public (bool Behaviour, List<int> Cheaters) RaidCheaters(MongoId session)
+    public (bool Behaviour, List<int> Cheaters, CheaterPlaySettings Play) RaidCheaters(MongoId session)
     {
         lock (gate)
         {
-            if (!Ready || !policy.Cheaters.Enabled) return (false, []);
+            if (!Ready || !policy.Cheaters.Enabled) return (false, [], new CheaterPlaySettings());
             var ids = encounters.Values.Where(e => CanAccess(e, session) && population.Careers.TryGetValue(e.CareerId, out var c) && RaidCheater(c))
                 .Select(e => e.AccountId).ToList();
-            return (policy.Cheaters.Behaviour, ids);
+            return (policy.Cheaters.Behaviour, ids, policy.Cheaters.Play.Clone());
         }
     }
 

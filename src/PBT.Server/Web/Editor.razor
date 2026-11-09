@@ -535,6 +535,14 @@ else if (page == "Player")
                             {
                                 <span class="fb-tag fb-tag-gold">Prestige @p.Prestige</span>
                             }
+                            @if (p.BannedUtc > 0)
+                            {
+                                <span class="fb-tag fb-tag-red">Banned</span>
+                            }
+                            else if (p.PreviousAccounts.Count > 0)
+                            {
+                                <span class="fb-tag fb-tag-red" title="Came back after a ban">Ban evader</span>
+                            }
                         </span>
                         <p class="fb-person-state">
                             <span class="fb-state fb-state-@p.State.ToLowerInvariant()">
@@ -578,6 +586,38 @@ else if (page == "Player")
                     <span class="fb-stat-label">Time in game</span><strong>@(p.InGameSeconds / 3600)h</strong><span class="fb-stat-foot">Registered @(p.RegisteredUtc > 0 ? DateTimeOffset.FromUnixTimeSeconds(p.RegisteredUtc).ToString("d MMM yyyy") : "unknown")</span>
                 </article>
             </div>
+            @if (p.BannedUtc > 0 || p.PreviousAccounts.Count > 0)
+            {
+                <section class="fb-card fb-ban-card">
+                    @if (p.BannedUtc > 0)
+                    {
+                        <h2>Banned for cheating</h2>
+                        <p>@(p.BanReason.Length > 0 ? p.BanReason : "Banned"), @Ago(p.BannedUtc). This account is gone for good.</p>
+                        @if (p.ReturnedAs is { } next)
+                        {
+                            <p>Back on a new account as <button type="button" class="fb-name-link" @onclick="() => OpenPlayer(next.Id)">@next.Name</button>.</p>
+                        }
+                    }
+                    else
+                    {
+                        <h2>Ban evader</h2>
+                        <p>@(p.AccountBought ? "Bought this account after a ban, so the levels and history are not theirs." : "Started this account from level 1 after a ban.")</p>
+                    }
+                    @if (p.PreviousAccounts.Count > 0)
+                    {
+                        <h3>Banned accounts before this one</h3>
+                        <ul class="fb-plain-list">
+                            @foreach (var old in p.PreviousAccounts)
+                            {
+                                <li>
+                                    <button type="button" class="fb-name-link" @onclick="() => OpenPlayer(old.Id)">@old.Name</button>
+                                    <span class="fb-muted">level @old.Level, @(old.Reason.Length > 0 ? old.Reason.ToLowerInvariant() : "banned") @Ago(old.BannedUtc)</span>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+            }
             <section class="fb-card">
                 <h2>Raid record</h2>
                 <table class="fb-table">
@@ -1202,12 +1242,158 @@ else if (page == "Cheaters")
     <section class="fb-card">
         <h2>In raid</h2>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.Cheaters.Behaviour"/><span class="fb-switch-track"></span>Cheat in raid@(Tip("Cheaters vacuum the map's best loot and extract, teleport in front of you and stare while invincible, shift behind you and fire full auto, or fly over everyone else and kill them. Some spam voice lines. Needs BigBrain on the client; SAIN is set aside for these bots."))</label>
+            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.Cheaters.Behaviour"/><span class="fb-switch-track"></span>Cheat in raid@(Tip("Each cheater is a type (closet, looter, hunter, rage or troll) and rolls the cheats its type allows. Patrol stays with whatever moves your bots (Questing Bots, Looting Bots, ORBIT or the game's own). Once a cheater is in a fight, or its ESP finds someone, it fights with its cheats: rage cheaters push straight in, hunters flank, closet cheaters take cover and hold an angle with their crosshair on you through the wall. Cheaters fight each other too. Nobody shoots through walls; without ESP a cheater only knows what it saw and searches your last position."))</label>
         </div>
-        @Warn("Needs BigBrain. Without it cheaters still wear their kit but play like normal bots.")
+        @Warn("Needs BigBrain on the client. Without it cheaters still wear their kit but play like normal bots.")
+        @if (simulation.Cheaters.Behaviour)
+        {
+            <p class="fb-muted">How much do you want to suffer? Pick a starting point, then tune each cheat.</p>
+            <div class="fb-actions">
+                <button type="button" class="fb-button fb-button-light" @onclick='() => CheaterPreset("mild")'>Mild</button>
+                <button type="button" class="fb-button fb-button-light" @onclick='() => CheaterPreset("normal")'>Normal</button>
+                <button type="button" class="fb-button fb-button-light" @onclick='() => CheaterPreset("brutal")'>Brutal</button>
+            </div>
+        }
+    </section>
+    @if (simulation.Cheaters.Behaviour)
+    {
+        var play = simulation.Cheaters.Play;
+        <section class="fb-card">
+            <h2>What cheaters are after</h2>
+            <p class="fb-muted">Each cheater is one type. Shares are relative, so they need not add up to 1. A type decides which cheats below it can roll at all.</p>
+            <div class="fb-grid">
+                <label class="fb-field">
+                    <span class="fb-label">Closet@(Tip("Aimbot or ESP, otherwise plays like anyone else on its normal AI. Aims mostly at the body and misses now and then, so it is hard to tell apart."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Types.Closet"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Looter@(Tip("In for money. Teleports to the map's best loot, takes it and extracts. Can have ESP, aimbot or speedhack, but avoids fights."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Types.Looter"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Hunter@(Tip("In for kills. Always ESP and aimbot, hunts players across the map. Can add speedhack, bunny hop, fight teleports and godmode."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Types.Hunter"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Rage@(Tip("Everything on. Always aimbot, and can roll any cheat: spinbot, flying, teleports, godmode, voice spam. Wipes the lobby."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Types.Rage"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Troll@(Tip("Stalks you and spams voice lines, starts shooting when it gets bored."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Types.Troll"/>
+                </label>
+            </div>
+        </section>
+        <section class="fb-card">
+            <h2>Combat</h2>
+            <div class="fb-grid">
+                <label class="fb-field">
+                    <span class="fb-label">Aimbot@(Tip("Chance (0 to 1) a cheater that may use it has aimbot: every bullet that has a clear line goes to its target. Closet cheaters aim mostly at the body and miss now and then."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Aimbot"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">ESP@(Tip("Chance (0 to 1) a cheater that may use it knows where everyone nearby is, through walls. It walks straight to you but still needs a clear line to shoot. Without ESP a cheater only knows what it saw and heard, and searches your last position like any bot."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Esp"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Godmode@(Tip("Chance (0 to 1) a cheater takes no damage at all. Only a ban kills it. 0 if you want every cheater killable."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Godmode"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Goes after you@(Tip("Share (0 to 1) of fights where a cheater picks you over a bot nearby. Lower it and cheaters mostly wreck other bots."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.TargetsYou"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Cheater rivalry@(Tip("Chance (0 to 1) a cheater that spots another cheater goes after it instead, and the other one fights back. Two rage cheaters meeting is a show."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Rivalry"/>
+                </label>
+            </div>
+        </section>
+        <section class="fb-card">
+            <h2>Movement</h2>
+            <div class="fb-grid">
+                <label class="fb-field">
+                    <span class="fb-label">Speedhack@(Tip("Chance (0 to 1) a cheater moves faster than anyone can run."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Speedhack"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Speedhack multiplier@(Tip("How much faster (1 to 6) a speedhacker moves."))</span><input type="number" min="1" max="6" step="0.1" @bind="play.SpeedMultiplier"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Spinbot@(Tip("Chance (0 to 1) a cheater spins like a top while it walks at its target."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Spinbot"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Bunny hop@(Tip("Chance (0 to 1) a cheater bunny hops, and behind close cover jumps far higher than anyone can to shoot over it."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.BunnyHop"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Teleports in fights@(Tip("Chance (0 to 1) a cheater now and then teleports right next to its target mid-fight."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.FightTeleport"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Flying@(Tip("Chance (0 to 1) a cheater hovers in the air over its target."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Fly"/>
+                </label>
+            </div>
+        </section>
+        <section class="fb-card">
+            <h2>Map and griefing</h2>
+            <div class="fb-grid">
+                <label class="fb-field">
+                    <span class="fb-label">Loot vacuum@(Tip("Chance (0 to 1) a cheater teleports to the map's best loot, takes it and extracts before fighting anyone."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Vacuum"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Stalker@(Tip("Chance (0 to 1) a cheater keeps popping up in front of you and stares, before it usually starts shooting."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Stalker"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Voice spam@(Tip("Chance (0 to 1) a cheater spams Scav ahead or Hold fire nonstop. Only heard within 80 m."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.VoiceSpam"/>
+                </label>
+            </div>
+        </section>
+        <section class="fb-card">
+            <h2>In-raid anticheat</h2>
+            <p class="fb-muted">Every cheater builds up suspicion as it plays: each teleport, flight, impossible jump, spin and headshot counts. The more it has, the sooner it drops dead mid-raid, banned on the spot.</p>
+            <div class="fb-switch-row">
+                <label class="fb-switch"><input type="checkbox" role="switch" @bind="play.BanNotice"/><span class="fb-switch-track"></span>Tell me about bans@(Tip("Shows a notification when a cheater in your raid gets banned."))</label>
+            </div>
+            <div class="fb-grid">
+                <label class="fb-field">
+                    <span class="fb-label">Ban chance per minute@(Tip("Chance (0 to 1) each minute that an average cheater is banned mid-raid. 0.02 bans about a third of them in a 20-minute raid. 0 turns in-raid bans off."))</span><input type="number" min="0" max="1" step="0.01" @bind="play.BanPerMinute"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Blatant play raises it@(Tip("How much suspicion counts (0 to 3). At 1 a rage cheater that flies and teleports is gone within minutes, while a closet cheater can last several raids. 0 bans everyone at the same rate."))</span><input type="number" min="0" max="3" step="0.1" @bind="play.BlatantBanBoost"/>
+                </label>
+            </div>
+        </section>
+    }
+    <section class="fb-card">
+        <h2>Bans and new accounts</h2>
+        <p class="fb-muted">A banned cheater is gone for good, but the person behind it often is not. They come back on a new account: a fresh level 1, or a bought account that already has the levels. Banned profiles stay viewable in All players under Banned.</p>
         <div class="fb-grid">
             <label class="fb-field">
-                <span class="fb-label">Debug: cheaters per raid@(Tip("This many of the first PMCs in each of your raids are cheaters, whatever their level. Pair with the client's Force behaviour and Log cheater behaviour settings (BepInEx config, PBT section) to watch them in the console. 0 is off."))</span><input type="number" min="0" max="30" @bind="simulation.Cheaters.DebugCheatersPerRaid"/>
+                <span class="fb-label">Ban wave every, hours@(Tip("Out of raid, the anticheat bans a batch of cheaters every this many hours, give or take 30%. 0 turns ban waves off; reports and in-raid bans still work."))</span><input type="number" min="0" max="720" step="1" @bind="simulation.Cheaters.BanWaveHours"/>
+            </label>
+            <label class="fb-field">
+                <span class="fb-label">Ban wave share@(Tip("Share (0 to 1) of cheaters a wave takes. Blatant accounts are three times as likely to go as closet ones."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.BanWaveShare"/>
+            </label>
+            <label class="fb-field">
+                <span class="fb-label">Comes back@(Tip("Chance (0 to 1) a banned cheater makes a new account. The name is usually a twist on the old one."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.ComebackChance"/>
+            </label>
+            <label class="fb-field">
+                <span class="fb-label">Buys an account@(Tip("Chance (0 to 1) the new account is a bought one, level 25 to 55 with a history, instead of a fresh level 1."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.BoughtAccountChance"/>
+            </label>
+        </div>
+        @{ var bans = Store.RecentBans(8); }
+        @if (bans.Count > 0)
+        {
+            <h3>Recent bans</h3>
+            <ul class="fb-plain-list">
+                @foreach (var ban in bans)
+                {
+                    <li>
+                        <span class="fb-muted">@Ago(ban.BannedUtc)</span>
+                        <button type="button" class="fb-name-link" @onclick="() => OpenPlayer(ban.Id)">@ban.Name</button>
+                        <span class="fb-muted">@ban.Reason</span>
+                        @if (ban.ReturnedAs is { } next)
+                        {
+                            <span>, back as <button type="button" class="fb-name-link" @onclick="() => OpenPlayer(next.Id)">@next.Name</button></span>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+    <section class="fb-card">
+        <h2>Debug</h2>
+        <div class="fb-grid">
+            <label class="fb-field">
+                <span class="fb-label">Cheaters per raid@(Tip("This many of the first PMCs generated for each of your raids are cheaters, whatever their level. A career only borrowed for this keeps its own kit and is back to normal after the raid. Pair with the client's Cheaters (debug) settings in the BepInEx config. 0 is off."))</span><input type="number" min="0" max="30" @bind="simulation.Cheaters.DebugCheatersPerRaid"/>
             </label>
         </div>
     </section>
@@ -1594,7 +1780,7 @@ else
 @code {
     private static readonly string[] topPages = ["Overview", "Dashboard", "Players", "Watching", "Personalities", "Simulation", "Population", "Presets"];
     private static readonly string[] simulationPages = ["Progression", "Hideout", "Gear", "Notable", "Cheaters", "Prestige", "Stories", "Messages", "World"];
-    private static readonly (string Value, string Label)[] statusFilters = [("", "Everyone"), ("Online", "Online"), ("Raid", "In raid"), ("Queue", "Queueing"), ("Menu", "Main menu"), ("Afk", "AFK"), ("Transit", "In transit"), ("Died", "Died"), ("Offline", "Offline"), ("Squad", "In a squad"), ("Favorites", "Watched")];
+    private static readonly (string Value, string Label)[] statusFilters = [("", "Everyone"), ("Online", "Online"), ("Raid", "In raid"), ("Queue", "Queueing"), ("Menu", "Main menu"), ("Afk", "AFK"), ("Transit", "In transit"), ("Died", "Died"), ("Offline", "Offline"), ("Squad", "In a squad"), ("Favorites", "Watched"), ("Banned", "Banned")];
     private static readonly string[] sortOptions = ["Status", "Name", "Level", "Prestige", "Raids", "K/D"];
     private const int PageSize = 50;
     private EditorSnapshot? snapshot;
@@ -1770,6 +1956,24 @@ else
                      <path d="M15.5 6.5A6.5 6.5 0 1 0 16.4 12h-2.1a4.5 4.5 0 1 1-1-4.3L11 10h6V4Z"/>
                  </svg>
         };
+
+    // Starting points for how rough cheaters are. Normal is the shipped default.
+    private void CheaterPreset(string level) => simulation.Cheaters.Play = level switch
+    {
+        "mild" => new CheaterPlaySettings
+        {
+            Types = new CheaterTypeShares { Closet = .55, Looter = .3, Hunter = .1, Rage = .02, Troll = .03 },
+            Esp = .4, Aimbot = .3, Godmode = 0, Speedhack = .2, SpeedMultiplier = 1.6, Spinbot = .05, BunnyHop = .1, FightTeleport = .05, Fly = 0, Vacuum = .45, Stalker = .05,
+            VoiceSpam = .3, TargetsYou = .2, BanPerMinute = .05
+        },
+        "brutal" => new CheaterPlaySettings
+        {
+            Types = new CheaterTypeShares { Closet = .15, Looter = .1, Hunter = .3, Rage = .35, Troll = .1 },
+            Esp = .8, Aimbot = .95, Godmode = .4, Speedhack = .6, SpeedMultiplier = 3, Spinbot = .35, BunnyHop = .35, FightTeleport = .5, Fly = .15, Vacuum = .15, Stalker = .2,
+            VoiceSpam = .6, TargetsYou = .7, BanPerMinute = .005
+        },
+        _ => new CheaterPlaySettings()
+    };
 
     private static RenderFragment Warn(string text) =>
         @<p class="fb-warn" role="note"><span class="fb-warn-icon" aria-hidden="true">!</span><span>@text</span></p>;
@@ -2008,7 +2212,7 @@ else
 
     private IEnumerable<WorldPlayerRow> FilteredPlayers()
     {
-        IEnumerable<WorldPlayerRow> rows = players;
+        IEnumerable<WorldPlayerRow> rows = playerFilter == "Banned" ? players : players.Where(p => p.State != "Banned");
         if (!string.IsNullOrWhiteSpace(playerSearch)) rows = rows.Where(p => p.Name.Contains(playerSearch.Trim(), StringComparison.OrdinalIgnoreCase));
         if (playerFilter == "Online") rows = rows.Where(p => p.State is not ("Offline" or "Died"));
         else if (playerFilter == "Squad") rows = rows.Where(p => p.Squad.Length > 0);
@@ -2038,6 +2242,7 @@ else
             "Menu" => "Online",
             "Afk" => "AFK",
             "Died" => "Dead",
+            "Banned" => "Banned",
             _ => "Offline"
         };
 
@@ -2050,6 +2255,7 @@ else
             "Menu" => 3,
             "Afk" => 4,
             "Died" => 5,
+            "Banned" => 7,
             _ => 6
         };
 

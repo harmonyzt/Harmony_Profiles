@@ -93,6 +93,11 @@ public sealed record EditorCareerRow(string Name, string Side, string Personalit
 
 public sealed record PlayerLink(string Id, string Name);
 
+// One banned account in a cheater's history.
+public sealed record BanRecord(string Id, string Name, long BannedUtc, string Reason, int Level);
+
+public sealed record BanRow(string Id, string Name, string Side, long BannedUtc, string Reason, PlayerLink? ReturnedAs);
+
 public sealed record PlayerProfile(
     string Id,
     string Name,
@@ -131,5 +136,10 @@ public sealed record PlayerProfile(
     List<string> RecentQuests,
     List<string> ActiveQuests,
     string Schedule,
-    string Mood
+    string Mood,
+    long BannedUtc,
+    string BanReason,
+    PlayerLink? ReturnedAs,
+    bool AccountBought,
+    List<BanRecord> PreviousAccounts
 );

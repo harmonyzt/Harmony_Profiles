@@ -20,7 +20,7 @@ public sealed partial class PopulationStore
     {
         lock (gate)
         {
-            if (!Ready || !population.Careers.TryGetValue(id, out var c) || c.Retired) return null;
+            if (!Ready || !population.Careers.TryGetValue(id, out var c) || c.Retired && c.BannedUtc == 0) return null;
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             var (state, status, _, since) = Describe(c, now, ObservedActiveCareers(now));
 
@@ -43,7 +43,29 @@ public sealed partial class PopulationStore
                 Shown("ExitStatus/Left/Pmc", c.AwolRaids), Shown("ExitStatus/Runner/Pmc", c.RunThroughRaids), pmcKills, Shown("KilledSavage", c.ScavKills + c.Observed.ScavKills),
                 Math.Round((double)pmcKills / Math.Max(1, killed), 2), raids > 0 ? (double)survived / raids : 0, c.CurrentSurvivalStreak, c.BestSurvivalStreak,
                 c.Achievements.Count, c.AreaLevels.Values.Sum(), c.WealthRubles, kit, squad, events, c.GearHistory.ToList(), c.QuestsDone, QuestsInReach(c), recentQuests,
-                activeQuests, ScheduleOf(c).Name, Mood(c));
+                activeQuests, ScheduleOf(c).Name, Mood(c), c.BannedUtc, c.BanReason,
+                population.Careers.TryGetValue(c.ReturnedAs, out var next) ? new PlayerLink(next.Id, next.Name) : null, c.AccountBought, BanHistory(c));
+        }
+    }
+
+    // Every account this cheater was banned on before, newest first.
+    private List<BanRecord> BanHistory(Career c)
+    {
+        var history = new List<BanRecord>();
+        var seen = new HashSet<string> { c.Id };
+        for (string id = c.PreviousAccount; id.Length > 0 && seen.Add(id) && population.Careers.TryGetValue(id, out var old); id = old.PreviousAccount)
+            history.Add(new BanRecord(old.Id, old.Name, old.BannedUtc, old.BanReason, Level(old.Experience)));
+        return history;
+    }
+
+    public List<BanRow> RecentBans(int count)
+    {
+        lock (gate)
+        {
+            if (!Ready) return [];
+            return population.Careers.Values.Where(c => c.BannedUtc > 0).OrderByDescending(c => c.BannedUtc).Take(count)
+                .Select(c => new BanRow(c.Id, c.Name, c.Side, c.BannedUtc, c.BanReason,
+                    population.Careers.TryGetValue(c.ReturnedAs, out var next) ? new PlayerLink(next.Id, next.Name) : null)).ToList();
         }
     }
 }

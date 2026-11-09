@@ -1742,6 +1742,10 @@
     --fb-state: #e3a008
 }
 
+.pbt-editor .fb-state-banned {
+    --fb-state: var(--fb-red)
+}
+
 .pbt-editor .fb-state-afk,
 .pbt-editor .fb-state-offline {
     --fb-state: var(--fb-muted)
@@ -2154,6 +2158,15 @@
 .pbt-editor .fb-tag-gold {
     background: var(--fb-yellow-soft);
     color: var(--fb-yellow-text)
+}
+
+.pbt-editor .fb-tag-red {
+    background: var(--fb-red-soft);
+    color: var(--fb-red-text)
+}
+
+.pbt-editor .fb-ban-card {
+    border-left: 3px solid var(--fb-red)
 }
 
 .pbt-editor .fb-profile-hero .fb-person-state {

@@ -47,7 +47,6 @@ public sealed partial class PopulationStore(
     LocationTable locations,
     ICloner cloner,
     SPTarkov.Server.Core.Services.Commerce.MailSendService mail,
-    SPTarkov.Server.Core.Helpers.Bot.BotGeneratorHelper botGeneratorHelper,
     ISptLogger<PopulationStore> logger
 ) : IOnLoad, IDisposable
 {
@@ -291,6 +290,8 @@ public sealed partial class PopulationStore(
         {
             if (!bots.Types.TryGetValue(side.ToLowerInvariant(), out var type) || type is null)
                 throw new InvalidDataException($"Missing {side} name pool");
+            foreach (var evader in population.Careers.Values.Where(c => c.PreviousAccount.Length > 0 && c.BannedUtc == 0 && c.Side.Equals(side, StringComparison.OrdinalIgnoreCase)))
+                if (!type.FirstNames.Contains(evader.SourceName)) type.FirstNames.Add(evader.SourceName);
             return (Side: side, Type: type, Names: type.FirstNames.Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
         }).ToArray();
         
@@ -320,11 +321,11 @@ public sealed partial class PopulationStore(
         RetireNameVariants(pools.Where(p => p.Type.FirstNames is not null).Select(p => (p.Side, p.Type.FirstNames!)));
     }
 
-    private Career NewCareer(string side, string name, BotType type)
+    private Career NewCareer(string side, string name, BotType type, int? startLevel = null)
     {
         var personality = PickPersonality();
         string archetype = personality.Id;
-        int level = Random.Shared.Next(personality.MinimumLevel, personality.MaximumLevel + 1);
+        int level = startLevel ?? Random.Shared.Next(personality.MinimumLevel, personality.MaximumLevel + 1);
         int floor = profileHelper.GetExperience(level) ?? 0;
         int ceiling = profileHelper.GetExperience(level + 1) ?? floor;
         long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -358,7 +359,7 @@ public sealed partial class PopulationStore(
         EnsureAccountIdentity(c);
         c.LifeVersion = 2;
         c.FeatureVersion = 1;
-        AddPrestigeBackstory(c);
+        if (startLevel is null) AddPrestigeBackstory(c);
         AddRaids(c, RaidsToReach(c, c.Experience) * (.85 + Random.Shared.NextDouble() * .35) * RaidDuration(c, false));
         // A backstory death is long over.
         c.NeedsRegear = false;
