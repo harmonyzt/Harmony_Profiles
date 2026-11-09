@@ -1353,6 +1353,9 @@ else if (page == "World")
         <div class="fb-switch-row">
             <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.World.ConnectionLossEvents"/><span class="fb-switch-track"></span>Connection lost events@(Tip("Off by default. On a bad server, a fight can end in Server connection lost. Closing the message, or waiting out its timer, ends the raid as missing in action. At most once per raid, not on Fika."))</label>
         </div>
+        <div class="fb-switch-row">
+            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.World.RubberBanding"/><span class="fb-switch-track"></span>Rubber banding@(Tip("Off by default. Right after the countdown and when a bad server drops packets, you now and then snap back to where you were a moment ago. Heavy loss can hold you in place for a few seconds. When the connection is lost you freeze where the server last saw you. Not on Fika."))</label>
+        </div>
     </section>
     @SimulationSave
 }

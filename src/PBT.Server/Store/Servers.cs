@@ -4,7 +4,7 @@ namespace PBT.Server;
 
 public sealed record WorldServerStatus(string Name, string Region, int Players, int Capacity, double Load, string Status, int Ping);
 
-public sealed record MatchedServer(string Name, string Region, int Ping, int Jitter, double Loss, bool Bad, bool Simulate, bool LossEvents);
+public sealed record MatchedServer(string Name, string Region, int Ping, int Jitter, double Loss, bool Bad, bool Simulate, bool LossEvents, bool RubberBand);
 
 // The game servers careers play on. Made once per Data folder, so every install gets its own good and flaky ones.
 public sealed partial class PopulationStore
@@ -131,12 +131,12 @@ public sealed partial class PopulationStore
         return counts;
     }
 
-    // Sized off the account count, so a normal evening runs them around three quarters full.
+    // Sized off the account count and kept tight, so busy hours fill some servers and matching moves you to another.
     private int Capacity(GameServer s)
     {
         int accounts = population.Careers.Values.Count(c => !c.Retired);
         double share = RegionShare.GetValueOrDefault(s.Region) * s.Weight / Servers().Where(o => o.Region == s.Region).Sum(o => o.Weight);
-        return Math.Max(40, (int)Math.Ceiling(accounts * share * .7 / 10) * 10);
+        return Math.Max(20, (int)Math.Ceiling(accounts * share * .3 / 10) * 10);
     }
 
     private static double Load(int players, int capacity) => capacity <= 0 ? 0 : Math.Round((double)players / capacity, 3);
@@ -192,7 +192,8 @@ public sealed partial class PopulationStore
         var options = Servers().Select(s =>
         {
             double load = Load(counts.GetValueOrDefault(s.Name), Capacity(s));
-            double weight = (s.Region == home ? 1 : .05) * Math.Max(.05, 1.05 - load) * s.Weight;
+            // A full server takes almost nobody new.
+            double weight = (s.Region == home ? 1 : .05) * (load >= 1 ? .01 : Math.Max(.05, 1.05 - load)) * s.Weight;
             return (Server: s, Load: load, Weight: weight);
         }).ToList();
         double roll = Random.Shared.NextDouble() * options.Sum(o => o.Weight);
@@ -212,6 +213,10 @@ public sealed partial class PopulationStore
         int ping = BasePing(server) + (unstable ? Random.Shared.Next(50, 121) : 0) + (full ? Random.Shared.Next(15, 41) : 0);
         int jitter = unstable ? Random.Shared.Next(25, 61) : far || full ? Random.Shared.Next(12, 26) : Random.Shared.Next(4, 12);
         double loss = unstable ? .35 + Random.Shared.NextDouble() * .3 : full ? .15 : far ? .08 : 0;
-        return new(server.Name, server.Region, ping, jitter, Math.Round(loss, 2), unstable || full || far, policy.World.SimulateConnection, policy.World.ConnectionLossEvents);
+        var preferred = options.Where(o => o.Server.Region == home).MaxBy(o => o.Server.Weight).Server;
+        if (preferred != server && options.First(o => o.Server == preferred).Load >= .95)
+            logger.Info($"[PBT] {preferred.Name} is full, matched into {server.Name} instead.");
+        return new(server.Name, server.Region, ping, jitter, Math.Round(loss, 2), unstable || full || far, policy.World.SimulateConnection, policy.World.ConnectionLossEvents,
+            policy.World.RubberBanding);
     }
 }

@@ -233,6 +233,9 @@ public sealed class WorldSettings
     public bool SimulateConnection { get; set; } = true;
     public bool ConnectionLossEvents { get; set; }
 
+    // Packet loss and the start-of-raid hitch now and then snap you back to where you just were.
+    public bool RubberBanding { get; set; }
+
     public void Validate()
     {
         if (!double.IsFinite(TransitChance) || TransitChance is < 0 or > 1 || !double.IsFinite(LogOffChance) || LogOffChance is < 0 or > 1 || !double.IsFinite(WeeklyBossBoost)

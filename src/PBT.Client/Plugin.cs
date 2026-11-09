@@ -324,6 +324,19 @@ public sealed class Plugin : BaseUnityPlugin
         }
     }
 
+    // After the game's own movement and camera, so a frozen or snapped-back player stays put this frame.
+    private void LateUpdate()
+    {
+        try
+        {
+            Connection.Frame();
+        }
+        catch (Exception ex)
+        {
+            Report("Connection movement failed: " + ex.Message);
+        }
+    }
+
     private void OnDestroy()
     {
         RaidActivity.End();
