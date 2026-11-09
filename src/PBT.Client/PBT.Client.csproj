@@ -21,6 +21,7 @@
     <Reference Include="UnityEngine.UI"><HintPath>$(GameRoot)/EscapeFromTarkov_Data/Managed/UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.UIModule"><HintPath>$(GameRoot)/EscapeFromTarkov_Data/Managed/UnityEngine.UIModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Unity.TextMeshPro"><HintPath>$(GameRoot)/EscapeFromTarkov_Data/Managed/Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(GameRoot)/EscapeFromTarkov_Data/Managed/UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.AIModule"><HintPath>$(GameRoot)/EscapeFromTarkov_Data/Managed/UnityEngine.AIModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="DrakiaXYZ-BigBrain"><HintPath>$(GameRoot)/BepInEx/plugins/DrakiaXYZ-BigBrain.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Sirenix.Serialization"><HintPath>$(GameRoot)/EscapeFromTarkov_Data/Managed/Sirenix.Serialization.dll</HintPath><Private>false</Private></Reference>

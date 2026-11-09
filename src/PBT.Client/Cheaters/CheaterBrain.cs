@@ -32,7 +32,10 @@ internal sealed class CheaterLayer(BotOwner botOwner, int priority) : CustomLaye
 internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
 {
     private CheaterMode mode;
-    private float next, modeSince, triggerUntil, triggerNext;
+    private float next, modeSince, triggerUntil, triggerNext, spin, nextPath, nextJump, nextSight, nextPrey;
+    private bool sees, holding;
+    private Player? seen;
+    private Vector3 destination;
     private int looted, capacity;
     private bool firing, leaving;
     private Player? target;
@@ -45,9 +48,14 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
     {
         BotOwner.Mover?.Stop();
         Switch(CheaterRoster.ModeOf(Bot));
+        if (CheaterRoster.Speeds(Bot)) CheaterRoster.Log($"{Bot.Profile.Nickname} is speedhacking.");
     }
 
-    public override void Stop() => Trigger(false);
+    public override void Stop()
+    {
+        Trigger(false);
+        CheaterRoster.Aim(Bot, null);
+    }
 
     public override void BuildDebugText(StringBuilder text) => text.AppendLine($"PBT cheater: {mode}, looted {looted}/{capacity}");
 
@@ -59,6 +67,7 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         target = null;
         capacity = UnityEngine.Random.Range(8, 21);
         Trigger(false);
+        CheaterRoster.Aim(Bot, null);
         CheaterRoster.SetMode(Bot, to);
         CheaterRoster.Log($"{Bot.Profile.Nickname} now {to}.");
     }
@@ -79,6 +88,12 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
                 break;
             case CheaterMode.Hitman:
                 Clear();
+                break;
+            case CheaterMode.Spinbot:
+                Spin();
+                break;
+            case CheaterMode.Jumpshot:
+                JumpShot();
                 break;
         }
     }
@@ -146,28 +161,37 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         if (Near(me.Position + forward.normalized * UnityEngine.Random.Range(2.5f, 5f)) is { } spot) Bot.Teleport(spot);
     }
 
-    // Shifts behind you from anywhere on the map and fires full auto at your head.
+    // Shifts behind its target from anywhere on the map and fires full auto at its head. Half of them want you.
     private void Hunt()
     {
-        if (Me is not { } me || me.HealthController?.IsAlive != true)
+        if (target is null || target.HealthController?.IsAlive != true)
         {
-            Switch(CheaterMode.Vacuum);
-            return;
+            Trigger(false);
+            target = Me is { } me && me.HealthController?.IsAlive == true && UnityEngine.Random.value < .5f ? me : Nearest(Bot);
+            next = 0;
+            if (target is null)
+            {
+                Switch(CheaterMode.Vacuum);
+                return;
+            }
+
+            CheaterRoster.Log($"{Bot.Profile.Nickname} hunts {target.Profile.Nickname}.");
         }
 
-        if (Time.time >= next || (Bot.Position - me.Position).sqrMagnitude > 30 * 30)
+        if (Time.time >= next || (Bot.Position - target.Position).sqrMagnitude > 30 * 30)
         {
             next = Time.time + 6;
-            var back = -me.LookDirection;
+            var back = -target.LookDirection;
             back.y = 0;
-            if (Near(me.Position + back.normalized * UnityEngine.Random.Range(6f, 12f)) is { } spot)
+            if (Near(target.Position + back.normalized * UnityEngine.Random.Range(6f, 12f)) is { } spot)
             {
                 Bot.Teleport(spot);
-                CheaterRoster.Log($"{Bot.Profile.Nickname} teleported behind you.");
+                CheaterRoster.Log($"{Bot.Profile.Nickname} teleported behind {target.Profile.Nickname}.");
             }
         }
 
-        LookAt(me);
+        LookAt(target);
+        CheaterRoster.Aim(Bot, target);
         Burst();
     }
 
@@ -177,19 +201,7 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         if (target is null || target.HealthController?.IsAlive != true)
         {
             Trigger(false);
-            target = null;
-            float best = float.MaxValue;
-            var me = Me;
-            foreach (var p in World.AllAlivePlayersList)
-            {
-                if (p is null || p == Bot || p == me || !p.IsAI || CheaterRoster.IsCheater(p) || me is not null && p.GroupId == me.GroupId && !string.IsNullOrEmpty(me.GroupId)) continue;
-                float d = (p.Position - Bot.Position).sqrMagnitude;
-                if (d < best)
-                {
-                    best = d;
-                    target = p;
-                }
-            }
+            target = Nearest(Me, false);
 
             if (target is null)
             {
@@ -204,7 +216,124 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         side.y = 0;
         Bot.Teleport(target.Position - side.normalized * 6f + Vector3.up * 4f);
         LookAt(target);
+        CheaterRoster.Aim(Bot, target);
         Burst();
+    }
+
+    // Walks at you spinning like a top and never misses once it sees you.
+    private void Spin()
+    {
+        if (Prey() is not { } prey)
+        {
+            Switch(CheaterMode.Vacuum);
+            return;
+        }
+
+        bool sees = Sees(prey);
+        // Never sprints: the game drops a sprint whenever the body turns away, which made it stop and start.
+        Chase(prey, false);
+        spin = (spin + 1800f * Time.deltaTime) % 360f;
+        BotOwner.Steering?.LookToPoint(Bot.Position + Vector3.up * 1.5f + Quaternion.Euler(0, spin, 0) * Vector3.forward * 5f, 3600f);
+        Fire(prey, sees);
+    }
+
+    // Bunny hops at you. Behind cover it jumps far higher than anyone can and shoots over the wall.
+    private void JumpShot()
+    {
+        if (Prey() is not { } prey)
+        {
+            Switch(CheaterMode.Vacuum);
+            return;
+        }
+
+        bool sees = Sees(prey);
+        float distance = Vector3.Distance(prey.Position, Bot.Position);
+        // Stops once it has a shot up close and only moves again when the shot is gone or the target got away.
+        if (holding && (!sees || distance > 35)) holding = false;
+        else if (!holding && sees && distance < 20)
+        {
+            holding = true;
+            BotOwner.Mover?.Stop();
+        }
+
+        if (!holding) Chase(prey, false);
+        LookAt(prey);
+        if (Time.time >= nextJump && distance < 90)
+        {
+            nextJump = Time.time + UnityEngine.Random.Range(1.1f, 2f);
+            Bot.MovementContext?.TryJump();
+            if (!sees)
+            {
+                Bot.Teleport(Bot.Position + Vector3.up * UnityEngine.Random.Range(2f, 3f));
+                CheaterRoster.Log($"{Bot.Profile.Nickname} jumped over cover at {prey.Profile.Nickname}.");
+            }
+        }
+
+        Fire(prey, sees);
+    }
+
+    // Whoever is nearest, you or a bot, kept for a few seconds so it does not flick between targets.
+    private Player? Prey()
+    {
+        if (target is not null && target.HealthController?.IsAlive == true && Time.time < nextPrey) return target;
+        nextPrey = Time.time + 4;
+        var found = Nearest(Bot);
+        if (found != target && found is not null) CheaterRoster.Log($"{Bot.Profile.Nickname} goes after {found.Profile.Nickname}.");
+        return target = found;
+    }
+
+    private Player? Nearest(Player? exceptGroupOf, bool withYou = true)
+    {
+        Player? found = null;
+        float best = float.MaxValue;
+        foreach (var p in World.AllAlivePlayersList)
+        {
+            if (p is null || p == Bot || !p.IsAI && (!withYou || p != Me) || CheaterRoster.IsCheater(p)
+                || exceptGroupOf is not null && !string.IsNullOrEmpty(exceptGroupOf.GroupId) && p.GroupId == exceptGroupOf.GroupId) continue;
+            float d = (p.Position - Bot.Position).sqrMagnitude;
+            if (d < best)
+            {
+                best = d;
+                found = p;
+            }
+        }
+
+        return found;
+    }
+
+    // Repaths only when the target moved, since every new path makes the bot slow down and start again.
+    private void Chase(Player prey, bool sprint)
+    {
+        BotOwner.SetPose(1f);
+        BotOwner.SetTargetMoveSpeed(1f);
+        if (Time.time < nextPath && (prey.Position - destination).sqrMagnitude < 4 * 4) return;
+        nextPath = Time.time + 5f;
+        destination = prey.Position;
+        BotOwner.GoToPoint(destination, false);
+        BotOwner.Mover?.Sprint(sprint);
+    }
+
+    private void Fire(Player prey, bool sees)
+    {
+        if (sees && (prey.Position - Bot.Position).sqrMagnitude < 150 * 150)
+        {
+            CheaterRoster.Aim(Bot, prey);
+            Burst();
+        }
+        else
+        {
+            CheaterRoster.Aim(Bot, null);
+            Trigger(false);
+        }
+    }
+
+    // Checked a few times a second; a linecast every frame flickers on foliage.
+    private bool Sees(Player p)
+    {
+        if (p == seen && Time.time < nextSight) return sees;
+        seen = p;
+        nextSight = Time.time + .25f;
+        return sees = !Physics.Linecast(Bot.PlayerBones.Head.position, p.PlayerBones.Head.position, LayersMaskController.HighPolyWithTerrainMask);
     }
 
     private void LookAt(Player p) => BotOwner.Steering?.LookToPoint(p.Position + Vector3.up * 1.55f, 3600f);
