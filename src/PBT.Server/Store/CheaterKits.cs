@@ -25,6 +25,11 @@ public sealed partial class PopulationStore
 
     private static readonly string[] RaidBackpacks = ["5df8a4d786f77412672a1e3b", "59e763f286f7742ee57895da", "67458730df3c1da90b0b052b"];
 
+    // Careers the debug setting made cheaters for this raid only. Never saved, cleared when the raid ends.
+    private readonly HashSet<string> debugCheaters = new();
+
+    private bool RaidCheater(Career c) => IsCheater(c) || policy.Cheaters.Enabled && debugCheaters.Contains(c.Id);
+
     // Closet cheaters keep ordinary stats, so only their kit and in-raid play give them away.
     private bool Blatant(Career c) => IsCheater(c) && Stable(c.Id + ":closet") >= policy.Cheaters.ClosetShare;
 
@@ -33,10 +38,17 @@ public sealed partial class PopulationStore
         var heads = policy.Cheaters.Helmets.Select(h => h.Tpl).ToHashSet();
         bool head = SlotTemplate(kit, "Headwear") is { } hw && heads.Contains(hw) || SlotTemplate(kit, "FaceCover") is { } fc && heads.Contains(fc);
         bool naked = SlotTemplate(kit, "ArmorVest") is null && SlotTemplate(kit, "TacticalVest") is null && RaidBackpacks.Contains(SlotTemplate(kit, "Backpack"));
-        return head || naked;
+        bool odd = SlotTemplate(kit, "Scabbard") is { } melee && policy.Cheaters.Melee.Contains(melee) || SlotTemplate(kit, "FirstPrimaryWeapon") == Sa58;
+        return head || naked || odd;
     }
 
+    // Takes the gate itself: APBS workers build kits off it.
     private JsonObject CheaterKit(Career c, JsonObject equipment)
+    {
+        lock (gate) return BuildCheaterKit(c, equipment);
+    }
+
+    private JsonObject BuildCheaterKit(Career c, JsonObject equipment)
     {
         var s = policy.Cheaters;
         var kit = equipment.DeepClone().AsObject();
@@ -159,7 +171,7 @@ public sealed partial class PopulationStore
         lock (gate)
         {
             if (!Ready || !policy.Cheaters.Enabled) return (false, []);
-            var ids = encounters.Values.Where(e => CanAccess(e, session) && population.Careers.TryGetValue(e.CareerId, out var c) && IsCheater(c))
+            var ids = encounters.Values.Where(e => CanAccess(e, session) && population.Careers.TryGetValue(e.CareerId, out var c) && RaidCheater(c))
                 .Select(e => e.AccountId).ToList();
             return (policy.Cheaters.Behaviour, ids);
         }
@@ -169,15 +181,16 @@ public sealed partial class PopulationStore
     private Career? DebugCheater(string session, string side, HashSet<string> used)
     {
         int wanted = policy.Cheaters.DebugCheatersPerRaid;
-        if (!policy.Cheaters.Enabled || wanted <= 0 || used.Count(id => population.Careers.TryGetValue(id, out var u) && IsCheater(u)) >= wanted) return null;
+        if (!policy.Cheaters.Enabled || wanted <= 0 || used.Count(id => population.Careers.TryGetValue(id, out var u) && RaidCheater(u)) >= wanted) return null;
         var pool = population.Careers.Values.Where(c => !c.Retired && c.Side.Equals(side, StringComparison.OrdinalIgnoreCase) && !used.Contains(c.Id)).ToList();
         var pick = pool.Where(IsCheater).OrderBy(_ => Random.Shared.Next()).FirstOrDefault();
         if (pick is null)
         {
             pick = pool.Where(c => !Notable(c) && c.BannedUtc == 0).OrderBy(_ => Random.Shared.Next()).FirstOrDefault();
             if (pick is null) return null;
-            MakeCheater(pick);
-            dirty = true;
+            debugCheaters.Add(pick.Id);
+            logger.Info($"[PBT] Debug: {pick.Name} cheats in this raid only, in their own kit.");
+            return pick;
         }
 
         logger.Info($"[PBT] Debug: {pick.Name} spawns as a cheater in this raid.");

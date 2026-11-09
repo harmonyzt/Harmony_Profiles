@@ -85,11 +85,13 @@ internal static class RaidActivity
         }
     }
 
+    // PBT careers use account ids in this range, so other bots never match.
+    internal static bool IsPbtAccount(int account) => account is >= 1500000000 and < 2000000000;
+
     private static void Register(IPlayer __0)
     {
         if (!observing || __0 is not Player player || !player.IsAI || bots.Count >= 512 || player.Profile.Side is not (EPlayerSide.Bear or EPlayerSide.Usec)
-            || bots.ContainsKey(player.ProfileId) || player.HealthController?.IsAlive != true || !int.TryParse(player.Profile.AccountId, out int account) || account < 1500000000
-            || account >= 2000000000) return;
+            || bots.ContainsKey(player.ProfileId) || player.HealthController?.IsAlive != true || !int.TryParse(player.Profile.AccountId, out int account) || !IsPbtAccount(account)) return;
         bots.Add(player.ProfileId, new Observation
         {
             AccountId = account,

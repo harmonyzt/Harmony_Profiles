@@ -11,6 +11,7 @@ public sealed partial class PopulationStore
         lock (gate)
         {
             reservedCareers.Remove(session.ToString());
+            debugCheaters.Clear();
             ClearLobby(session.ToString());
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             population.SessionEndedUtc[session.ToString()] = now;

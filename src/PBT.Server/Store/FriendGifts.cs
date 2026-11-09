@@ -120,7 +120,7 @@ public sealed partial class PopulationStore
     {
         try
         {
-            var equipment = GenerateIsolatedEquipment(career, session);
+            var equipment = GenerateIsolatedEquipment(career, session, cheaterLook: false);
             var items = GiftItems(equipment);
             if (items.Count == 0) return;
             string text;

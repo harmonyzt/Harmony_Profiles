@@ -213,9 +213,9 @@ public sealed partial class PopulationStore
         int ping = BasePing(server) + (unstable ? Random.Shared.Next(50, 121) : 0) + (full ? Random.Shared.Next(15, 41) : 0);
         int jitter = unstable ? Random.Shared.Next(25, 61) : far || full ? Random.Shared.Next(12, 26) : Random.Shared.Next(4, 12);
         double loss = unstable ? .35 + Random.Shared.NextDouble() * .3 : full ? .15 : far ? .08 : 0;
-        var preferred = options.Where(o => o.Server.Region == home).MaxBy(o => o.Server.Weight).Server;
-        if (preferred != server && options.First(o => o.Server == preferred).Load >= .95)
-            logger.Info($"[PBT] {preferred.Name} is full, matched into {server.Name} instead.");
+        var homes = options.Where(o => o.Server.Region == home).ToList();
+        if (homes.Count > 0 && homes.MaxBy(o => o.Server.Weight) is var preferred && preferred.Server != server && preferred.Load >= .95)
+            logger.Info($"[PBT] {preferred.Server.Name} is full, matched into {server.Name} instead.");
         return new(server.Name, server.Region, ping, jitter, Math.Round(loss, 2), unstable || full || far, policy.World.SimulateConnection, policy.World.ConnectionLossEvents,
             policy.World.RubberBanding);
     }

@@ -262,7 +262,8 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         {
             nextJump = Time.time + UnityEngine.Random.Range(1.1f, 2f);
             Bot.MovementContext?.TryJump();
-            if (!sees)
+            // The super jump is for cover right in front of it, and only with headroom, so it never pops into a ceiling.
+            if (!sees && distance < 25 && !Physics.Raycast(Bot.Position + Vector3.up * 1.8f, Vector3.up, 1.6f, LayersMaskController.HighPolyWithTerrainMask))
             {
                 Bot.Teleport(Bot.Position + Vector3.up * UnityEngine.Random.Range(2f, 3f));
                 CheaterRoster.Log($"{Bot.Profile.Nickname} jumped over cover at {prey.Profile.Nickname}.");

@@ -33,7 +33,7 @@ public sealed partial class PopulationStore
         bool neglected = Stable(c.Id + ":neglect") < h.NeglectedShare;
         double done = h.CompleteFromLevel + Stable(c.Id + ":hideout-done") * (h.CompleteByLevel - h.CompleteFromLevel) + (neglected ? 15 : 0);
         double start = Math.Max(1, done - 15);
-        return Math.Clamp((Level(c.Experience) - start) / (done - start), 0, 1);
+        return done <= start ? 1 : Math.Clamp((Level(c.Experience) - start) / (done - start), 0, 1);
     }
 
     private int DesiredHideoutLevel(Career c, int type, double hours, int maximum)

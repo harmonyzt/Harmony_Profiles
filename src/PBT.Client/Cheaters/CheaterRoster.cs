@@ -158,7 +158,7 @@ internal static class CheaterRoster
         {
             if (player is not { IsAI: true }) continue;
             // Generated bots spawn in random order, so the server's debug cheaters may never show up. This picks from those that do.
-            if (picked < spawnedCheaters!.Value && player.Side is EPlayerSide.Usec or EPlayerSide.Bear && Account(player) >= 1500000000 && accounts.Add(Account(player)))
+            if (picked < spawnedCheaters!.Value && player.Side is EPlayerSide.Usec or EPlayerSide.Bear && RaidActivity.IsPbtAccount(Account(player)) && accounts.Add(Account(player)))
             {
                 picked++;
                 Log($"Debug: {player.Profile.Nickname} turned cheater on spawn.");
@@ -192,6 +192,13 @@ internal static class CheaterRoster
     {
         int account = Account(player);
         if (Hash(account, 2) >= .5f || nextLine.TryGetValue(account, out float next) && now < next || player.Speaker is null) return;
+        // Only within earshot, so far-off spammers do not tie up the voice pool.
+        if (Singleton<GameWorld>.Instance.MainPlayer is not { } me || (me.Position - player.Position).sqrMagnitude > 80 * 80)
+        {
+            nextLine[account] = now + 1;
+            return;
+        }
+
         var phrase = Hash(account, 4) < .5f ? EPhraseTrigger.Scav : EPhraseTrigger.HoldFire;
         player.Speaker.Play(phrase, player.HealthStatus | ETagStatus.Combat, true, 1000);
         nextLine[account] = now + UnityEngine.Random.Range(.06f, .14f);

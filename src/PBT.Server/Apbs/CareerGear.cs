@@ -54,11 +54,13 @@ public sealed partial class PopulationStore
     // Too poor to rebuy anything: the account runs scav raids and kits up from what it brings out.
     private bool Broke(Career c) => c.WealthRubles < KitCost(c) * .15;
 
-    // Only the delay, not the kit: the world dies faster than APBS can regear it. A broke account also waits for its scav kit, at most 30 minutes more.
-    private bool WaitingForGear(Career c, long now) =>
-        c.NeedsRegear && (now - c.DiedUtc < RegearDelay(c) || Broke(c) && now - c.DiedUtc < RegearDelay(c) + 1800);
+    // A broke account also runs scav raids for its kit, up to 30 minutes more.
+    private long GearDelay(Career c) => RegearDelay(c) + (Broke(c) ? (long)(Stable(c.Id + ":scav:" + c.DiedUtc) * 1800) : 0);
 
-    private bool WantsGear(Career c, long now) => !c.Retired && (c.GearVersion == 0 && c.LastEquipmentAccount == 0 || c.NeedsRegear && now - c.DiedUtc >= RegearDelay(c));
+    // Only the delay, not the kit: the world dies faster than APBS can regear it.
+    private bool WaitingForGear(Career c, long now) => c.NeedsRegear && now - c.DiedUtc < GearDelay(c);
+
+    private bool WantsGear(Career c, long now) => !c.Retired && (c.GearVersion == 0 && c.LastEquipmentAccount == 0 || c.NeedsRegear && now - c.DiedUtc >= GearDelay(c));
 
     // The APBS worker lags the death rate, so an account heading into a raid rebuys its last kit on the spot instead of going in without one.
     private void RebuyBeforeRaid(Career c, long now)
@@ -215,7 +217,7 @@ public sealed partial class PopulationStore
         }
     }
 
-    private JsonObject GenerateIsolatedEquipment(Career career, MongoId session, int extraTiers = 0)
+    private JsonObject GenerateIsolatedEquipment(Career career, MongoId session, int extraTiers = 0, bool cheaterLook = true)
     {
         if (gearFactory is null || !bots.Types.TryGetValue(career.Side.ToLowerInvariant(), out var source))
         {
@@ -235,7 +237,7 @@ public sealed partial class PopulationStore
             throw new InvalidDataException("APBS returned an invalid equipment tree.");
         }
 
-        if (extraTiers == 0 && IsCheater(career) && policy.Cheaters.CheaterGear)
+        if (cheaterLook && extraTiers == 0 && IsCheater(career) && policy.Cheaters.CheaterGear)
         {
             equipment = CheaterKit(career, equipment);
         }
