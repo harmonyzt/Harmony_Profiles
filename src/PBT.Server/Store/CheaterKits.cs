@@ -28,6 +28,14 @@ public sealed partial class PopulationStore
     // Closet cheaters keep ordinary stats, so only their kit and in-raid play give them away.
     private bool Blatant(Career c) => IsCheater(c) && Stable(c.Id + ":closet") >= policy.Cheaters.ClosetShare;
 
+    private bool LooksLikeCheater(JsonObject kit)
+    {
+        var heads = policy.Cheaters.Helmets.Select(h => h.Tpl).ToHashSet();
+        bool head = SlotTemplate(kit, "Headwear") is { } hw && heads.Contains(hw) || SlotTemplate(kit, "FaceCover") is { } fc && heads.Contains(fc);
+        bool naked = SlotTemplate(kit, "ArmorVest") is null && SlotTemplate(kit, "TacticalVest") is null && RaidBackpacks.Contains(SlotTemplate(kit, "Backpack"));
+        return head || naked;
+    }
+
     private JsonObject CheaterKit(Career c, JsonObject equipment)
     {
         var s = policy.Cheaters;

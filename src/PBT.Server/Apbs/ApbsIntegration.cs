@@ -412,8 +412,9 @@ public sealed partial class PopulationStore
             used.Add(selected.Career.Id);
             QueueSquadmates(session, selected.Career, used);
             ApbsMatched++;
-            logger.Info($"[PBT] PMC {used.Count} on {map} is {selected.Career.Name} (level {selected.Level}), "
-                        + (policy.RetainProfileGearInRaid ? "gear from the PBT profile." : "gear rolled by APBS."));
+            bool profileKit = policy.RetainProfileGearInRaid && !selected.Career.NeedsRegear && selected.Career.VisibleLoadout;
+            logger.Info($"[PBT] PMC {used.Count} on {(map.Length > 0 ? map : "this raid")} is {selected.Career.Name} (level {selected.Level}), "
+                        + (profileKit ? "gear from the PBT profile." : policy.RetainProfileGearInRaid ? "no profile kit yet, APBS gear." : "gear rolled by APBS."));
             
             return true;
         }
