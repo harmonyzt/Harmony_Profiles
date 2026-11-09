@@ -140,9 +140,12 @@ public sealed class SimulationPolicy
     public BotMessageSettings BotMessages { get; set; } = new();
     public WorldSettings World { get; set; } = new();
     public CheaterSettings Cheaters { get; set; } = new();
+    public FriendGiftSettings FriendGifts { get; set; } = new();
 
     public void Validate()
     {
+        if (FriendGifts is null) throw new InvalidDataException("Friend gift policy is missing.");
+        FriendGifts.Validate();
         if (Cheaters is null) throw new InvalidDataException("Cheater policy is missing.");
         Cheaters.Validate();
         if (World is null) throw new InvalidDataException("World policy is missing.");
@@ -396,6 +399,28 @@ public sealed class CheaterSettings
             || BanMaximumHours < BanMinimumHours || BanMaximumHours > 720 || RewardRubles is < 0 or > 50_000_000 || Helmets is null || Helmets.Count > 100
             || Helmets.Any(h => h is null || h.Tpl is null || h.Tpl.Length != 24 || h.Weight is < 0 or > 1000))
             throw new InvalidDataException("Cheaters need a 0-0.2 share, 0-1 chances, 1-20 kill multiplier, 0-6 tier boost, 0-720 ban hours and 24-character helmet ids.");
+    }
+}
+
+// Friends mail a spare kit to a player who is low level and broke, or keeps dying. Never to a prestiged player.
+public sealed class FriendGiftSettings
+{
+    public bool Enabled { get; set; } = true;
+
+    // Rolled after each raid that qualifies.
+    public double Chance { get; set; } = .2;
+    public int MaximumLevel { get; set; } = 35;
+    public int MaximumRubles { get; set; } = 1_000_000;
+
+    // Deaths in a row that qualify on their own, whatever the level and money.
+    public int DeathStreak { get; set; } = 5;
+    public double CooldownHours { get; set; } = 12;
+
+    public void Validate()
+    {
+        if (!double.IsFinite(Chance) || Chance is < 0 or > 1 || MaximumLevel is < 1 or > 80 || MaximumRubles is < 0 or > 1_000_000_000 || DeathStreak is < 1 or > 100
+            || !double.IsFinite(CooldownHours) || CooldownHours is < 0 or > 720)
+            throw new InvalidDataException("Friend gifts need a 0-1 chance, level 1-80, 0-1e9 roubles, a 1-100 death streak and a 0-720 hour cooldown.");
     }
 }
 

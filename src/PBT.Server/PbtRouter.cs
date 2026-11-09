@@ -138,6 +138,7 @@ public sealed class PbtRouter(JsonUtil json, PopulationStore store) : StaticRout
     {
         store.ResetReservations(session);
         store.RecordRaidLoss(request, session);
+        store.RecordRaidOutcome(request, session);
         return new ValueTask<string>(output ?? "");
     }),
     new RouteAction<CheatReportRequest>("/client/report/send", (url, request, session, output, token) =>

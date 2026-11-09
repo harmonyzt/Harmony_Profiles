@@ -25,6 +25,10 @@ public sealed class Population
 
     // Last death per player session, so a report can hand back what that raid cost.
     public Dictionary<string, RaidLoss> RaidLosses { get; set; } = new();
+
+    // Per player session: raids died in a row, and when a friend last sent a kit.
+    public Dictionary<string, int> PlayerDeathStreaks { get; set; } = new();
+    public Dictionary<string, long> LastFriendGiftUtc { get; set; } = new();
 }
 
 public sealed class CheaterReport

@@ -827,6 +827,7 @@ public sealed partial class PopulationStore(
                 Simulate(now);
                 ProcessProfileEquipment(now);
                 SendDueMessages(now);
+                SendDueGifts(now);
                 ProcessCheaters(now);
                 assets = SnapshotChangedAssets();
                 if (dirty || worldDirty && now - populationSavedUtc >= WorldSaveSeconds)
