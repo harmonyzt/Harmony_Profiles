@@ -439,8 +439,14 @@ public sealed class HideoutProgressionSettings
     // Share of accounts that barely touch the hideout, whatever their level.
     public double NeglectedShare { get; set; } = .1;
 
+    // Every account has a fully built hideout somewhere in this level range. Neglecters finish 15 levels later.
+    public int CompleteFromLevel { get; set; } = 45;
+    public int CompleteByLevel { get; set; } = 60;
+
     public void Validate()
     {
+        if (CompleteFromLevel is < 1 or > 79 || CompleteByLevel < CompleteFromLevel || CompleteByLevel > 79)
+            throw new InvalidDataException("Hideout completion levels must be 1-79, the start at most the end.");
         if (!double.IsFinite(ConstructionSpeed) || ConstructionSpeed is < .25 or > 4 || !double.IsFinite(MaterialCostMultiplier) || MaterialCostMultiplier is < .25 or > 4
             || !double.IsFinite(BuiltChanceMultiplier) || BuiltChanceMultiplier is < .25 or > 4 || !double.IsFinite(NeglectedShare) || NeglectedShare is < 0 or > .5)
             throw new InvalidDataException("Hideout speed/cost/built chance must be 0.25-4 and neglected share 0-0.5.");

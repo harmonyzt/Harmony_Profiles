@@ -1032,6 +1032,12 @@ else if (page == "Hideout")
             <label class="fb-field">
                 <span class="fb-label">Hideout neglecters@(Tip("Share of accounts that mostly ignore the hideout: few modules, none past level 1, whatever their level."))</span><input type="number" min="0" max="0.5" step="0.01" @bind="simulation.Hideout.NeglectedShare"/>
             </label>
+            <label class="fb-field">
+                <span class="fb-label">Fully built from level@(Tip("Each account finishes its whole hideout at a level between these two. Neglecters finish 15 levels later."))</span><input type="number" min="1" max="79" step="1" @bind="simulation.Hideout.CompleteFromLevel"/>
+            </label>
+            <label class="fb-field">
+                <span class="fb-label">Fully built by level@(Tip("The latest level an account (not a neglecter) still has unbuilt modules."))</span><input type="number" min="1" max="79" step="1" @bind="simulation.Hideout.CompleteByLevel"/>
+            </label>
         </div>
         <p class="fb-hint">Speed and cost default to 1, built chance to 2. Edition starting privileges remain. Seasonal events and emergency-wall history are not fabricated.</p>
     </section>

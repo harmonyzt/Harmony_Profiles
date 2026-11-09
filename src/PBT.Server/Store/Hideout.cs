@@ -26,18 +26,32 @@ public sealed partial class PopulationStore
         return JsonSerializer.Deserialize<List<HideoutCohort>>(stream) ?? throw new InvalidDataException("Hideout calibration is empty.");
     });
 
+    // 0 until the career nears its completion level, 1 once its hideout should be fully built.
+    private double HideoutCompletion(Career c)
+    {
+        var h = policy.Hideout;
+        bool neglected = Stable(c.Id + ":neglect") < h.NeglectedShare;
+        double done = h.CompleteFromLevel + Stable(c.Id + ":hideout-done") * (h.CompleteByLevel - h.CompleteFromLevel) + (neglected ? 15 : 0);
+        double start = Math.Max(1, done - 15);
+        return Math.Clamp((Level(c.Experience) - start) / (done - start), 0, 1);
+    }
+
     private int DesiredHideoutLevel(Career c, int type, double hours, int maximum)
     {
         if (type == 3) return maximum;
+        double completion = HideoutCompletion(c);
+        if (completion >= 1) return maximum;
         var cohort = HideoutCohorts.Value.First(b => Level(c.Experience) <= b.MaximumLevel);
         if (!cohort.Modules.TryGetValue(type, out var prior)) return maximum;
         double focus = c.Archetype == "Timmy" ? .8 : c.Archetype == "Survivor" ? 1.1 : 1;
         double readiness = Math.Clamp(hours / 12, 0, 1);
         bool neglected = Stable(c.Id + ":neglect") < policy.Hideout.NeglectedShare;
         double chance = Math.Clamp(prior.BuiltChance * focus * readiness * policy.Hideout.BuiltChanceMultiplier * (neglected ? .4 : 1), 0, 1);
-        if (prior.BuiltChance <= 0 || Stable(c.Id + ":build:" + type) >= chance) return 0;
-        if (neglected) return 1;
-        double target = Math.Clamp(prior.MeanLevel / prior.BuiltChance * (.8 + Stable(c.Id + ":stage:" + type) * .4), 1, maximum);
+        chance += (1 - chance) * completion;
+        if (Stable(c.Id + ":build:" + type) >= chance) return 0;
+        double target = prior.BuiltChance <= 0 ? 1 : Math.Clamp(prior.MeanLevel / prior.BuiltChance * (.8 + Stable(c.Id + ":stage:" + type) * .4), 1, maximum);
+        if (neglected) target = 1;
+        target += (maximum - target) * completion;
         int whole = (int)target;
         return Math.Clamp(whole + (Stable(c.Id + ":round:" + type) < target - whole ? 1 : 0), 1, maximum);
     }

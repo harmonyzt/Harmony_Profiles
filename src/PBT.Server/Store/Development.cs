@@ -176,6 +176,7 @@ public sealed partial class PopulationStore
     {
         var allAreas = HideoutAreas();
         var levels = new Dictionary<int, int>(c.AreaLevels);
+        double completion = HideoutCompletion(c);
         foreach (var area in allAreas) levels.TryAdd((int)area.Type!.Value, 0);
         bool upgraded;
         do
@@ -190,11 +191,12 @@ public sealed partial class PopulationStore
                 int maximum = area.Stages.Keys.Select(k => int.TryParse(k, out int n) ? n : 0).Max();
                 if (type is 21 or 22 || next > DesiredHideoutLevel(c, type, hours, maximum)) continue;
                 double firstStageHours = type is 0 or 1 or 2 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 15 ? 2 : 10;
-                double threshold = firstStageHours * next * next / (focus * policy.Hideout.ConstructionSpeed);
+                // Build time stops being the limit as the career reaches its completion level.
+                double threshold = firstStageHours * next * next / (focus * policy.Hideout.ConstructionSpeed) * (1 - .9 * completion);
                 if (hours < threshold || !AreaRequirements(area.Requirements, levels)) continue;
                 double cost = StageCost(c, stage, levels) * policy.Hideout.MaterialCostMultiplier;
                 // Players keep money for a few kits instead of spending their last ruble on the hideout.
-                if (!double.IsFinite(cost) || cost > c.WealthRubles - KitCost(c) * 3) continue;
+                if (!double.IsFinite(cost) || cost > c.WealthRubles - KitCost(c) * (completion >= 1 ? 1 : 3)) continue;
                 c.WealthRubles -= cost;
                 c.HideoutInvestment += cost;
                 levels[type] = next;
