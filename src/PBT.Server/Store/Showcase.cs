@@ -251,13 +251,17 @@ public sealed partial class PopulationStore
         equipment["Items"]!.AsArray().OfType<JsonObject>().Where(i => i["parentId"]?.ToString() == equipment["Id"]!.ToString()
                                                                       && i["slotId"]?.ToString() is "FirstPrimaryWeapon" or "SecondPrimaryWeapon" or "Holster");
 
+    // The rack is for primaries only. Pistols and revolvers fit its filters but look wrong there.
+    private bool IsHandgun(string tpl) => ShowcaseBasedOn(tpl, "5447b5cf4bdc2d65278b4567") || ShowcaseBasedOn(tpl, "617f1ef5e8b54b0998387733");
+
     // Rack guns come from a separately generated loadout, never one the PMC is carrying right now.
     private void PinGeneratedWeapons(Career c, JsonObject equipment)
     {
         if (AreaLevel(c, 24) <= 0) return;
         var carried = EquippedWeapons(CareerEquipment(c)).Select(i => i["_tpl"]!.ToString()).ToHashSet();
         var items = equipment["Items"]!.AsArray();
-        foreach (var weapon in EquippedWeapons(equipment).Where(i => !carried.Contains(i["_tpl"]!.ToString())))
+        foreach (var weapon in EquippedWeapons(equipment).Where(i => i["slotId"]?.ToString() != "Holster" && !carried.Contains(i["_tpl"]!.ToString())
+                                                                     && !IsHandgun(i["_tpl"]!.ToString())))
             PinShowcase(c, items, weapon["_id"]!.ToString(), 24);
     }
 
@@ -354,7 +358,7 @@ public sealed partial class PopulationStore
             {
                 tree = ItemTree(assets.ShowcaseItems, root);
                 if (!ValidShowcaseTree(tree) || tree.OfType<JsonObject>().Any(i => ids.Contains(i["_id"]!.ToString()))
-                                             || (area == 24 && carried.Contains(tree[0]!["_tpl"]!.ToString()))) continue;
+                                             || (area == 24 && (carried.Contains(tree[0]!["_tpl"]!.ToString()) || IsHandgun(tree[0]!["_tpl"]!.ToString())))) continue;
             }
             catch
             {
@@ -381,7 +385,7 @@ public sealed partial class PopulationStore
         dirty = true;
         assets.Changed();
         if (c.ShowcaseAreas.Count > roots.Count)
-            logger.Debug($"[PBT] Removed {c.ShowcaseAreas.Count - roots.Count} invalid, dogtag or carried-gun showcase trees for account {c.AccountId}; career retained.");
+            logger.Debug($"[PBT] Removed {c.ShowcaseAreas.Count - roots.Count} invalid, dogtag, handgun or carried-gun showcase trees for account {c.AccountId}; career retained.");
         assets.ShowcaseItems = retained;
         c.ShowcaseAreas = roots;
     }
