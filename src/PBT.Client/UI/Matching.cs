@@ -17,6 +17,7 @@ internal static class Matching
     private static bool passing;
     private static bool matched;
     private static bool onlineWording;
+    private static int lobbySize;
 
     internal static void Install(Harmony harmony)
     {
@@ -37,7 +38,7 @@ internal static class Matching
         }
         else
         {
-            harmony.Patch(bots, prefix: new HarmonyMethod(typeof(Matching), nameof(AwaitingPlayers)));
+            harmony.Patch(bots, postfix: new HarmonyMethod(typeof(Matching), nameof(AwaitingPlayers)));
         }
     }
 
@@ -144,10 +145,42 @@ internal static class Matching
             }.ToString(Newtonsoft.Json.Formatting.None)));
             bool known = response.Value<int>("ProtocolVersion") == 1;
             int seconds = known ? response.Value<int>("Seconds") : 0;
+            bool wait = known && response.Value<bool?>("Wait") == true;
             matched = known;
-            onlineWording = seconds > 0;
+            onlineWording = seconds > 0 || wait;
+            lobbySize = known ? response.Value<int>("Matched") : 0;
             Connection.Matched(known ? response["Server"] : null);
-            if (seconds > 0)
+            if (wait)
+            {
+                int target = response.Value<int>("Target");
+                Plugin.Trace($"Matching on {map}: waiting for {target} players near your level.");
+                Status(app, "Matching...");
+                int looking = 0;
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                // The server gives up on its own after its longest wait. This only guards against a server that stopped answering.
+                while (clock.Elapsed.TotalSeconds < 1900)
+                {
+                    await Task.Delay(2000);
+                    var poll = JObject.Parse(await RequestHandler.PostJsonAsync("/pbt/world/matching/poll", new JObject
+                    {
+                        ["Map"] = map
+                    }.ToString(Newtonsoft.Json.Formatting.None)));
+                    if (poll.Value<int>("ProtocolVersion") != 1) break;
+                    lobbySize = poll.Value<int>("Found");
+                    if (!poll.Value<bool>("Done")) continue;
+                    looking = poll.Value<int>("Looking") * 1000;
+                    break;
+                }
+
+                Plugin.Trace($"Matched on {map} after {(int)clock.Elapsed.TotalSeconds}s with {lobbySize} of {target} players.");
+                Status(app, "Looking for server...");
+                await Task.Delay(Math.Max(1000, looking));
+                Status(app, "Preparing the game...");
+                await Task.Delay(new Random().Next(200, 1001));
+                Status(app, "Awaiting server response...");
+                await Task.Delay(100);
+            }
+            else if (seconds > 0)
             {
                 var random = new Random();
                 int looking = response.Value<int?>("Looking") is int served and > 0 ? served * 1000 : random.Next(5000, 15001);
@@ -208,9 +241,59 @@ internal static class Matching
     }
 
     // Live shows this between loot and the countdown, which is where offline spawns its bots.
-    private static void AwaitingPlayers(LocalGame __instance)
+    private static void AwaitingPlayers(LocalGame __instance, ref Task __result)
     {
-        if (onlineWording) __instance.SetMatchmakerStatus("Awaiting players...");
+        if (onlineWording && __result is not null) __result = TrackPlayers(__instance, __result);
+    }
+
+    // Counts the server's players in as their PMCs spawn, then hands over to the countdown with a status of its own.
+    private static async Task TrackPlayers(LocalGame game, Task spawning)
+    {
+        int total = Math.Max(1, lobbySize) + 1, shown = -1;
+
+        void Show(int percent)
+        {
+            percent = Math.Min(100, percent);
+            if (percent <= shown) return;
+            shown = percent;
+            game.SetMatchmakerStatus($"Awaiting players... ({percent}%)", percent / 100f);
+        }
+
+        Show(100 / total);
+        while (!spawning.IsCompleted)
+        {
+            try
+            {
+                Show(100 * (1 + LoadedPmcs(game)) / total);
+            }
+            catch
+            {
+            }
+
+            await Task.WhenAny(spawning, Task.Delay(250));
+        }
+
+        await spawning;
+        // Live servers finish loading their last players over a second or two.
+        var random = new Random();
+        while (shown < 100)
+        {
+            Show(shown + random.Next(8, 26));
+            await Task.Delay(random.Next(120, 351));
+        }
+
+        game.SetMatchmakerStatus("Starting the game...");
+    }
+
+    private static int LoadedPmcs(LocalGame game)
+    {
+        int count = 0;
+        var players = game.GameWorld?.RegisteredPlayers;
+        if (players is null) return 0;
+        foreach (var player in players)
+            if (player is Player { IsAI: true } p && p.Profile?.Side is EPlayerSide.Bear or EPlayerSide.Usec)
+                count++;
+        return count;
     }
 
     // Fika clients mirror the host's matching stages while they wait.

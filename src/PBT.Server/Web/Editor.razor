@@ -1312,9 +1312,24 @@ else if (page == "World")
         <div class="fb-switch-row">
             <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.World.SimulateMatching"/><span class="fb-switch-track"></span>Simulate matching@(Tip("Wait for a match based on the map's simulated queue before the raid starts."))</label>
         </div>
+        <div class="fb-switch-row">
+            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.World.WaitForPlayers"/><span class="fb-switch-track"></span>Wait for real players@(Tip("Matching lasts until enough careers within 20 levels of you have queued for the map, so busy maps match fast and quiet ones slowly. Queue time settings no longer apply."))</label>
+        </div>
         <div class="fb-grid fb-grid-3">
+            @if (simulation.World.WaitForPlayers)
+            {
+                <label class="fb-field">
+                    <span class="fb-label">Longest wait, seconds@(Tip("If the server is still not full after this long, players from the menu fill the rest."))</span><input type="number" min="10" max="1800" @bind="simulation.World.MaximumWaitSeconds"/>
+                </label>
+            }
+            else
+            {
+                <label class="fb-field">
+                    <span class="fb-label">Longest matching, seconds@(Tip("Cap on the Matching stage. Looking for server still adds 5-15 seconds."))</span><input type="number" min="0" max="600" @bind="simulation.World.MaximumMatchingSeconds"/>
+                </label>
+            }
             <label class="fb-field">
-                <span class="fb-label">Longest matching, seconds@(Tip("Cap on the Matching stage. Looking for server still adds 5-15 seconds."))</span><input type="number" min="0" max="600" @bind="simulation.World.MaximumMatchingSeconds"/>
+                <span class="fb-label">Shortest matching, seconds@(Tip("Matching never ends sooner than this, even on a full queue. Overrides the longest matching time if higher."))</span><input type="number" min="0" max="600" @bind="simulation.World.MinimumMatchingSeconds"/>
             </label>
         </div>
     </section>

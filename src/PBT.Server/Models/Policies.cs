@@ -219,6 +219,15 @@ public sealed class WorldSettings
 
     public int MaximumMatchingSeconds { get; set; } = 45;
 
+    // Matching waits until enough careers near your level have queued for the map, instead of a timer.
+    public bool WaitForPlayers { get; set; }
+
+    // Matching never finishes sooner than this, in either mode.
+    public int MinimumMatchingSeconds { get; set; }
+
+    // A real wait gives up after this long and fills the server from players in the menu.
+    public int MaximumWaitSeconds { get; set; } = 300;
+
     // Where you play from (EU, US or Asia). Sets your ping to each server and which ones you match into.
     public string Location { get; set; } = "EU";
     public bool SimulateConnection { get; set; } = true;
@@ -228,8 +237,9 @@ public sealed class WorldSettings
     {
         if (!double.IsFinite(TransitChance) || TransitChance is < 0 or > 1 || !double.IsFinite(LogOffChance) || LogOffChance is < 0 or > 1 || !double.IsFinite(WeeklyBossBoost)
             || WeeklyBossBoost is < 1 or > 5 || !double.IsFinite(StreamerMapBoost) || StreamerMapBoost is < 1 or > 10 || !double.IsFinite(NameMapBoost)
-            || NameMapBoost is < 1 or > 10 || !double.IsFinite(QueueTimeMultiplier) || QueueTimeMultiplier is < .1 or > 10 || MaximumMatchingSeconds is < 0 or > 600)
-            throw new InvalidDataException("World chances must be 0-1, boosts 1-5 (streamer and name boosts 1-10), queue multiplier 0.1-10 and matching 0-600 seconds.");
+            || NameMapBoost is < 1 or > 10 || !double.IsFinite(QueueTimeMultiplier) || QueueTimeMultiplier is < .1 or > 10 || MaximumMatchingSeconds is < 0 or > 600
+            || MinimumMatchingSeconds is < 0 or > 600 || MaximumWaitSeconds is < 10 or > 1800)
+            throw new InvalidDataException("World chances must be 0-1, boosts 1-5 (streamer and name boosts 1-10), queue multiplier 0.1-10, matching 0-600 seconds and the longest wait 10-1800 seconds.");
         if (!PopulationStore.Regions.Contains(Location)) throw new InvalidDataException("Location must be EU, US or Asia.");
         if (Peak is null) throw new InvalidDataException("Peak hour policy is missing.");
         Peak.Validate();

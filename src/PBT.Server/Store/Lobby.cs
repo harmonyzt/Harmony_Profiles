@@ -12,34 +12,106 @@ public sealed partial class PopulationStore
     private readonly Dictionary<string, Lobby> lobbies = new();
     private readonly Dictionary<string, HashSet<string>> squadNext = new();
     private MatchTimeline? lastMatch;
+
+    // A real queue: the server fills as careers near your level queue for the map.
+    private sealed class PendingMatch
+    {
+        public string Map = "";
+        public int Target;
+        public long StartedUtc;
+        public HashSet<string> Careers = new();
+        public MatchedServer Server = null!;
+    }
+
+    private readonly Dictionary<string, PendingMatch> pendingMatches = new();
     private readonly HashSet<string> poolNotices = new();
 
-    public (int Seconds, int Looking, int Matched, MatchedServer? Server) Matching(string map, MongoId session)
+    public (int Seconds, int Looking, int Matched, MatchedServer? Server, bool Wait, int Target) Matching(string map, MongoId session)
     {
         lock (gate)
         {
-            if (!Ready) return (0, 0, 0, null);
+            if (!Ready) return (0, 0, 0, null, false, 0);
             string key = MapKey(map);
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            int seconds = policy.World.SimulateMatching ? Math.Min(policy.World.MaximumMatchingSeconds, (int)(QueueSeconds(map) * (.7 + Random.Shared.NextDouble() * .6))) : 0;
+            var world = policy.World;
+            pendingMatches.Remove(session.ToString());
+            if (world.SimulateMatching && world.WaitForPlayers && FindMap(map) is { Solo: false } waitMap)
+            {
+                var pending = new PendingMatch
+                {
+                    Map = key,
+                    Target = Math.Max(1, Random.Shared.Next(waitMap.MinPlayers, waitMap.MaxPlayers + 1) - 1),
+                    StartedUtc = now,
+                    Server = PickServer(now)
+                };
+                pendingMatches[session.ToString()] = pending;
+                squadNext.Remove(session.ToString());
+                lobbies.Remove(session.ToString());
+                poolNotices.RemoveWhere(n => n.StartsWith(session.ToString(), StringComparison.Ordinal));
+                FillServer(waitMap, session, now, pending.Careers, pending.Target, fromMenu: false);
+                Hold(pending, now);
+                lastMatch = new(key, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), world.MaximumWaitSeconds, 0);
+                return (0, 0, pending.Careers.Count, pending.Server, true, pending.Target);
+            }
+
+            // The minimum wins over the cap, so a set minimum is always honoured.
+            int seconds = world.SimulateMatching
+                ? Math.Max(world.MinimumMatchingSeconds, Math.Min(world.MaximumMatchingSeconds, (int)(QueueSeconds(map) * (.7 + Random.Shared.NextDouble() * .6))))
+                : 0;
             int looking = seconds > 0 ? Random.Shared.Next(5, 16) : 0;
             var server = PickServer(now);
-            var queued = FillServer(FindMap(map), session, now);
+            var queued = FindMap(map) is { } found ? FillServer(found, session, now) : [];
             foreach (string id in queued) activities[id].Until = Math.Max(activities[id].Until, now + seconds + looking + 120);
             lobbies[session.ToString()] = new(key, queued, now, server.Name);
             squadNext.Remove(session.ToString());
             poolNotices.RemoveWhere(n => n.StartsWith(session.ToString(), StringComparison.Ordinal));
             if (queued.Count > 0) logger.Info($"[PBT] Matched {key} on {server.Name}: {queued.Count} PBT careers in the lobby. They spawn first, wearing their PBT gear.");
             lastMatch = seconds > 0 ? new(key, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), seconds, looking) : null;
-            return (seconds, looking, queued.Count, server);
+            return (seconds, looking, queued.Count, server, false, 0);
         }
     }
 
-    // Like EFT, a server of MinPlayers..MaxPlayers. Its players are the careers spawns draw from.
-    private HashSet<string> FillServer(WorldMap? map, MongoId session, long now)
+    // Polled by the client every couple of seconds while it shows Matching.
+    public (int Found, int Target, bool Done, int Looking, long ElapsedSeconds) PollMatching(MongoId session)
     {
-        if (map is null || map.Solo) return [];
-        int size = Math.Max(0, Random.Shared.Next(map.MinPlayers, map.MaxPlayers + 1) - 1);
+        lock (gate)
+        {
+            string sid = session.ToString();
+            if (!Ready || !pendingMatches.TryGetValue(sid, out var pending) || FindMap(pending.Map) is not { } map) return (0, 0, true, 0, 0);
+            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            long elapsed = now - pending.StartedUtc;
+            FillServer(map, session, now, pending.Careers, pending.Target, fromMenu: false);
+            bool full = pending.Careers.Count >= pending.Target;
+            bool timedOut = elapsed >= policy.World.MaximumWaitSeconds;
+            if (timedOut && !full) FillServer(map, session, now, pending.Careers, pending.Target, fromMenu: true);
+            Hold(pending, now);
+            if (!(full || timedOut) || elapsed < policy.World.MinimumMatchingSeconds) return (pending.Careers.Count, pending.Target, false, 0, elapsed);
+            pendingMatches.Remove(sid);
+            int looking = Random.Shared.Next(5, 16);
+            foreach (string id in pending.Careers)
+                if (activities.TryGetValue(id, out var a))
+                    a.Until = Math.Max(a.Until, now + looking + 120);
+            lobbies[sid] = new(pending.Map, pending.Careers, now, pending.Server.Name);
+            logger.Info($"[PBT] Matched {pending.Map} on {pending.Server.Name} after {elapsed}s: {pending.Careers.Count} PBT careers in the lobby"
+                        + (timedOut && !full ? " (gave up waiting, filled from the menu)." : "."));
+            lastMatch = new(pending.Map, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - elapsed * 1000, (int)elapsed, looking);
+            return (pending.Careers.Count, pending.Target, true, looking, elapsed);
+        }
+    }
+
+    // Matched careers stay in the queue with you instead of starting their own raid.
+    private void Hold(PendingMatch pending, long now)
+    {
+        foreach (string id in pending.Careers)
+            if (activities.TryGetValue(id, out var a) && a.State == "Queue")
+                a.Until = Math.Max(a.Until, now + 120);
+    }
+
+    // Like EFT, a server of MinPlayers..MaxPlayers. Its players are the careers spawns draw from.
+    private HashSet<string> FillServer(WorldMap map, MongoId session, long now, HashSet<string>? into = null, int? target = null, bool fromMenu = true)
+    {
+        if (map.Solo) return into ?? [];
+        int size = target ?? Math.Max(0, Random.Shared.Next(map.MinPlayers, map.MaxPlayers + 1) - 1);
         int level = 1;
         try
         {
@@ -50,9 +122,11 @@ public sealed partial class PopulationStore
         }
 
         bool Fits(Career c) => Math.Abs(Level(c.Experience) - level) <= 20;
-        var queued = population.Careers.Values.Where(c => !c.Retired && activities.TryGetValue(c.Id, out var a) && a.State == "Queue" && a.Map == map.Id && !a.Held)
+        var server = into ?? new HashSet<string>();
+        // Waiting for players only takes careers near your level; the timer mode takes anyone queued.
+        var queued = population.Careers.Values.Where(c => !c.Retired && !server.Contains(c.Id) && activities.TryGetValue(c.Id, out var a) && a.State == "Queue"
+                                                          && a.Map == map.Id && !a.Held && (fromMenu || into is null || Fits(c)))
             .OrderByDescending(Fits).ThenBy(_ => Random.Shared.Next()).ToList();
-        var server = new HashSet<string>();
 
         // Parties stay whole, even if that overfills the server by a seat or two.
         void Take(Career c)
@@ -69,7 +143,7 @@ public sealed partial class PopulationStore
             Take(c);
         }
 
-        if (server.Count >= size) return server;
+        if (server.Count >= size || !fromMenu) return server;
         // A quiet queue pulls in players from the menu who were about to pick this map anyway.
         var idle = population.Careers.Values
             .Where(c => !c.Retired && c.IsOnline && !server.Contains(c.Id) && Fits(c) && activities.TryGetValue(c.Id, out var a) && a.State == "Menu" && !a.Held && !a.WantsOffline
@@ -144,6 +218,7 @@ public sealed partial class PopulationStore
 
     private void ClearLobby(string session)
     {
+        pendingMatches.Remove(session);
         lobbies.Remove(session);
         squadNext.Remove(session);
         poolNotices.RemoveWhere(n => n.StartsWith(session, StringComparison.Ordinal));
