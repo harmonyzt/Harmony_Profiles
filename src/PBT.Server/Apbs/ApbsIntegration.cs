@@ -344,6 +344,15 @@ public sealed partial class PopulationStore
             }
             
             string map = MapKey(scope.Details.Location);
+            if (DebugCheater(session, scope.Details.Side ?? "", used) is { } cheat)
+            {
+                scope.Career = cheat;
+                scope.Level = Level(cheat.Experience);
+                scope.Experience = cheat.Experience;
+                used.Add(cheat.Id);
+                ApbsMatched++;
+                return true;
+            }
             
             // Careers still playing out a story from your last raid are busy elsewhere.
             var storied = population.PendingStories.Values.Select(s => s.CareerId).ToHashSet();

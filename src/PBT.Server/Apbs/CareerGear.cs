@@ -235,15 +235,9 @@ public sealed partial class PopulationStore
             throw new InvalidDataException("APBS returned an invalid equipment tree.");
         }
 
-        if (extraTiers == 0 && IsCheater(career) && Random.Shared.NextDouble() < policy.Cheaters.HelmetChance)
+        if (extraTiers == 0 && IsCheater(career) && policy.Cheaters.CheaterGear)
         {
-            var plain = equipment.DeepClone().AsObject();
-            ApplyCheaterHelmet(equipment);
-
-            if (!ValidEquipment(equipment))
-            {
-                equipment = plain;
-            }
+            equipment = CheaterKit(career, equipment);
         }
 
         return equipment;

@@ -51,7 +51,7 @@ public sealed partial class PopulationStore
             "Survivor" => .75,
             _ => .55
         };
-        share += (Stable(c.Id + ":quests") - .5) * .3 + (Notable(c) ? .1 : 0) - (IsCheater(c) ? .35 : 0);
+        share += (Stable(c.Id + ":quests") - .5) * .3 + (Notable(c) ? .1 : 0) - (Blatant(c) ? .35 : 0);
         return Math.Clamp(share, .05, 1);
     }
 

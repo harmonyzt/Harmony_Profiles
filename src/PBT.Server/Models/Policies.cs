@@ -339,6 +339,9 @@ public sealed class CheaterHelmet
 {
     public string Tpl { get; set; } = "";
     public int Weight { get; set; } = 10;
+
+    // Mounted and pulled down. Empty for welding masks, which are face covers on their own.
+    public string FaceShield { get; set; } = "";
 }
 
 // Rare blatant cheaters with ordinary names. Turning this off makes them play like everyone else again.
@@ -349,54 +352,50 @@ public sealed class CheaterSettings
     public double Survival { get; set; } = .92;
     public double KillMultiplier { get; set; } = 4;
     public int TierBoost { get; set; } = 4;
-    public double HelmetChance { get; set; } = .6;
 
-    // Cheaters wear their PBT kit in raid even with the APBS takeover off.
+    // Share of cheaters whose stats look ordinary. Only their kit and how they play give them away.
+    public double ClosetShare { get; set; } = .3;
+
+    // Off: cheaters wear whatever kit PBT and APBS gave them, like everyone else.
+    public bool CheaterGear { get; set; } = true;
+
+    // Share of cheater kits that are no gear at all: a stock AKM, Kedr, PKM or 100-round M4 and a raid backpack.
+    public double NakedShare { get; set; } = .3;
+
+    // Chance the rest wear their head pick; it always comes with the face shield down.
+    public double HelmetChance { get; set; } = 1;
+
+    // Chance the rest carry a bare SA-58: no sights, a suppressor and the 50-round drum.
+    public double Sa58Chance { get; set; } = .6;
+
+    // Cheaters always wear PBT gear in raid, even with the APBS takeover off.
     public bool AlwaysPbtGear { get; set; } = true;
 
     public List<CheaterHelmet> Helmets { get; set; } =
     [
-        new()
-        {
-            Tpl = "5c0e874186f7745dc7616606",
-            Weight = 30
-        }, // Maska (Killa)
-        new()
-        {
-            Tpl = "5c091a4e0db834001d5addc8",
-            Weight = 10
-        }, // Maska OD
-        new()
-        {
-            Tpl = "60a7ad2a2198820d95707a2e",
-            Weight = 10
-        }, // Tagilla UBEY
-        new()
-        {
-            Tpl = "60a7ad3a0c5cb24b0134664a",
-            Weight = 10
-        }, // Tagilla Gorilla
-        new()
-        {
-            Tpl = "678f84bb9e85556ca60f0362",
-            Weight = 8
-        }, // Tagilla ZABEY
-        new()
-        {
-            Tpl = "5aa7e276e5b5b000171d0647",
-            Weight = 12
-        }, // Altyn
-        new()
-        {
-            Tpl = "5f60c74e3b85f6263c145586",
-            Weight = 10
-        }, // Rys-T
-        new()
-        {
-            Tpl = "5ca20ee186f774799474abc2",
-            Weight = 10
-        } // Vulkan-5
+        new() { Tpl = "60a7ad2a2198820d95707a2e", Weight = 20 }, // Tagilla UBEY
+        new() { Tpl = "60a7ad3a0c5cb24b0134664a", Weight = 10 }, // Tagilla Gorilla
+        new() { Tpl = "678f84bb9e85556ca60f0362", Weight = 15 }, // Tagilla ZABEY
+        new() { Tpl = "5aa7e276e5b5b000171d0647", Weight = 20, FaceShield = "5aa7e373e5b5b000137b76f0" }, // Altyn
+        new() { Tpl = "5f60c74e3b85f6263c145586", Weight = 15, FaceShield = "5f60c85b58eff926626a60f7" }, // Rys-T
+        new() { Tpl = "5c0e874186f7745dc7616606", Weight = 15, FaceShield = "5c0e842486f77443a74d2976" }, // Maska (Killa)
+        new() { Tpl = "5c091a4e0db834001d5addc8", Weight = 5, FaceShield = "5c0919b50db834001b7ce3b9" } // Maska OD
     ];
+
+    // Melee nobody normally carries. The game has no Tagilla sledgehammer or axe for players, so these stand in.
+    public List<string> Melee { get; set; } =
+    [
+        "63495c500c297e20065a08b1", // Old hand scythe
+        "6087e570b998180e9f76dc24", // Dead Blow Hammer
+        "679ba90d269ddfea47012159", // Chained Labrys
+        "5bc9c1e2d4351e00367fbcf0" // Antique axe
+    ];
+
+    // In-raid cheating (teleports, vacuuming loot, flying, voice spam). Needs BigBrain on the client.
+    public bool Behaviour { get; set; } = true;
+
+    // Debug: this many of the first PMCs in each of your raids are cheaters, whatever their level.
+    public int DebugCheatersPerRaid { get; set; }
 
     public double BanChance { get; set; } = .75;
     public double BanMinimumHours { get; set; } = 1;
@@ -410,7 +409,9 @@ public sealed class CheaterSettings
             || KillMultiplier is < 1 or > 20 || TierBoost is < 0 or > 6 || !double.IsFinite(HelmetChance) || HelmetChance is < 0 or > 1 || !double.IsFinite(BanChance)
             || BanChance is < 0 or > 1 || !double.IsFinite(BanMinimumHours) || BanMinimumHours is < 0 or > 720 || !double.IsFinite(BanMaximumHours)
             || BanMaximumHours < BanMinimumHours || BanMaximumHours > 720 || RewardRubles is < 0 or > 50_000_000 || Helmets is null || Helmets.Count > 100
-            || Helmets.Any(h => h is null || h.Tpl is null || h.Tpl.Length != 24 || h.Weight is < 0 or > 1000))
+            || Helmets.Any(h => h is null || h.Tpl is null || h.Tpl.Length != 24 || h.Weight is < 0 or > 1000 || h.FaceShield is null || h.FaceShield.Length is not (0 or 24))
+            || !double.IsFinite(ClosetShare) || ClosetShare is < 0 or > 1 || !double.IsFinite(NakedShare) || NakedShare is < 0 or > 1 || !double.IsFinite(Sa58Chance)
+            || Sa58Chance is < 0 or > 1 || Melee is null || Melee.Count > 100 || Melee.Any(m => m is null || m.Length != 24) || DebugCheatersPerRaid is < 0 or > 30)
             throw new InvalidDataException("Cheaters need a 0-0.2 share, 0-1 chances, 1-20 kill multiplier, 0-6 tier boost, 0-720 ban hours and 24-character helmet ids.");
     }
 }

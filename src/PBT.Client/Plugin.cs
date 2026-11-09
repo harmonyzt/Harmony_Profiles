@@ -5,6 +5,7 @@ using Comfort.Common;
 using HarmonyLib;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using PBT.Client.Cheaters;
 using PBT.Client.UI;
 using SPT.Common.Http;
 
@@ -15,6 +16,8 @@ namespace PBT.Client;
 [BepInDependency("com.SPT.core", BepInDependency.DependencyFlags.HardDependency)]
 // Loads Fika first so the Fika check in Awake can see it.
 [BepInDependency("com.fika.core", BepInDependency.DependencyFlags.SoftDependency)]
+// Cheater behaviour runs as a BigBrain layer. Without it cheaters still wear their kit but play normally.
+[BepInDependency("xyz.drakia.bigbrain", BepInDependency.DependencyFlags.SoftDependency)]
 public sealed class Plugin : BaseUnityPlugin
 {
     private Harmony? harmony;
@@ -99,6 +102,21 @@ public sealed class Plugin : BaseUnityPlugin
                 Logger.LogWarning("Connection simulation fight detection disabled. " + ex.Message);
             }
 
+            try
+            {
+                CheaterRoster.Install(harmony, Config);
+                if (BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey("xyz.drakia.bigbrain"))
+                {
+                    RegisterCheaterBrain();
+                    CheaterRoster.BrainInstalled = true;
+                }
+                else Logger.LogInfo("BigBrain not found; cheaters wear their kit but play like normal bots.");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning("Cheater behaviour disabled. " + ex.Message);
+            }
+
             activityHarmony = new Harmony("com.local.pbt.activity");
             try
             {
@@ -126,6 +144,10 @@ public sealed class Plugin : BaseUnityPlugin
             Logger.LogError("PBT capture disabled; native raid behavior retained. " + ex);
         }
     }
+
+    // Separate so the BigBrain types only load when BigBrain is there.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static void RegisterCheaterBrain() => CheaterBrain.Register();
 
     private static async Task CheckServer()
     {
@@ -159,6 +181,7 @@ public sealed class Plugin : BaseUnityPlugin
             Report("Raid profile count failed: " + ex.Message);
         }
 
+        CheaterRoster.RaidStarted();
         try
         {
             RaidActivity.Start(__instance, raidId);
@@ -312,6 +335,15 @@ public sealed class Plugin : BaseUnityPlugin
         catch (Exception ex)
         {
             Report("Map online indicator update failed: " + ex.Message);
+        }
+
+        try
+        {
+            CheaterRoster.Tick();
+        }
+        catch (Exception ex)
+        {
+            Report("Cheater update failed: " + ex.Message);
         }
 
         try

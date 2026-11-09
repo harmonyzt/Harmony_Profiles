@@ -1158,6 +1158,61 @@ else if (page == "Notable")
     </section>
     @SimulationSave
 }
+else if (page == "Cheaters")
+{
+    <section class="fb-card">
+        <h2>Cheater accounts</h2>
+        <p class="fb-muted">A small share of accounts cheat. Their names look like anyone else's; their kit, their stats and how they play give them away. Report one from the death screen and it may get banned, with your lost gear returned.</p>
+        <div class="fb-switch-row">
+            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.Cheaters.Enabled"/><span class="fb-switch-track"></span>Cheaters@(Tip("Off makes every cheater play like a normal account again."))</label>
+        </div>
+        <div class="fb-grid">
+            <label class="fb-field">
+                <span class="fb-label">Share of accounts@(Tip("Share (0 to 0.2) of accounts that cheat. Bans replace them slowly."))</span><input type="number" min="0" max="0.2" step="0.005" @bind="simulation.Cheaters.Share"/>
+            </label>
+            <label class="fb-field">
+                <span class="fb-label">Closet cheaters@(Tip("Share (0 to 1) of cheaters whose stats look ordinary. The rest have absurd survival and K/D."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.ClosetShare"/>
+            </label>
+            <label class="fb-field">
+                <span class="fb-label">Ban chance@(Tip("Chance (0 to 1) that a reported cheater gets banned."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.BanChance"/>
+            </label>
+            <label class="fb-field">
+                <span class="fb-label">Compensation, roubles@(Tip("Roubles mailed to you when someone you reported is banned."))</span><input type="number" min="0" max="50000000" step="10000" @bind="simulation.Cheaters.RewardRubles"/>
+            </label>
+        </div>
+    </section>
+    <section class="fb-card">
+        <h2>Cheater gear</h2>
+        <div class="fb-switch-row">
+            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.Cheaters.CheaterGear"/><span class="fb-switch-track"></span>Cheater loadouts@(Tip("Welding masks or helmets with the face shield down and nothing else on the head, melee nobody carries, a bare SA-58 with a suppressor and 50-round drum, or no gear at all with a stock gun and a raid backpack. Off: cheaters wear whatever PBT gave them."))</label>
+        </div>
+        @if (simulation.Cheaters.CheaterGear)
+        {
+            @Warn("Replaces the APBS kit of cheater careers with fixed cheater looks. Your APBS config does not apply to them.")
+        }
+        <div class="fb-grid">
+            <label class="fb-field">
+                <span class="fb-label">No gear share@(Tip("Share (0 to 1) of cheater kits that are no gear at all: a stock AKM, Kedr, PKM or 100-round M4 and a raid backpack."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.NakedShare"/>
+            </label>
+            <label class="fb-field">
+                <span class="fb-label">Bare SA-58 chance@(Tip("Chance (0 to 1) the other kits carry an SA-58 with no sights, a suppressor and the 50-round drum."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.Sa58Chance"/>
+            </label>
+        </div>
+    </section>
+    <section class="fb-card">
+        <h2>In raid</h2>
+        <div class="fb-switch-row">
+            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.Cheaters.Behaviour"/><span class="fb-switch-track"></span>Cheat in raid@(Tip("Cheaters vacuum the map's best loot and extract, teleport in front of you and stare while invincible, shift behind you and fire full auto, or fly over everyone else and kill them. Some spam voice lines. Needs BigBrain on the client; SAIN is set aside for these bots."))</label>
+        </div>
+        @Warn("Needs BigBrain. Without it cheaters still wear their kit but play like normal bots.")
+        <div class="fb-grid">
+            <label class="fb-field">
+                <span class="fb-label">Debug: cheaters per raid@(Tip("This many of the first PMCs in each of your raids are cheaters, whatever their level. Pair with the client's Force behaviour and Log cheater behaviour settings (BepInEx config, PBT section) to watch them in the console. 0 is off."))</span><input type="number" min="0" max="30" @bind="simulation.Cheaters.DebugCheatersPerRaid"/>
+            </label>
+        </div>
+    </section>
+    @SimulationSave
+}
 else if (page == "Prestige")
 {
     <section class="fb-card">
@@ -1538,7 +1593,7 @@ else
 
 @code {
     private static readonly string[] topPages = ["Overview", "Dashboard", "Players", "Watching", "Personalities", "Simulation", "Population", "Presets"];
-    private static readonly string[] simulationPages = ["Progression", "Hideout", "Gear", "Notable", "Prestige", "Stories", "Messages", "World"];
+    private static readonly string[] simulationPages = ["Progression", "Hideout", "Gear", "Notable", "Cheaters", "Prestige", "Stories", "Messages", "World"];
     private static readonly (string Value, string Label)[] statusFilters = [("", "Everyone"), ("Online", "Online"), ("Raid", "In raid"), ("Queue", "Queueing"), ("Menu", "Main menu"), ("Afk", "AFK"), ("Transit", "In transit"), ("Died", "Died"), ("Offline", "Offline"), ("Squad", "In a squad"), ("Favorites", "Watched")];
     private static readonly string[] sortOptions = ["Status", "Name", "Level", "Prestige", "Raids", "K/D"];
     private const int PageSize = 50;
@@ -1679,6 +1734,7 @@ else
             "Hideout" => "How simulated accounts build and upgrade their hideout.",
             "Gear" => "APBS takeover, profile loadouts and weapon racks.",
             "Notable" => "Better stats and gear for chad and streamer names.",
+            "Cheaters" => "Cheater accounts, their kits, in-raid cheating and bans.",
             "Prestige" => "When simulated accounts prestige, and how many start prestiged.",
             "Stories" => "What happens to the PMCs from your raid after it ends.",
             "Messages" => "Rare post-raid messages from players you met.",
@@ -1737,6 +1793,9 @@ else
             "Gear" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true">
                           <path d="M3 7h14v9H3zM7.5 7V5h5v2M3 11h14"/>
                       </svg>,
+            "Cheaters" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true">
+                              <circle cx="10" cy="10" r="6.5"/><path d="M10 3.5V1.5M10 18.5v-2M3.5 10h-2M18.5 10h-2M10 10h.01"/>
+                          </svg>,
             "Notable" => @<svg class="fb-icon" viewBox="0 0 20 20" aria-hidden="true">
                              <path d="m10 2.8 2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L2.8 8.1l5-.7Z"/>
                          </svg>,

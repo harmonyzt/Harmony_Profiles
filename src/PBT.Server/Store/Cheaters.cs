@@ -27,7 +27,7 @@ public sealed partial class PopulationStore
 
     private bool IsCheater(Career c) => policy.Cheaters.Enabled && c.Cheater && c.BannedUtc == 0;
 
-    private double Survival(Career c) => IsCheater(c) ? policy.Cheaters.Survival : c.SurvivalChance * (Tilted(c) ? .8 : 1);
+    private double Survival(Career c) => Blatant(c) ? policy.Cheaters.Survival : c.SurvivalChance * (Tilted(c) ? .8 : 1);
 
     private void ProcessCheaters(long now)
     {
@@ -48,6 +48,8 @@ public sealed partial class PopulationStore
     private void MakeCheater(Career c)
     {
         c.Cheater = true;
+        c.GearPending = true;
+        if (!Blatant(c)) return;
         // Existing history gets the cheater look right away instead of only after a few hundred raids.
         int raids = Math.Max(c.Raids, Random.Shared.Next(60, 260));
         int lost = c.MissingRaids + c.AwolRaids + c.RunThroughRaids;
@@ -208,13 +210,27 @@ public sealed partial class PopulationStore
         var template = templates.Items[new MongoId(pick.Tpl)];
         string slot = template.Parent.ToString() == FaceCoverParent ? "FaceCover" : "Headwear";
         if (CreateShowcaseCollectible(pick.Tpl) is not { } tree) return;
+        if (pick.FaceShield.Length == 24 && templates.Items.ContainsKey(new MongoId(pick.FaceShield)) && CreateShowcaseCollectible(pick.FaceShield) is { } shield)
+        {
+            string helmet = tree[0]!["_id"]!.ToString();
+            string? mount = ShowcaseProps(pick.Tpl)["Slots"]?.AsArray().OfType<JsonObject>().FirstOrDefault(x =>
+                x["_props"]?["filters"]?.AsArray().OfType<JsonObject>().Any(f => f["Filter"]?.AsArray().Any(v => v?.ToString() == pick.FaceShield) == true) == true)?["_name"]?.ToString();
+            if (mount is not null)
+            {
+                if (tree.OfType<JsonObject>().FirstOrDefault(i => i["parentId"]?.ToString() == helmet && i["slotId"]?.ToString() == mount) is { } old)
+                    RemoveTree(tree, old["_id"]!.ToString());
+                var down = (JsonObject)shield[0]!;
+                var upd = down["upd"] as JsonObject ?? new JsonObject();
+                upd["Togglable"] = new JsonObject { ["On"] = true };
+                down["upd"] = upd;
+                Attach(tree, helmet, mount, shield);
+            }
+        }
+
         string root = equipment["Id"]!.ToString();
         var items = equipment["Items"]!.AsArray();
         var props = template.Properties;
-        var clear = new HashSet<string>
-        {
-            slot
-        };
+        var clear = HeadSlots.ToHashSet();
         if (props?.BlocksEyewear == true) clear.Add("Eyewear");
         if (props?.BlocksFaceCover == true) clear.Add("FaceCover");
         if (props?.BlocksEarpiece == true) clear.Add("Earpiece");

@@ -76,6 +76,25 @@ public sealed class PbtRouter(JsonUtil json, PopulationStore store) : StaticRout
             matching.Target
         })!);
     }),
+    new RouteAction("/pbt/raid/cheaters", (url, request, session, output, token) =>
+    {
+        (bool Behaviour, List<int> Cheaters) raid = (false, []);
+        try
+        {
+            raid = store.RaidCheaters(session);
+        }
+        catch (Exception ex)
+        {
+            store.Report(ex);
+        }
+
+        return new ValueTask<object>(json.Serialize(new
+        {
+            ProtocolVersion = 1,
+            raid.Behaviour,
+            raid.Cheaters
+        })!);
+    }),
     new RouteAction<MatchingRequest>("/pbt/world/matching/poll", (url, request, session, output, token) =>
     {
         (int Found, int Target, bool Done, int Looking, long ElapsedSeconds) poll = (0, 0, true, 0, 0);

@@ -17,12 +17,12 @@ public sealed partial class PopulationStore
     private double Skill(Career c)
     {
         double roll = Stable(c.Id + ":skill");
-        if (IsCheater(c)) return .97 + roll * .03;
+        if (Blatant(c)) return .97 + roll * .03;
         return Notable(c) ? roll + (1 - roll) * policy.NotableNames.SkillBonus : roll;
     }
 
     private double Aggression(Career c) =>
-        (IsCheater(c) ? policy.Cheaters.KillMultiplier : 1) * (Tilted(c) ? 1.3 : 1) * c.Archetype switch
+        (Blatant(c) ? policy.Cheaters.KillMultiplier : 1) * (Tilted(c) ? 1.3 : 1) * c.Archetype switch
         {
             "Timmy" => .6,
             "Aggressive" => 1.35,
