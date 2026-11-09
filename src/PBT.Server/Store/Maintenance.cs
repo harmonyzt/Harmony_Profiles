@@ -27,9 +27,59 @@ public sealed partial class PopulationStore
             _ => double.PositiveInfinity
         };
 
+    // Live PvP share of all players per achievement, keyed by achievement id once matched to English names.
+    private readonly Dictionary<string, double> liveAchievementRates = new();
+    private readonly Dictionary<double, double> achievementWeightMeans = new();
+    private long achievementWeightsUtc;
+
+    private void LoadAchievementRates()
+    {
+        using var stream = System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream("PBT.Server.Calibration.achievement-rates.json");
+        if (stream is null) return;
+        var rates = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, double>>(stream) ?? [];
+        var byName = rates.ToDictionary(p => RateKey(p.Key), p => p.Value / 100);
+        var names = locales.GetLocaleDb("en");
+        foreach (var id in achievementStories.Keys)
+            if (names.TryGetValue(id + " name", out var name) && byName.TryGetValue(RateKey(name), out double rate))
+                liveAchievementRates[id] = Math.Clamp(rate, 0, 1);
+        logger.Debug($"[PBT] Live rates matched for {liveAchievementRates.Count} of {achievementStories.Count} story achievements.");
+    }
+
+    private static string RateKey(string name) => new(name.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+
+    // Rarer achievements lean harder on level, so only veterans own them.
+    private static double RateScale(double rate) => rate >= .3 ? 8 : rate >= .05 ? 20 : rate >= .01 ? 35 : 50;
+
+    private double AchievementWeight(Career c, double scale) =>
+        (1 - Math.Exp(-Level(c.Experience) / scale)) / (1 - Math.Exp(-79 / scale)) * (.4 + 1.2 * Skill(c));
+
+    private double AchievementWeightMean(double scale)
+    {
+        long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        if (now - achievementWeightsUtc > 3600)
+        {
+            achievementWeightMeans.Clear();
+            achievementWeightsUtc = now;
+        }
+
+        if (achievementWeightMeans.TryGetValue(scale, out double mean)) return mean;
+        var careers = population.Careers.Values.Where(c => !c.Retired).ToArray();
+        mean = careers.Length == 0 ? 1 : Math.Max(.01, careers.Average(c => AchievementWeight(c, scale)));
+        achievementWeightMeans[scale] = mean;
+        return mean;
+    }
+
     // The roll per account and achievement is fixed, so levelling up only ever adds achievements.
     private double StoryChance(Career c, string id, string rarity)
     {
+        // Matches the live share across the whole population; each account's odds follow its level and skill.
+        if (liveAchievementRates.TryGetValue(id, out double live))
+        {
+            if (live >= 1) return 1;
+            double liveScale = RateScale(live);
+            return 1 - Math.Pow(1 - live, AchievementWeight(c, liveScale) / AchievementWeightMean(liveScale));
+        }
+
         // Custom achievements from other mods may use their own rarity names; those count as Rare.
         var (share, scale) = (rarity ?? "").ToLowerInvariant() switch
         {

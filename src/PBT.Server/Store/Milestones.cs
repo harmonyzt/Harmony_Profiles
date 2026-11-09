@@ -39,6 +39,7 @@ public sealed partial class PopulationStore
         }
 
         logger.Debug($"[PBT] {milestones.Count} supported lifetime achievement rules loaded.");
+        LoadAchievementRates();
     }
 
     private static bool Keys(JsonObject node, params string[] allowed) => node.All(p => allowed.Contains(p.Key));
