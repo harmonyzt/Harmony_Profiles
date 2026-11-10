@@ -222,6 +222,13 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
     private Vector3 destination,
         stuckFrom;
     private float nextStuckCheck;
+    private AntiYaw? antiYaw;
+    private AntiPitch antiPitch;
+    private float spinRate,
+        nextYaw,
+        nextPitch;
+    private bool jitterLeft,
+        pitchUp;
     private Vector3? angle,
         flank;
 
@@ -1094,14 +1101,7 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
     private void Look(Player prey, Vector3 known, bool clear, bool esp, float distance)
     {
         if (Has(Cheat.Spinbot))
-        {
-            spin = (spin + 1800f * Time.deltaTime) % 360f;
-            BotOwner.Steering?.LookToPoint(
-                Bot.Position + Vector3.up * 1.5f + Quaternion.Euler(0, spin, 0) * Vector3.forward * 5f,
-                3600f
-            );
-            CheaterRoster.Suspect(Bot, Time.deltaTime * .3f);
-        }
+            Spinbot(prey);
         else if (clear || esp)
             LookAt(prey.PlayerBones.Head.position);
         else if (distance < 3)
@@ -1114,6 +1114,76 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         }
         else
             LookAt(known + Vector3.up * 1.55f);
+    }
+
+    private enum AntiYaw
+    {
+        Spin,
+        Jitter,
+        Flick,
+    }
+
+    private enum AntiPitch
+    {
+        Down,
+        Up,
+        Flip,
+    }
+
+    // A rage config: yaw spins, jitters backwards from the target or flicks at random, and the head pitches
+    // into the floor, at the sky or flips between them. The aimbot bends every shot, so none of it costs aim.
+    private void Spinbot(Player prey)
+    {
+        if (antiYaw is null)
+        {
+            antiYaw = (AntiYaw)UnityEngine.Random.Range(0, 3);
+            antiPitch = (AntiPitch)UnityEngine.Random.Range(0, 3);
+            spinRate = UnityEngine.Random.Range(900f, 2400f) * (UnityEngine.Random.value < .5f ? -1 : 1);
+        }
+
+        float now = Time.time;
+        switch (antiYaw)
+        {
+            case AntiYaw.Spin:
+                // Now and then reverses, like someone tapping the toggle.
+                if (now >= nextYaw)
+                {
+                    nextYaw = now + UnityEngine.Random.Range(2f, 6f);
+                    if (UnityEngine.Random.value < .35f)
+                        spinRate = -spinRate;
+                }
+                spin = (spin + spinRate * Time.deltaTime) % 360f;
+                break;
+            case AntiYaw.Jitter:
+                if (now >= nextYaw)
+                {
+                    nextYaw = now + UnityEngine.Random.Range(.04f, .09f);
+                    jitterLeft = !jitterLeft;
+                    var away = Bot.Position - prey.Position;
+                    spin = Mathf.Atan2(away.x, away.z) * Mathf.Rad2Deg + UnityEngine.Random.Range(25f, 65f) * (jitterLeft ? -1 : 1);
+                }
+                break;
+            default:
+                if (now >= nextYaw)
+                {
+                    nextYaw = now + UnityEngine.Random.Range(.06f, .18f);
+                    spin = UnityEngine.Random.Range(0f, 360f);
+                }
+                break;
+        }
+
+        if (antiPitch == AntiPitch.Flip && now >= nextPitch)
+        {
+            nextPitch = now + UnityEngine.Random.Range(.12f, .35f);
+            pitchUp = !pitchUp;
+        }
+        // Past the stand pose limits on purpose; MovementContext clamps it to the furthest the body bends.
+        float pitch = antiPitch == AntiPitch.Up || antiPitch == AntiPitch.Flip && pitchUp ? -89f : 89f;
+
+        // Steering aims from the weapon root and only rate-limits yaw, so this lands exactly and the speed just has to outrun the flicks.
+        var root = BotOwner.WeaponRoot != null ? BotOwner.WeaponRoot.position : Bot.Position + Vector3.up * 1.4f;
+        BotOwner.Steering?.LookToPoint(root + Quaternion.Euler(pitch, spin, 0) * Vector3.forward * 5f, 20000f);
+        CheaterRoster.Suspect(Bot, Time.deltaTime * .3f);
     }
 
     // Rolled each time the target comes into view. Pre-aimed from a held angle it reacts faster, but never instantly.

@@ -325,7 +325,6 @@ internal static class CheaterRoster
     }
 
     private static float Hash(int account, int salt) => (uint)((account * 2654435761u) ^ (uint)(salt * 40503)) % 10000 / 10000f;
-
     // Hits feed the anticheat: a cheater landing headshots, or one that soaks bullets with godmode.
     private static bool Damage(Player __instance, DamageInfo damageInfo, EBodyPart bodyPartType)
     {
