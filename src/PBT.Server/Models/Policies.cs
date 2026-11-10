@@ -235,6 +235,9 @@ public sealed class WorldSettings
     // Packet loss and the start-of-raid hitch now and then snap you back to where you just were.
     public bool RubberBanding { get; set; }
 
+    // Bots near you rubber band on the same packet loss. Needs RubberBanding.
+    public bool RubberBandingBots { get; set; }
+
     public void Validate()
     {
         if (!double.IsFinite(TransitChance) || TransitChance is < 0 or > 1 || !double.IsFinite(LogOffChance) || LogOffChance is < 0 or > 1 || !double.IsFinite(WeeklyBossBoost)

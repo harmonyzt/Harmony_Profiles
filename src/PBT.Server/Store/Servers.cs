@@ -4,7 +4,7 @@ namespace PBT.Server;
 
 public sealed record WorldServerStatus(string Name, string Region, int Players, int Capacity, double Load, string Status, int Ping);
 
-public sealed record MatchedServer(string Name, string Region, int Ping, int Jitter, double Loss, bool Bad, bool Simulate, bool LossEvents, bool RubberBand);
+public sealed record MatchedServer(string Name, string Region, int Ping, int Jitter, double Loss, bool Bad, bool Simulate, bool LossEvents, bool RubberBand, bool RubberBandBots);
 
 // The game servers careers play on. Made once per Data folder, so every install gets its own good and flaky ones.
 public sealed partial class PopulationStore
@@ -217,6 +217,6 @@ public sealed partial class PopulationStore
         if (homes.Count > 0 && homes.MaxBy(o => o.Server.Weight) is var preferred && preferred.Server != server && preferred.Load >= .95)
             logger.Info($"[PBT] {preferred.Server.Name} is full, matched into {server.Name} instead.");
         return new(server.Name, server.Region, ping, jitter, Math.Round(loss, 2), unstable || full || far, policy.World.SimulateConnection, policy.World.ConnectionLossEvents,
-            policy.World.RubberBanding);
+            policy.World.RubberBanding, policy.World.RubberBanding && policy.World.RubberBandingBots);
     }
 }

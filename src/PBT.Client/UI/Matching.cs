@@ -256,7 +256,8 @@ internal static class Matching
             percent = Math.Min(100, percent);
             if (percent <= shown) return;
             shown = percent;
-            game.SetMatchmakerStatus($"Awaiting players... ({percent}%)", percent / 100f);
+            // The game appends the percent from the progress value itself.
+            game.SetMatchmakerStatus("Awaiting players...", percent / 100f);
         }
 
         Show(100 / total);
