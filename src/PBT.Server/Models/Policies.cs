@@ -569,6 +569,9 @@ public sealed class CheaterSettings
     public bool ReturnLostGear { get; set; } = true;
     public int RewardRubles { get; set; } = 150000;
 
+    // Share of the roubles paid when the banned cheater did not kill you: you survived, or only met them.
+    public double WitnessRewardShare { get; set; } = .2;
+
     // Chance a banned cheater comes back on a new account, and that the account is a bought high level one instead of a fresh level 1.
     public double ComebackChance { get; set; } = .75;
     public double BoughtAccountChance { get; set; } = .35;
@@ -597,6 +600,8 @@ public sealed class CheaterSettings
             || BanMaximumHours < BanMinimumHours
             || BanMaximumHours > 720
             || RewardRubles is < 0 or > 50_000_000
+            || !double.IsFinite(WitnessRewardShare)
+            || WitnessRewardShare is < 0 or > 1
             || Helmets is null
             || Helmets.Count > 100
             || Helmets.Any(h =>

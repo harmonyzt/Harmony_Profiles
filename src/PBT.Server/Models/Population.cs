@@ -39,6 +39,9 @@ public sealed class CheaterReport
     public long ReportedUtc { get; set; }
     public long DueUtc { get; set; }
     public JsonArray LostGear { get; set; } = new();
+
+    // The reported cheater is the one that killed you, not just someone you ran into.
+    public bool KilledYou { get; set; }
 }
 
 public sealed class RaidLoss

@@ -1540,8 +1540,15 @@ else if (page == "Cheaters")
             </label>
             <label class="fb-field">
                 <span class="fb-label">Compensation, roubles@(Tip(
-                    "Roubles mailed to you when someone you reported is banned."))</span>
+                    "Roubles mailed to you when a cheater that killed you is banned, along with the gear you lost to "
+                    + "them. Gear you already got back (insurance, an equipment restore mod) is never sent twice."))</span>
                 <input type="number" min="0" max="50000000" step="10000" @bind="simulation.Cheaters.RewardRubles"/>
+            </label>
+            <label class="fb-field">
+                <span class="fb-label">Witness share@(Tip(
+                    "Share (0 to 1) of the compensation paid when the banned cheater didn't kill you: you survived, or "
+                    + "only met them in a raid. No gear."))</span>
+                <input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.WitnessRewardShare"/>
             </label>
         </div>
     </section>

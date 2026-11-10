@@ -189,7 +189,8 @@ public sealed partial class PopulationStore
                 )
             )
             {
-                report.LostGear = loss.Items;
+                report.KilledYou = true;
+                report.LostGear = StillLost(loss.Items, sid);
                 population.RaidLosses.Remove(sid);
             }
 
@@ -436,27 +437,77 @@ public sealed partial class PopulationStore
         return new string(name);
     }
 
+    // Killed by them: what you still lack from that raid, plus the full roubles. Survived or only met them: a smaller thank-you.
     private void SendBanReward(CheaterReport report)
     {
         var s = policy.Cheaters;
         var items = new List<Item>();
-        if (s.ReturnLostGear && report.LostGear.Count > 0)
-            items.AddRange((json.Deserialize<List<Item>>(report.LostGear.ToJsonString()) ?? []).ReplaceIDs());
-        if (s.RewardRubles > 0)
+        // Reports filed before KilledYou existed only carry gear when the cheater killed you.
+        bool killed = report.KilledYou || report.LostGear.Count > 0;
+        // Checked again at payout, since a restore mod or insurance can hand gear back after the report.
+        var gear = s.ReturnLostGear && killed ? StillLost(report.LostGear, report.SessionId) : [];
+        if (gear.Count > 0)
+            items.AddRange((json.Deserialize<List<Item>>(gear.ToJsonString()) ?? []).ReplaceIDs());
+        long rubles = killed ? s.RewardRubles : (long)Math.Round(s.RewardRubles * s.WitnessRewardShare / 1000) * 1000;
+        if (rubles > 0)
             items.AddRange(
                 itemHelper.SplitStack(
                     new Item
                     {
                         Id = new MongoId(),
                         Template = new MongoId("5449016a4bdc2d6f028b456f"),
-                        Upd = new Upd { StackObjectsCount = s.RewardRubles },
+                        Upd = new Upd { StackObjectsCount = rubles },
                     }
                 )
             );
-        string text =
-            "Thank you for your report. A player you reported has been banned for cheating."
-            + (items.Count > 0 ? " Please accept this compensation." : "");
+        string text = "Thank you for your report. A player you reported has been banned for cheating.";
+        if (gear.Count > 0)
+            text += " The equipment you lost to them has been returned, along with compensation.";
+        else if (items.Count > 0)
+            text += killed ? " Please accept this compensation." : " Please accept this as thanks.";
         mail.SendSystemMessageToPlayer(new MongoId(report.SessionId), text, items, 7 * 86400L);
+    }
+
+    // Gear a restore mod (Fair Equipment Restoration and the like) already put back keeps its ids, so only items
+    // missing from your inventory count. Children of a returned item go too, since they'd arrive without a parent.
+    private JsonArray StillLost(JsonArray items, string session)
+    {
+        HashSet<string> owned;
+        try
+        {
+            owned =
+                saves.GetProfile(new MongoId(session)).CharacterData?.PmcData?.Inventory?.Items?.Select(i => i.Id.ToString()).ToHashSet()
+                ?? [];
+        }
+        catch
+        {
+            owned = [];
+        }
+
+        var nodes = items.OfType<JsonObject>().ToList();
+        var all = nodes.Select(n => n["_id"]?.ToString()).OfType<string>().ToHashSet();
+        var kept = all.Where(id => !owned.Contains(id)).ToHashSet();
+        bool changed = true;
+        while (changed)
+        {
+            changed = false;
+            foreach (var n in nodes)
+            {
+                string? id = n["_id"]?.ToString(),
+                    parent = n["parentId"]?.ToString();
+                if (id is not null && kept.Contains(id) && parent is not null && all.Contains(parent) && !kept.Contains(parent))
+                {
+                    kept.Remove(id);
+                    changed = true;
+                }
+            }
+        }
+
+        var result = new JsonArray();
+        foreach (var n in nodes)
+            if (n["_id"]?.ToString() is { } id && kept.Contains(id))
+                result.Add(n.DeepClone());
+        return result;
     }
 
     // A swap after APBS picked the kit, so the rest of the loadout stays a normal roll.
