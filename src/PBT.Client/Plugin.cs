@@ -18,6 +18,8 @@ namespace PBT.Client;
 [BepInDependency("com.fika.core", BepInDependency.DependencyFlags.SoftDependency)]
 // Cheater behaviour runs as a BigBrain layer. Without it cheaters still wear their kit but play normally.
 [BepInDependency("xyz.drakia.bigbrain", BepInDependency.DependencyFlags.SoftDependency)]
+// Cheaters are kept outside ORBIT's sleep and patrol control (see OrbitCompat).
+[BepInDependency("com.chazut.orbit", BepInDependency.DependencyFlags.SoftDependency)]
 public sealed class Plugin : BaseUnityPlugin
 {
     private Harmony? harmony;

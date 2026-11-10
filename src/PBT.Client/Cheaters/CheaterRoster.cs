@@ -235,6 +235,7 @@ internal static class CheaterRoster
         driven.Clear();
         aims.Clear();
         CheaterMind.Clear();
+        OrbitCompat.RaidStarted();
         nextRefresh = 0;
         nextBanRoll = 0;
         picked = 0;
@@ -423,8 +424,12 @@ internal static class CheaterRoster
 
         speeders.Clear();
         spinners.Clear();
-        if (!behaviour)
-            return;
+        if (!Behaviour)
+        {
+            OrbitCompat.ReleaseAll();
+            if (!behaviour)
+                return;
+        }
         alive.Clear();
         foreach (var player in Singleton<GameWorld>.Instance.AllAlivePlayersList)
         {
@@ -445,6 +450,8 @@ internal static class CheaterRoster
             if (IsCheater(player))
             {
                 alive.Add(player);
+                if (BrainInstalled)
+                    OrbitCompat.Exclude(player);
                 if (!reported.ContainsKey(Account(player)))
                     See(player, "Spawned");
             }
