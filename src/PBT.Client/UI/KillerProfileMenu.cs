@@ -82,8 +82,7 @@ public sealed class KillerProfileMenu : MonoBehaviour
         // Offline SPT has no report RPCs. Only the cheat report is kept, PBT answers it.
         if (!session.ReportAvailable)
         {
-            bool career = long.TryParse(account, out long aid) && aid >= 1500000000 && aid < 2000000000;
-            Reports.SetValue(owner, Enum.ToObject(Reports.FieldType, Plugin.CheatReports && career ? (int)EReportType.Cheat : 0));
+            Reports.SetValue(owner, Enum.ToObject(Reports.FieldType, Plugin.CheatReports && DeathProfileUi.CareerAccount(account) ? (int)EReportType.Cheat : 0));
             owner.Show(session, account);
         }
 

@@ -20,6 +20,10 @@ internal static class DeathProfileUi
         var interaction = AccessTools.Method(typeof(ReportPanel), "UpdateCanvasGroupInteraction", Type.EmptyTypes)
                           ?? throw new MissingMethodException("Native report-menu interaction method unavailable.");
         harmony.Patch(interaction, postfix: new HarmonyMethod(typeof(DeathProfileUi), nameof(ReportsInteractionUpdated)));
+        var profile = AccessTools.FirstMethod(typeof(OtherPlayerProfileScreen), m => m.Name == "Show" && m.GetParameters().Length == 4)
+                      ?? throw new MissingMethodException("Profile screen Show method unavailable.");
+        harmony.Patch(profile, prefix: new HarmonyMethod(typeof(DeathProfileUi), nameof(BeforeProfileShown)),
+            postfix: new HarmonyMethod(typeof(DeathProfileUi), nameof(ProfileShown)));
         var lifetime = AccessTools.Method(typeof(OverallStatsPanel), "SetOverallLifetime", Type.EmptyTypes);
         if (lifetime is null) throw new MissingMethodException("Account lifetime renderer unavailable.");
         harmony.Patch(lifetime, postfix: new HarmonyMethod(typeof(DeathProfileUi), nameof(LifetimeShown)));
@@ -58,6 +62,28 @@ internal static class DeathProfileUi
             if (____reportPanel != null) ____reportPanel.GetComponent<KillerProfileMenu>()?.ResetBinding();
             Plugin.Report("Killer profile menu unavailable: " + ex);
         }
+    }
+
+    internal static bool CareerAccount(string? account) => long.TryParse(account, out long aid) && aid >= 1500000000 && aid < 2000000000;
+
+    // Offline the looked-up profile offers every report type and none reach anyone. Keep only Cheating, which PBT answers.
+    private static void BeforeProfileShown(OtherPlayerProfile __0, IEftSession __3, ReportPanel ____reportPanel)
+    {
+        try
+        {
+            if (____reportPanel == null || __3 is null || __3.ReportAvailable) return;
+            bool cheat = Plugin.CheatReports && CareerAccount(__0?.AccountId);
+            ____reportPanel._availableReports = cheat ? EReportType.Cheat : 0;
+        }
+        catch (Exception ex)
+        {
+            Plugin.Report("Profile report menu setup failed: " + ex.Message);
+        }
+    }
+
+    private static void ProfileShown(IEftSession __3, ReportPanel ____reportPanel)
+    {
+        if (____reportPanel != null && __3 is { ReportAvailable: false } && ____reportPanel._availableReports == 0) ____reportPanel.Close();
     }
 
     private static void ReportsInteractionUpdated(ReportPanel __instance)

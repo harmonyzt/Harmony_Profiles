@@ -55,6 +55,16 @@ public sealed partial class PopulationStore
     {
         c.Cheater = true;
         c.GearPending = true;
+        if (Closet(c))
+        {
+            // A strong but believable record, the kind a good player also has.
+            int done = c.MissingRaids + c.AwolRaids + c.RunThroughRaids;
+            c.Raids = Math.Max(c.Raids, Math.Max(done + 1, Random.Shared.Next(40, 160)));
+            c.Survived = Math.Max(c.Survived, Math.Min(c.Raids - done, (int)(c.Raids * (.6 + Random.Shared.NextDouble() * .15))));
+            c.PmcKills = Math.Max(c.PmcKills, (int)(c.Raids * (1.2 + Random.Shared.NextDouble() * 1.3)));
+            return;
+        }
+
         if (!Blatant(c)) return;
         // Existing history gets the cheater look right away instead of only after a few hundred raids.
         int raids = Math.Max(c.Raids, Random.Shared.Next(60, 260));
@@ -129,8 +139,7 @@ public sealed partial class PopulationStore
         if (!cheat || !int.TryParse(request.Uid, out int account)) return;
         lock (gate)
         {
-            if (!Ready || !policy.Cheaters.Enabled || !encounters.TryGetValue(account, out var e) || !CanAccess(e, session)
-                || !population.Careers.TryGetValue(e.CareerId, out var career)) return;
+            if (!Ready || !policy.Cheaters.Enabled || ReportTarget(account, session) is not { } career) return;
             // Already banned, or every new report pays again.
             if (career.BannedUtc > 0) return;
             string sid = session.ToString();
@@ -144,7 +153,9 @@ public sealed partial class PopulationStore
                 ReportedUtc = now,
                 DueUtc = now + (long)((s.BanMinimumHours + Random.Shared.NextDouble() * (s.BanMaximumHours - s.BanMinimumHours)) * 3600)
             };
-            if (population.RaidLosses.TryGetValue(sid, out var loss) && loss.KillerAccountId == account && now - loss.Utc < 6 * 3600)
+            // The death screen reports the raid alias, a looked-up profile the career's own account. Either gets the gear back.
+            if (population.RaidLosses.TryGetValue(sid, out var loss) && now - loss.Utc < 6 * 3600
+                && (loss.KillerAccountId == account || encounters.TryGetValue(loss.KillerAccountId, out var killer) && killer.CareerId == career.Id))
             {
                 report.LostGear = loss.Items;
                 population.RaidLosses.Remove(sid);
@@ -153,6 +164,15 @@ public sealed partial class PopulationStore
             population.CheaterReports[Guid.NewGuid().ToString("N")] = report;
             dirty = true;
         }
+    }
+
+    // A raid alias, or a career's own account from a profile lookup. Only accounts you met in a raid, so browsing profiles for blatant stats can't farm rewards.
+    private Career? ReportTarget(int account, MongoId session)
+    {
+        if (encounters.TryGetValue(account, out var e))
+            return CanAccess(e, session) && population.Careers.TryGetValue(e.CareerId, out var met) ? met : null;
+        if (!byAccount.TryGetValue(account, out var career)) return null;
+        return encounters.Values.Any(x => x.CareerId == career.Id && CanAccess(x, session)) ? career : null;
     }
 
     private void ResolveCheaterReports(long now)
@@ -204,9 +224,9 @@ public sealed partial class PopulationStore
         }
 
         ScheduleBanWave(now);
-        // Blatant accounts trip the anticheat three times as often as closet ones. Anyone in a raid right now is left to the in-raid anticheat.
+        // Blatant accounts trip the anticheat far more often than closet or undercover ones. Anyone in a raid right now is left to the in-raid anticheat.
         var hit = population.Careers.Values.Where(c => !c.Retired && IsCheater(c) && !IsObservedActive(c, now)
-                                                       && Random.Shared.NextDouble() < Math.Min(1, s.BanWaveShare * (Blatant(c) ? 1.5 : .5))).ToList();
+                                                       && Random.Shared.NextDouble() < Math.Min(1, s.BanWaveShare * (Blatant(c) ? 1.5 : Closet(c) ? .6 : .3))).ToList();
         foreach (var c in hit) Ban(c, "Ban wave", now);
         if (hit.Count > 0) Log("ban", $"Ban wave: {hit.Count} {(hit.Count == 1 ? "cheater" : "cheaters")} banned");
     }
