@@ -355,8 +355,11 @@ public sealed class CheaterSettings
     public double KillMultiplier { get; set; } = 4;
     public int TierBoost { get; set; } = 4;
 
-    // Share of cheaters whose stats look ordinary. Only their kit and how they play give them away.
+    // Share of cheaters with good but believable stats and one tell in their kit, at most.
     public double ClosetShare { get; set; } = .3;
+
+    // Share of cheaters whose profile is fully ordinary: normal stats, normal kit. Only how they play gives them away.
+    public double UndercoverShare { get; set; } = .25;
 
     // Off: cheaters wear whatever kit PBT and APBS gave them, like everyone else.
     public bool CheaterGear { get; set; } = true;
@@ -423,7 +426,7 @@ public sealed class CheaterSettings
             || BanChance is < 0 or > 1 || !double.IsFinite(BanMinimumHours) || BanMinimumHours is < 0 or > 720 || !double.IsFinite(BanMaximumHours)
             || BanMaximumHours < BanMinimumHours || BanMaximumHours > 720 || RewardRubles is < 0 or > 50_000_000 || Helmets is null || Helmets.Count > 100
             || Helmets.Any(h => h is null || h.Tpl is null || h.Tpl.Length != 24 || h.Weight is < 0 or > 1000 || h.FaceShield is null || h.FaceShield.Length is not (0 or 24))
-            || !double.IsFinite(ClosetShare) || ClosetShare is < 0 or > 1 || !double.IsFinite(NakedShare) || NakedShare is < 0 or > 1 || !double.IsFinite(Sa58Chance)
+            || !double.IsFinite(ClosetShare) || ClosetShare is < 0 or > 1 || !double.IsFinite(UndercoverShare) || UndercoverShare is < 0 or > 1 || ClosetShare + UndercoverShare > 1 || !double.IsFinite(NakedShare) || NakedShare is < 0 or > 1 || !double.IsFinite(Sa58Chance)
             || Sa58Chance is < 0 or > 1 || Melee is null || Melee.Count > 100 || Melee.Any(m => m is null || m.Length != 24) || DebugCheatersPerRaid is < 0 or > 30)
             throw new InvalidDataException("Cheaters need a 0-0.2 share, 0-1 chances, 1-20 kill multiplier, 0-6 tier boost, 0-720 ban hours and 24-character helmet ids.");
         if (!double.IsFinite(ComebackChance) || ComebackChance is < 0 or > 1 || !double.IsFinite(BoughtAccountChance) || BoughtAccountChance is < 0 or > 1

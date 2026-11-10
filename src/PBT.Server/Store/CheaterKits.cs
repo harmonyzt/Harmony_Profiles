@@ -30,16 +30,44 @@ public sealed partial class PopulationStore
 
     private bool RaidCheater(Career c) => IsCheater(c) || policy.Cheaters.Enabled && debugCheaters.Contains(c.Id);
 
-    // Closet cheaters keep ordinary stats, so only their kit and in-raid play give them away.
-    private bool Blatant(Career c) => IsCheater(c) && Stable(c.Id + ":closet") >= policy.Cheaters.ClosetShare;
+    private enum CheaterProfile { Blatant, Closet, Undercover }
 
-    private bool LooksLikeCheater(JsonObject kit)
+    // One stable roll per account, so a cheater keeps its style for life.
+    private CheaterProfile ProfileStyle(Career c)
+    {
+        var s = policy.Cheaters;
+        double roll = Stable(c.Id + ":closet");
+        return roll < s.UndercoverShare ? CheaterProfile.Undercover : roll < s.UndercoverShare + s.ClosetShare ? CheaterProfile.Closet : CheaterProfile.Blatant;
+    }
+
+    private bool Blatant(Career c) => IsCheater(c) && ProfileStyle(c) == CheaterProfile.Blatant;
+    private bool Closet(Career c) => IsCheater(c) && ProfileStyle(c) == CheaterProfile.Closet;
+
+    // Undercover cheaters wear what APBS gave them, like everyone else.
+    private bool WearsCheaterKit(Career c) => IsCheater(c) && policy.Cheaters.CheaterGear && ProfileStyle(c) != CheaterProfile.Undercover;
+
+    private bool LooksLikeCheater(JsonObject kit) => CheaterTells(kit) > 0;
+
+    // A no-gear kit counts as two, since it is never a closet look.
+    private int CheaterTells(JsonObject kit)
     {
         var heads = policy.Cheaters.Helmets.Select(h => h.Tpl).ToHashSet();
         bool head = SlotTemplate(kit, "Headwear") is { } hw && heads.Contains(hw) || SlotTemplate(kit, "FaceCover") is { } fc && heads.Contains(fc);
         bool naked = SlotTemplate(kit, "ArmorVest") is null && SlotTemplate(kit, "TacticalVest") is null && RaidBackpacks.Contains(SlotTemplate(kit, "Backpack"));
-        bool odd = SlotTemplate(kit, "Scabbard") is { } melee && policy.Cheaters.Melee.Contains(melee) || SlotTemplate(kit, "FirstPrimaryWeapon") == Sa58;
-        return head || naked || odd;
+        bool melee = SlotTemplate(kit, "Scabbard") is { } m && policy.Cheaters.Melee.Contains(m);
+        bool sa58 = SlotTemplate(kit, "FirstPrimaryWeapon") == Sa58;
+        return (head ? 1 : 0) + (naked ? 2 : 0) + (melee ? 1 : 0) + (sa58 ? 1 : 0);
+    }
+
+    // Kits saved before the profile styles existed carry the full look. Undercover and closet accounts regear into theirs.
+    private void RestyleCheaterKits()
+    {
+        if (!policy.Cheaters.Enabled || !policy.Cheaters.CheaterGear) return;
+        foreach (var c in population.Careers.Values.Where(c => !c.Retired && IsCheater(c) && !Blatant(c) && !c.GearPending))
+        {
+            int tells = CheaterTells(Assets(c).Equipment);
+            if (Closet(c) ? tells > 1 : tells > 0) c.GearPending = true;
+        }
     }
 
     // Takes the gate itself: APBS workers build kits off it.
@@ -52,10 +80,12 @@ public sealed partial class PopulationStore
     {
         var s = policy.Cheaters;
         var kit = equipment.DeepClone().AsObject();
-        bool naked = Random.Shared.NextDouble() < s.NakedShare;
+        bool closet = Closet(c);
+        bool naked = !closet && Random.Shared.NextDouble() < s.NakedShare;
         try
         {
             if (naked) NakedKit(kit);
+            else if (closet) ClosetTell(kit);
             else
             {
                 if (Random.Shared.NextDouble() < s.HelmetChance) ApplyCheaterHelmet(kit);
@@ -74,6 +104,20 @@ public sealed partial class PopulationStore
         }
 
         return ValidEquipment(kit) && HasVisibleLoadout(kit) ? kit : equipment;
+    }
+
+    // A closet cheater slips once: the head pick, odd melee or the drum gun, never more than one.
+    private void ClosetTell(JsonObject kit)
+    {
+        var s = policy.Cheaters;
+        double roll = Random.Shared.NextDouble();
+        if (roll < .4) ApplyCheaterHelmet(kit);
+        else if (roll < .75 && s.Melee.Count > 0) ReplaceSlot(kit, "Scabbard", CreateShowcaseCollectible(s.Melee[Random.Shared.Next(s.Melee.Count)]));
+        else if (BareSa58() is { } gun)
+        {
+            RemoveSlots(kit, "SecondPrimaryWeapon");
+            ReplaceSlot(kit, "FirstPrimaryWeapon", gun);
+        }
     }
 
     private void NakedKit(JsonObject kit)

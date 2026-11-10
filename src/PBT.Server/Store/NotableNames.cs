@@ -35,7 +35,8 @@ public sealed partial class PopulationStore
 
     internal int TierBoost(Career c)
     {
-        if (IsCheater(c)) return policy.Cheaters.TierBoost;
+        if (Blatant(c)) return policy.Cheaters.TierBoost;
+        if (Closet(c)) return (policy.Cheaters.TierBoost + 1) / 2;
         if (!Notable(c)) return 0;
         var n = policy.NotableNames;
         return n.TierBoostMinimum + (int)(Stable(c.Id + ":tier-boost") * (n.TierBoostMaximum - n.TierBoostMinimum + 1));

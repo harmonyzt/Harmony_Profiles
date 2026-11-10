@@ -18,11 +18,13 @@ public sealed partial class PopulationStore
     {
         double roll = Stable(c.Id + ":skill");
         if (Blatant(c)) return .97 + roll * .03;
+        // Good, not godlike: the top of the ladder, where real players also sit.
+        if (Closet(c)) return .75 + roll * .2;
         return Notable(c) ? roll + (1 - roll) * policy.NotableNames.SkillBonus : roll;
     }
 
     private double Aggression(Career c) =>
-        (Blatant(c) ? policy.Cheaters.KillMultiplier : 1) * (Tilted(c) ? 1.3 : 1) * c.Archetype switch
+        (Blatant(c) ? policy.Cheaters.KillMultiplier : Closet(c) ? 1 + (policy.Cheaters.KillMultiplier - 1) * .2 : 1) * (Tilted(c) ? 1.3 : 1) * c.Archetype switch
         {
             "Timmy" => .6,
             "Aggressive" => 1.35,

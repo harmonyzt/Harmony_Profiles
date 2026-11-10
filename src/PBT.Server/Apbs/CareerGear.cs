@@ -37,6 +37,8 @@ public sealed partial class PopulationStore
                 career.NeedsRegear = false;
             if (career.GearVersion == 0) career.GearPending = true;
         }
+
+        RestyleCheaterKits();
     }
 
     // The refresh timer from the last kit must not hold back the regear after a death.
@@ -237,7 +239,7 @@ public sealed partial class PopulationStore
             throw new InvalidDataException("APBS returned an invalid equipment tree.");
         }
 
-        if (cheaterLook && extraTiers == 0 && IsCheater(career) && policy.Cheaters.CheaterGear)
+        if (cheaterLook && extraTiers == 0 && WearsCheaterKit(career))
         {
             equipment = CheaterKit(career, equipment);
         }

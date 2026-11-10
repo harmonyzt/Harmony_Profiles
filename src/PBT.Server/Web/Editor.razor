@@ -1211,7 +1211,10 @@ else if (page == "Cheaters")
                 <span class="fb-label">Share of accounts@(Tip("Share (0 to 0.2) of accounts that cheat. Bans replace them slowly."))</span><input type="number" min="0" max="0.2" step="0.005" @bind="simulation.Cheaters.Share"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Closet cheaters@(Tip("Share (0 to 1) of cheaters whose stats look ordinary. The rest have absurd survival and K/D."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.ClosetShare"/>
+                <span class="fb-label">Closet cheaters@(Tip("Share (0 to 1) of cheaters with good but believable stats, a smaller gear boost and at most one tell in their kit (the head pick, odd melee or the drum gun)."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.ClosetShare"/>
+            </label>
+            <label class="fb-field">
+                <span class="fb-label">Undercover cheaters@(Tip("Share (0 to 1) of cheaters whose profile is fully ordinary: normal stats, normal APBS kit, no gear boost. Only how they play gives them away. Closet plus undercover can't go over 1; the rest are blatant, with absurd survival and K/D."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.UndercoverShare"/>
             </label>
             <label class="fb-field">
                 <span class="fb-label">Ban chance@(Tip("Chance (0 to 1) that a reported cheater gets banned."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.BanChance"/>
