@@ -8,19 +8,27 @@ public sealed partial class PopulationStore
 
     internal int FortuneTiers(Career c, bool roll)
     {
-        if (!policy.WealthGearTiers) return 0;
+        if (!policy.WealthGearTiers)
+            return 0;
         double kits = c.WealthRubles / Math.Max(1, KitCost(c));
-        int shift = kits < .5 ? -2 : kits < 3 ? -1 : kits >= 60 ? 1 : 0;
-        
+        int shift =
+            kits < .5 ? -2
+            : kits < 3 ? -1
+            : kits >= 60 ? 1
+            : 0;
+
         // On tilt nobody wants to lose another good kit.
-        if (Tilted(c)) shift--;
-        
+        if (Tilted(c))
+            shift--;
+
         // Now and then anyone runs a cheap kit to save money, or goes all in.
         if (roll)
         {
             double r = Random.Shared.NextDouble();
-            if (r < .12) shift--;
-            else if (r > .92) shift++;
+            if (r < .12)
+                shift--;
+            else if (r > .92)
+                shift++;
         }
 
         return shift;

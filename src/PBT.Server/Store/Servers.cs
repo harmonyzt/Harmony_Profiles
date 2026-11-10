@@ -2,9 +2,28 @@ using System.Text.Json;
 
 namespace PBT.Server;
 
-public sealed record WorldServerStatus(string Name, string Region, int Players, int Capacity, double Load, string Status, int Ping);
+public sealed record WorldServerStatus(
+    string Name,
+    string Region,
+    int Players,
+    int Capacity,
+    double Load,
+    string Status,
+    int Ping
+);
 
-public sealed record MatchedServer(string Name, string Region, int Ping, int Jitter, double Loss, bool Bad, bool Simulate, bool LossEvents, bool RubberBand, bool RubberBandBots);
+public sealed record MatchedServer(
+    string Name,
+    string Region,
+    int Ping,
+    int Jitter,
+    double Loss,
+    bool Bad,
+    bool Simulate,
+    bool LossEvents,
+    bool RubberBand,
+    bool RubberBandBots
+);
 
 // The game servers careers play on. Made once per Data folder, so every install gets its own good and flaky ones.
 public sealed partial class PopulationStore
@@ -32,7 +51,7 @@ public sealed partial class PopulationStore
     {
         ["EU"] = .45,
         ["US"] = .35,
-        ["Asia"] = .2
+        ["Asia"] = .2,
     };
 
     private List<GameServer>? servers;
@@ -40,16 +59,18 @@ public sealed partial class PopulationStore
 
     private List<GameServer> Servers()
     {
-        if (servers is not null) return servers;
+        if (servers is not null)
+            return servers;
         try
         {
-            servers = File.Exists(ServersPath) ? JsonSerializer.Deserialize<List<GameServer>>(File.ReadAllText(ServersPath)) : null;
+            servers = File.Exists(ServersPath)
+                ? JsonSerializer.Deserialize<List<GameServer>>(File.ReadAllText(ServersPath))
+                : null;
         }
-        catch
-        {
-        }
+        catch { }
 
-        if (servers is { Count: > 0 }) return servers;
+        if (servers is { Count: > 0 })
+            return servers;
 
         GameServer Make(string name, string region, double weight, double low, double high) =>
             new()
@@ -58,13 +79,17 @@ public sealed partial class PopulationStore
                 Region = region,
                 Weight = weight,
                 Stability = Math.Round(low + Random.Shared.NextDouble() * (high - low), 3),
-                PingOffset = Random.Shared.Next(-10, 16)
+                PingOffset = Random.Shared.Next(-10, 16),
             };
 
         servers =
         [
-            Make("EU", "EU", 1.2, .93, .99), Make("EU-2", "EU", 1, .9, .98), Make("EU-3", "EU", .8, .82, .95),
-            Make("US-1", "US", 1.1, .9, .98), Make("US-2", "US", .9, .84, .96), Make("Asia", "Asia", 1, .8, .93)
+            Make("EU", "EU", 1.2, .93, .99),
+            Make("EU-2", "EU", 1, .9, .98),
+            Make("EU-3", "EU", .8, .82, .95),
+            Make("US-1", "US", 1.1, .9, .98),
+            Make("US-2", "US", .9, .84, .96),
+            Make("Asia", "Asia", 1, .8, .93),
         ];
         SaveServers();
         return servers;
@@ -74,10 +99,12 @@ public sealed partial class PopulationStore
     {
         try
         {
-            AtomicFile.Write(ServersPath, JsonSerializer.Serialize(servers, new JsonSerializerOptions
-            {
-                WriteIndented = true
-            }), durable: false, backup: false);
+            AtomicFile.Write(
+                ServersPath,
+                JsonSerializer.Serialize(servers, new JsonSerializerOptions { WriteIndented = true }),
+                durable: false,
+                backup: false
+            );
         }
         catch (Exception ex)
         {
@@ -85,7 +112,8 @@ public sealed partial class PopulationStore
         }
     }
 
-    private static string RegionOf(string location) => Regions.FirstOrDefault(r => r.Equals(location, StringComparison.OrdinalIgnoreCase)) ?? "EU";
+    private static string RegionOf(string location) =>
+        Regions.FirstOrDefault(r => r.Equals(location, StringComparison.OrdinalIgnoreCase)) ?? "EU";
 
     // Squads share a server, so it follows the party leader.
     private string CareerServer(string id, Activity a)
@@ -95,7 +123,8 @@ public sealed partial class PopulationStore
             if (lobby.Server.Length > 0 && now - lobby.Utc < 1800 && lobby.Careers.Contains(id))
                 return lobby.Server;
         string leader = a.Party.Length > 0 ? a.Party.Min(StringComparer.Ordinal)! : id;
-        double roll = Stable(leader + ":region"), region = 0;
+        double roll = Stable(leader + ":region"),
+            region = 0;
         string home = "EU";
         foreach (var (name, share) in RegionShare)
         {
@@ -112,7 +141,8 @@ public sealed partial class PopulationStore
         foreach (var s in list)
         {
             pick -= s.Weight;
-            if (pick < 0) return s.Name;
+            if (pick < 0)
+                return s.Name;
         }
 
         return list[^1].Name;
@@ -123,7 +153,8 @@ public sealed partial class PopulationStore
         var counts = new Dictionary<string, int>();
         foreach (var (id, a) in activities)
         {
-            if (a.State is not ("Queue" or "Raid" or "Transit") || !population.Careers.TryGetValue(id, out var c) || c.Retired) continue;
+            if (a.State is not ("Queue" or "Raid" or "Transit") || !population.Careers.TryGetValue(id, out var c) || c.Retired)
+                continue;
             string name = CareerServer(id, a);
             counts[name] = counts.GetValueOrDefault(name) + 1;
         }
@@ -135,7 +166,8 @@ public sealed partial class PopulationStore
     private int Capacity(GameServer s)
     {
         int accounts = population.Careers.Values.Count(c => !c.Retired);
-        double share = RegionShare.GetValueOrDefault(s.Region) * s.Weight / Servers().Where(o => o.Region == s.Region).Sum(o => o.Weight);
+        double share =
+            RegionShare.GetValueOrDefault(s.Region) * s.Weight / Servers().Where(o => o.Region == s.Region).Sum(o => o.Weight);
         return Math.Max(20, (int)Math.Ceiling(accounts * share * .3 / 10) * 10);
     }
 
@@ -149,7 +181,7 @@ public sealed partial class PopulationStore
             _ when home == s.Region => 45,
             ("EU", "US") or ("US", "EU") => 120,
             ("US", "Asia") or ("Asia", "US") => 160,
-            _ => 230
+            _ => 230,
         };
         return ping + s.PingOffset;
     }
@@ -166,7 +198,8 @@ public sealed partial class PopulationStore
                 continue;
             }
 
-            if (s.DegradedUntil > 0 || Random.Shared.NextDouble() >= (1 - s.Stability) * 5 / 900) continue;
+            if (s.DegradedUntil > 0 || Random.Shared.NextDouble() >= (1 - s.Stability) * 5 / 900)
+                continue;
             s.DegradedUntil = now + Random.Shared.Next(5 * 60, 20 * 60);
             Log("mia", $"{s.Name} server is having connection issues");
         }
@@ -175,13 +208,20 @@ public sealed partial class PopulationStore
     private List<WorldServerStatus> ServerStatuses(long now)
     {
         var counts = ServerCounts();
-        return Servers().Select(s =>
-        {
-            int players = counts.GetValueOrDefault(s.Name), capacity = Capacity(s);
-            double load = Load(players, capacity);
-            string status = s.DegradedUntil > now ? "Unstable" : load >= .95 ? "Full" : load >= .75 ? "Busy" : "Online";
-            return new WorldServerStatus(s.Name, s.Region, players, capacity, Math.Min(1, load), status, BasePing(s));
-        }).ToList();
+        return Servers()
+            .Select(s =>
+            {
+                int players = counts.GetValueOrDefault(s.Name),
+                    capacity = Capacity(s);
+                double load = Load(players, capacity);
+                string status =
+                    s.DegradedUntil > now ? "Unstable"
+                    : load >= .95 ? "Full"
+                    : load >= .75 ? "Busy"
+                    : "Online";
+                return new WorldServerStatus(s.Name, s.Region, players, capacity, Math.Min(1, load), status, BasePing(s));
+            })
+            .ToList();
     }
 
     // Caller holds the gate.
@@ -189,13 +229,15 @@ public sealed partial class PopulationStore
     {
         string home = RegionOf(policy.World.Location);
         var counts = ServerCounts();
-        var options = Servers().Select(s =>
-        {
-            double load = Load(counts.GetValueOrDefault(s.Name), Capacity(s));
-            // A full server takes almost nobody new.
-            double weight = (s.Region == home ? 1 : .05) * (load >= 1 ? .01 : Math.Max(.05, 1.05 - load)) * s.Weight;
-            return (Server: s, Load: load, Weight: weight);
-        }).ToList();
+        var options = Servers()
+            .Select(s =>
+            {
+                double load = Load(counts.GetValueOrDefault(s.Name), Capacity(s));
+                // A full server takes almost nobody new.
+                double weight = (s.Region == home ? 1 : .05) * (load >= 1 ? .01 : Math.Max(.05, 1.05 - load)) * s.Weight;
+                return (Server: s, Load: load, Weight: weight);
+            })
+            .ToList();
         double roll = Random.Shared.NextDouble() * options.Sum(o => o.Weight);
         var pick = options[^1];
         foreach (var o in options)
@@ -209,14 +251,38 @@ public sealed partial class PopulationStore
         }
 
         var server = pick.Server;
-        bool unstable = server.DegradedUntil > now, full = pick.Load >= .95, far = server.Region != home;
+        bool unstable = server.DegradedUntil > now,
+            full = pick.Load >= .95,
+            far = server.Region != home;
         int ping = BasePing(server) + (unstable ? Random.Shared.Next(50, 121) : 0) + (full ? Random.Shared.Next(15, 41) : 0);
-        int jitter = unstable ? Random.Shared.Next(25, 61) : far || full ? Random.Shared.Next(12, 26) : Random.Shared.Next(4, 12);
-        double loss = unstable ? .35 + Random.Shared.NextDouble() * .3 : full ? .15 : far ? .08 : 0;
+        int jitter =
+            unstable ? Random.Shared.Next(25, 61)
+            : far || full ? Random.Shared.Next(12, 26)
+            : Random.Shared.Next(4, 12);
+        double loss =
+            unstable ? .35 + Random.Shared.NextDouble() * .3
+            : full ? .15
+            : far ? .08
+            : 0;
         var homes = options.Where(o => o.Server.Region == home).ToList();
-        if (homes.Count > 0 && homes.MaxBy(o => o.Server.Weight) is var preferred && preferred.Server != server && preferred.Load >= .95)
+        if (
+            homes.Count > 0
+            && homes.MaxBy(o => o.Server.Weight) is var preferred
+            && preferred.Server != server
+            && preferred.Load >= .95
+        )
             logger.Info($"[PBT] {preferred.Server.Name} is full, matched into {server.Name} instead.");
-        return new(server.Name, server.Region, ping, jitter, Math.Round(loss, 2), unstable || full || far, policy.World.SimulateConnection, policy.World.ConnectionLossEvents,
-            policy.World.RubberBanding, policy.World.RubberBanding && policy.World.RubberBandingBots);
+        return new(
+            server.Name,
+            server.Region,
+            ping,
+            jitter,
+            Math.Round(loss, 2),
+            unstable || full || far,
+            policy.World.SimulateConnection,
+            policy.World.ConnectionLossEvents,
+            policy.World.RubberBanding,
+            policy.World.RubberBanding && policy.World.RubberBandingBots
+        );
     }
 }

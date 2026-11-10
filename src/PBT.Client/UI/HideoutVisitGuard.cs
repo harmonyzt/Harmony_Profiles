@@ -16,10 +16,22 @@ internal static class HideoutVisitGuard
     internal static void Install(Harmony harmony)
     {
         var load = AccessTools.Method(typeof(OtherPlayerProfileScreen), "LoadHideout", Type.EmptyTypes);
-        var show = AccessTools.FirstMethod(typeof(OtherPlayerProfileScreen), m => m.Name == "Show" && m.GetParameters().Length == 4);
-        var results = AccessTools.FirstMethod(typeof(SessionResultExitStatus), m => m.Name == "Show" && m.GetParameters().Length == 7);
+        var show = AccessTools.FirstMethod(
+            typeof(OtherPlayerProfileScreen),
+            m => m.Name == "Show" && m.GetParameters().Length == 4
+        );
+        var results = AccessTools.FirstMethod(
+            typeof(SessionResultExitStatus),
+            m => m.Name == "Show" && m.GetParameters().Length == 7
+        );
         var menu = AccessTools.FirstMethod(typeof(MenuScreen), m => m.Name == "Show" && m.GetParameters().Length == 3);
-        if (load == null || show == null || results == null || menu == null || HideoutButton?.FieldType != typeof(DefaultUIButton))
+        if (
+            load == null
+            || show == null
+            || results == null
+            || menu == null
+            || HideoutButton?.FieldType != typeof(DefaultUIButton)
+        )
             throw new MissingMethodException("Profile hideout visit contract unavailable.");
         harmony.Patch(results, prefix: new HarmonyMethod(typeof(HideoutVisitGuard), nameof(SessionEndShown)));
         harmony.Patch(menu, postfix: new HarmonyMethod(typeof(HideoutVisitGuard), nameof(MenuShown)));
@@ -36,7 +48,8 @@ internal static class HideoutVisitGuard
         try
         {
             var button = (DefaultUIButton)HideoutButton.GetValue(__instance);
-            if (button == null) return;
+            if (button == null)
+                return;
             if (!sessionEnd)
             {
                 // The screen is reused, so undo our own disable once the menu is back.
@@ -49,7 +62,8 @@ internal static class HideoutVisitGuard
                 return;
             }
 
-            if (!button.Interactable) return;
+            if (!button.Interactable)
+                return;
             button.Interactable = false;
             button.SetTooltips(Reason, Reason);
             disabled = button;
@@ -62,7 +76,8 @@ internal static class HideoutVisitGuard
 
     private static bool BeforeLoad()
     {
-        if (!sessionEnd) return true;
+        if (!sessionEnd)
+            return true;
         Plugin.Report("Hideout visit blocked on the raid-end screens; it would never finish loading.");
         return false;
     }

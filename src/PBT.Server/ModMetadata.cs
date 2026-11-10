@@ -18,10 +18,8 @@ public record ModMetadata : IModMetadata, SPTarkov.Server.Web.IModBlazorMetadata
     public bool HasPrepatcher { get; init; }
     public List<string>? Incompatibilities { get; init; }
 
-    public Dictionary<string, Range>? ModDependencies { get; init; } = new()
-    {
-        ["com.acidphantasm.progressivebotsystem"] = new(">=2.4.1 <3.0.0")
-    };
+    public Dictionary<string, Range>? ModDependencies { get; init; } =
+        new() { ["com.acidphantasm.progressivebotsystem"] = new(">=2.4.1 <3.0.0") };
 
     public string? Url { get; init; }
     public string License { get; init; } = "MIT";

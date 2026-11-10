@@ -21,38 +21,63 @@ public sealed class KillerProfileMenu : MonoBehaviour
     private static readonly FieldInfo Trigger = AccessTools.Field(typeof(ReportPanel), "_reportDropdownButton");
     private static readonly FieldInfo Canvas = AccessTools.Field(typeof(ReportPanel), "_canvasGroup");
     private static readonly FieldInfo Open = AccessTools.Field(typeof(ReportPanel), "_isOpen");
-    private static readonly MethodInfo Toggle = AccessTools.Method(typeof(ReportPanel), "ChangeReportButtonsShowState", Type.EmptyTypes);
+    private static readonly MethodInfo Toggle = AccessTools.Method(
+        typeof(ReportPanel),
+        "ChangeReportButtonsShowState",
+        Type.EmptyTypes
+    );
     private readonly List<RectState> rects = new();
     private readonly List<(GameObject Row, bool Active)> originalRows = new();
     private ReportPanel? panel;
     private ComplementaryButton? standalone;
     private bool standaloneActive;
-    private GameObject? entry, dropdown;
+    private GameObject? entry,
+        dropdown;
     private RectTransform? content;
     private Button? profileButton;
     private TMP_Text? label;
     private CanvasGroup? canvas;
     private object? availableReports;
-    private string account = "", runtime = "", nickname = "", side = "";
+    private string account = "",
+        runtime = "",
+        nickname = "",
+        side = "";
     private bool opening;
-    private int revision, laidOutRows = -1;
+    private int revision,
+        laidOutRows = -1;
     internal bool Bound { get; private set; }
 
     internal static void CheckContract()
     {
-        if (Reports == null || Buttons == null || Dropdown?.FieldType != typeof(GameObject) || Trigger?.FieldType != typeof(Button) || Canvas?.FieldType != typeof(CanvasGroup)
-            || Open?.FieldType != typeof(bool) || Toggle == null)
+        if (
+            Reports == null
+            || Buttons == null
+            || Dropdown?.FieldType != typeof(GameObject)
+            || Trigger?.FieldType != typeof(Button)
+            || Canvas?.FieldType != typeof(CanvasGroup)
+            || Open?.FieldType != typeof(bool)
+            || Toggle == null
+        )
             throw new MissingMemberException("Native killer dropdown contract unavailable.");
     }
 
-    internal void Bind(ReportPanel owner, ComplementaryButton nativeProfile, IEftSession session, string accountId, string profileId, string name, string faction)
+    internal void Bind(
+        ReportPanel owner,
+        ComplementaryButton nativeProfile,
+        IEftSession session,
+        string accountId,
+        string profileId,
+        string name,
+        string faction
+    )
     {
         ResetBinding();
         panel = owner;
         standalone = nativeProfile;
         standaloneActive = standalone != null && standalone.gameObject.activeSelf;
         account = accountId;
-        if (string.IsNullOrEmpty(account) && profileId == Plugin.KillerProfileId) account = Plugin.KillerAccount;
+        if (string.IsNullOrEmpty(account) && profileId == Plugin.KillerProfileId)
+            account = Plugin.KillerAccount;
         runtime = profileId;
         nickname = name;
         side = faction;
@@ -68,21 +93,34 @@ public sealed class KillerProfileMenu : MonoBehaviour
             var type = item.Value.GetType();
             var button = AccessTools.Field(type, "Button").GetValue(item.Value) as Button;
             var group = AccessTools.Field(type, "CanvasGroup").GetValue(item.Value) as CanvasGroup;
-            if (button == null || group == null || !button.transform.IsChildOf(dropdown.transform)) continue;
-            var row = group.transform.IsChildOf(dropdown.transform) && group.transform != dropdown.transform ? group.gameObject : button.gameObject;
-            if (originalRows.Any(r => r.Row == row)) continue;
+            if (button == null || group == null || !button.transform.IsChildOf(dropdown.transform))
+                continue;
+            var row =
+                group.transform.IsChildOf(dropdown.transform) && group.transform != dropdown.transform
+                    ? group.gameObject
+                    : button.gameObject;
+            if (originalRows.Any(r => r.Row == row))
+                continue;
             originalRows.Add((row, row.activeSelf));
             prototype ??= row;
         }
 
-        if (prototype == null) throw new MissingMemberException("Native report-menu row template unavailable.");
+        if (prototype == null)
+            throw new MissingMemberException("Native report-menu row template unavailable.");
         content = prototype.transform.parent as RectTransform;
-        if (content == null) throw new MissingMemberException("Native report-menu content unavailable.");
+        if (content == null)
+            throw new MissingMemberException("Native report-menu content unavailable.");
 
         // Offline SPT has no report RPCs. Only the cheat report is kept, PBT answers it.
         if (!session.ReportAvailable)
         {
-            Reports.SetValue(owner, Enum.ToObject(Reports.FieldType, Plugin.CheatReports && DeathProfileUi.CareerAccount(account) ? (int)EReportType.Cheat : 0));
+            Reports.SetValue(
+                owner,
+                Enum.ToObject(
+                    Reports.FieldType,
+                    Plugin.CheatReports && DeathProfileUi.CareerAccount(account) ? (int)EReportType.Cheat : 0
+                )
+            );
             owner.Show(session, account);
         }
 
@@ -93,16 +131,19 @@ public sealed class KillerProfileMenu : MonoBehaviour
 
         entry = Instantiate(prototype, content, false);
         entry.name = "PbtViewProfileMenuItem";
-        
+
         // Keep the native background behind all actions. FirstSibling draws the backdrop over our text.
         entry.transform.SetSiblingIndex(originalRows.Min(r => r.Row.transform.GetSiblingIndex()));
         profileButton = entry.GetComponentInChildren<Button>(true);
-        if (profileButton == null) throw new MissingMemberException("Native menu row has no button.");
+        if (profileButton == null)
+            throw new MissingMemberException("Native menu row has no button.");
         profileButton.onClick = new Button.ButtonClickedEvent();
         profileButton.onClick.AddListener(OpenProfile);
-        foreach (var localized in entry.GetComponentsInChildren<LocalizedText>(true)) localized.LocalizationKey = "WatchProfile";
+        foreach (var localized in entry.GetComponentsInChildren<LocalizedText>(true))
+            localized.LocalizationKey = "WatchProfile";
         label = entry.GetComponentInChildren<TMP_Text>(true);
-        if (label != null) label.text = "WatchProfile".Localized();
+        if (label != null)
+            label.text = "WatchProfile".Localized();
         entry.SetActive(true);
         foreach (var group in entry.GetComponentsInChildren<CanvasGroup>(true))
         {
@@ -112,18 +153,17 @@ public sealed class KillerProfileMenu : MonoBehaviour
         }
 
         profileButton.interactable = true;
-        profileButton.navigation = new Navigation
-        {
-            mode = Navigation.Mode.Automatic
-        };
-        if (standalone != null) standalone.Close();
+        profileButton.navigation = new Navigation { mode = Navigation.Mode.Automatic };
+        if (standalone != null)
+            standalone.Close();
         EnableMenuInteraction();
         LayoutMenu();
     }
 
     internal void EnableMenuInteraction()
     {
-        if (!Bound || entry == null || canvas == null) return;
+        if (!Bound || entry == null || canvas == null)
+            return;
         canvas.alpha = 1;
         canvas.interactable = true;
         canvas.blocksRaycasts = true;
@@ -131,27 +171,39 @@ public sealed class KillerProfileMenu : MonoBehaviour
 
     private void SaveRect(RectTransform rect)
     {
-        if (rects.All(r => r.Rect != rect)) rects.Add(new RectState(rect));
+        if (rects.All(r => r.Rect != rect))
+            rects.Add(new RectState(rect));
     }
 
     private void LayoutMenu()
     {
-        if (entry == null || dropdown == null || content == null) return;
-        var rows = originalRows.Where(r => r.Row != null && r.Row.activeSelf).Select(r => r.Row).OrderBy(r => r.transform.GetSiblingIndex()).Prepend(entry).ToArray();
+        if (entry == null || dropdown == null || content == null)
+            return;
+        var rows = originalRows
+            .Where(r => r.Row != null && r.Row.activeSelf)
+            .Select(r => r.Row)
+            .OrderBy(r => r.transform.GetSiblingIndex())
+            .Prepend(entry)
+            .ToArray();
         laidOutRows = rows.Length;
         var sample = entry.transform as RectTransform;
-        if (sample == null) return;
+        if (sample == null)
+            return;
         float height = LayoutUtility.GetPreferredHeight(sample);
-        if (height <= 0) height = sample.rect.height;
-        if (height <= 0) height = label != null ? label.fontSize + 12 : 30;
+        if (height <= 0)
+            height = sample.rect.height;
+        if (height <= 0)
+            height = label != null ? label.fontSize + 12 : 30;
 
         if (content.GetComponent<LayoutGroup>() == null)
         {
             for (int index = 0; index < rows.Length; index++)
             {
                 var rect = rows[index].transform as RectTransform;
-                if (rect == null || rect.parent != content) continue;
-                if (rows[index] != entry) SaveRect(rect);
+                if (rect == null || rect.parent != content)
+                    continue;
+                if (rows[index] != entry)
+                    SaveRect(rect);
                 rect.anchorMin = new Vector2(0, 1);
                 rect.anchorMax = Vector2.one;
                 rect.pivot = new Vector2(.5f, 1);
@@ -166,7 +218,8 @@ public sealed class KillerProfileMenu : MonoBehaviour
         {
             LayoutRebuilder.ForceRebuildLayoutImmediate(content);
             float preferred = LayoutUtility.GetPreferredHeight(content);
-            if (preferred > 0) height = preferred / rows.Length;
+            if (preferred > 0)
+                height = preferred / rows.Length;
         }
 
         if (dropdown.transform is RectTransform background)
@@ -178,22 +231,27 @@ public sealed class KillerProfileMenu : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (!Bound || dropdown == null || !dropdown.activeSelf) return;
-        if (1 + originalRows.Count(r => r.Row != null && r.Row.activeSelf) != laidOutRows) LayoutMenu();
+        if (!Bound || dropdown == null || !dropdown.activeSelf)
+            return;
+        if (1 + originalRows.Count(r => r.Row != null && r.Row.activeSelf) != laidOutRows)
+            LayoutMenu();
     }
 
     private void CloseDropdown()
     {
-        if (panel != null && (bool)Open.GetValue(panel)) Toggle.Invoke(panel, null);
+        if (panel != null && (bool)Open.GetValue(panel))
+            Toggle.Invoke(panel, null);
     }
 
     private async void OpenProfile()
     {
-        if (!Bound || opening) return;
+        if (!Bound || opening)
+            return;
         opening = true;
         int currentRevision = revision;
         string fallback = account;
-        if (profileButton != null) profileButton.interactable = false;
+        if (profileButton != null)
+            profileButton.interactable = false;
         CloseDropdown();
         try
         {
@@ -202,16 +260,26 @@ public sealed class KillerProfileMenu : MonoBehaviour
                 ["AccountId"] = account,
                 ["RuntimeProfileId"] = runtime,
                 ["Nickname"] = nickname,
-                ["Side"] = side
+                ["Side"] = side,
             };
-            var resolved = JObject.Parse(await SPT.Common.Http.RequestHandler.PostJsonAsync("/pbt/killer/resolve", request.ToString(Formatting.None)));
-            if (this == null || !isActiveAndEnabled || revision != currentRevision) return;
+            var resolved = JObject.Parse(
+                await SPT.Common.Http.RequestHandler.PostJsonAsync("/pbt/killer/resolve", request.ToString(Formatting.None))
+            );
+            if (this == null || !isActiveAndEnabled || revision != currentRevision)
+                return;
             string? target = resolved.Value<int?>("AccountId")?.ToString();
-            if (target == null && long.TryParse(fallback, out long realAccount) && realAccount > 0 && (realAccount < 1500000000 || realAccount >= 2000000000)) target = fallback;
+            if (
+                target == null
+                && long.TryParse(fallback, out long realAccount)
+                && realAccount > 0
+                && (realAccount < 1500000000 || realAccount >= 2000000000)
+            )
+                target = fallback;
             if (target == null)
             {
                 Plugin.Report("Killer profile could not be resolved to a unique server encounter.");
-                if (label != null) label.text = "Profile unavailable";
+                if (label != null)
+                    label.text = "Profile unavailable";
                 return;
             }
 
@@ -226,7 +294,8 @@ public sealed class KillerProfileMenu : MonoBehaviour
             if (this != null && revision == currentRevision)
             {
                 opening = false;
-                if (profileButton != null) profileButton.interactable = true;
+                if (profileButton != null)
+                    profileButton.interactable = true;
             }
         }
     }
@@ -239,7 +308,8 @@ public sealed class KillerProfileMenu : MonoBehaviour
         if (panel != null)
         {
             CloseDropdown();
-            if (availableReports != null) Reports.SetValue(panel, availableReports);
+            if (availableReports != null)
+                Reports.SetValue(panel, availableReports);
         }
 
         if (entry != null)
@@ -251,13 +321,15 @@ public sealed class KillerProfileMenu : MonoBehaviour
         entry = null;
         profileButton = null;
         label = null;
-        foreach (var rect in rects) rect.Restore();
+        foreach (var rect in rects)
+            rect.Restore();
         rects.Clear();
         foreach (var row in originalRows)
             if (row.Row != null)
                 row.Row.SetActive(row.Active);
         originalRows.Clear();
-        if (standalone != null) standalone.gameObject.SetActive(standaloneActive);
+        if (standalone != null)
+            standalone.gameObject.SetActive(standaloneActive);
         panel = null;
         standalone = null;
         canvas = null;
@@ -273,7 +345,8 @@ public sealed class KillerProfileMenu : MonoBehaviour
         // A profile overlay can temporarily disable the parent. Keep its binding until the next Show.
         revision++;
         opening = false;
-        if (profileButton != null) profileButton.interactable = true;
+        if (profileButton != null)
+            profileButton.interactable = true;
         CloseDropdown();
     }
 
@@ -282,7 +355,11 @@ public sealed class KillerProfileMenu : MonoBehaviour
     private sealed class RectState
     {
         internal readonly RectTransform Rect;
-        private readonly Vector2 anchorMin, anchorMax, pivot, size, position;
+        private readonly Vector2 anchorMin,
+            anchorMax,
+            pivot,
+            size,
+            position;
         private readonly int sibling;
 
         internal RectState(RectTransform rect)
@@ -298,7 +375,8 @@ public sealed class KillerProfileMenu : MonoBehaviour
 
         internal void Restore()
         {
-            if (Rect == null) return;
+            if (Rect == null)
+                return;
             Rect.anchorMin = anchorMin;
             Rect.anchorMax = anchorMax;
             Rect.pivot = pivot;

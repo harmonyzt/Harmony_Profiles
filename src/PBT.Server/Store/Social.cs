@@ -13,8 +13,11 @@ public sealed partial class PopulationStore
 
     private Career? SocialCareer(MongoId profileId, MongoId session)
     {
-        if (population.Careers.TryGetValue(profileId.ToString(), out var direct)) return direct;
-        var encounter = encounters.Values.FirstOrDefault(e => e.RuntimeProfileId == profileId.ToString() && CanAccess(e, session));
+        if (population.Careers.TryGetValue(profileId.ToString(), out var direct))
+            return direct;
+        var encounter = encounters.Values.FirstOrDefault(e =>
+            e.RuntimeProfileId == profileId.ToString() && CanAccess(e, session)
+        );
         return encounter is not null && population.Careers.TryGetValue(encounter.CareerId, out var c) ? c : null;
     }
 
@@ -29,8 +32,8 @@ public sealed partial class PopulationStore
                 Side = career.Side,
                 Level = Level(career.Experience),
                 MemberCategory = (MemberCategory)career.MemberCategory,
-                SelectedMemberCategory = (MemberCategory)career.SelectedMemberCategory
-            }
+                SelectedMemberCategory = (MemberCategory)career.SelectedMemberCategory,
+            },
         };
 
     public bool TryFriendRequest(MongoId session, FriendRequestData request, out FriendRequestSendResponse response)
@@ -38,9 +41,11 @@ public sealed partial class PopulationStore
         response = null!;
         lock (gate)
         {
-            if (!Ready || !SocialReady || !settings.EnableFriendRequests || request.To is not MongoId target) return false;
+            if (!Ready || !SocialReady || !settings.EnableFriendRequests || request.To is not MongoId target)
+                return false;
             var career = SocialCareer(target, session);
-            if (career is null) return false;
+            if (career is null)
+                return false;
             string sessionId = session.ToString();
             bool hadLinks = population.Friendships.TryGetValue(sessionId, out var links);
             links ??= new Dictionary<string, Friendship>();
@@ -52,7 +57,7 @@ public sealed partial class PopulationStore
                 {
                     Status = BackendErrorCodes.TooManyFriendRequests,
                     RequestId = previous.RequestId,
-                    RetryAfter = (int)Math.Clamp(previous.RequestedUtc + 86400 - now, 1, 86400)
+                    RetryAfter = (int)Math.Clamp(previous.RequestedUtc + 86400 - now, 1, 86400),
                 };
                 return true;
             }
@@ -64,7 +69,7 @@ public sealed partial class PopulationStore
                 {
                     RequestId = NewId(),
                     RequestedUtc = now,
-                    Accepted = Random.Shared.NextDouble() < settings.FriendAcceptanceChance
+                    Accepted = Random.Shared.NextDouble() < settings.FriendAcceptanceChance,
                 };
                 links[career.Id] = decision;
                 population.Friendships[sessionId] = links;
@@ -74,9 +79,12 @@ public sealed partial class PopulationStore
                 }
                 catch
                 {
-                    if (previous is null) links.Remove(career.Id);
-                    else links[career.Id] = previous;
-                    if (!hadLinks) population.Friendships.Remove(sessionId);
+                    if (previous is null)
+                        links.Remove(career.Id);
+                    else
+                        links[career.Id] = previous;
+                    if (!hadLinks)
+                        population.Friendships.Remove(sessionId);
                     throw;
                 }
 
@@ -87,7 +95,7 @@ public sealed partial class PopulationStore
             {
                 Status = BackendErrorCodes.None,
                 RequestId = decision.RequestId,
-                RetryAfter = 86400
+                RetryAfter = 86400,
             };
             string notificationKey = sessionId + ":" + decision.RequestId;
             if (decision.Accepted && !decision.Removed && !decision.Cancelled && pendingFriendNotifications.Add(notificationKey))
@@ -100,8 +108,11 @@ public sealed partial class PopulationStore
     {
         lock (gate)
         {
-            if (!Ready || !SocialReady || !population.Friendships.TryGetValue(session.ToString(), out var links)) return [];
-            return links.Where(p => p.Value.Accepted && !p.Value.Removed && !p.Value.Cancelled && population.Careers.ContainsKey(p.Key)).Select(p => population.Careers[p.Key])
+            if (!Ready || !SocialReady || !population.Friendships.TryGetValue(session.ToString(), out var links))
+                return [];
+            return links
+                .Where(p => p.Value.Accepted && !p.Value.Removed && !p.Value.Cancelled && population.Careers.ContainsKey(p.Key))
+                .Select(p => population.Careers[p.Key])
                 .Select(c =>
                 {
                     var profile = ChatProfile(c);
@@ -109,9 +120,10 @@ public sealed partial class PopulationStore
                     {
                         Id = profile.Id,
                         Aid = profile.Aid,
-                        Info = profile.Info
+                        Info = profile.Info,
                     };
-                }).ToList();
+                })
+                .ToList();
         }
     }
 
@@ -119,15 +131,20 @@ public sealed partial class PopulationStore
     {
         lock (gate)
         {
-            if (!Ready || !SocialReady || SocialCareer(profileId, session) is not Career career) return false;
-            if (!population.Friendships.TryGetValue(session.ToString(), out var links) || !links.TryGetValue(career.Id, out var previous)) return true;
+            if (!Ready || !SocialReady || SocialCareer(profileId, session) is not Career career)
+                return false;
+            if (
+                !population.Friendships.TryGetValue(session.ToString(), out var links)
+                || !links.TryGetValue(career.Id, out var previous)
+            )
+                return true;
             links[career.Id] = new Friendship
             {
                 RequestId = previous.RequestId,
                 RequestedUtc = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
                 Accepted = previous.Accepted,
                 Removed = true,
-                Cancelled = previous.Cancelled
+                Cancelled = previous.Cancelled,
             };
             try
             {
@@ -147,18 +164,21 @@ public sealed partial class PopulationStore
     {
         lock (gate)
         {
-            if (!Ready || !SocialReady || !population.Friendships.TryGetValue(session.ToString(), out var links)) return false;
+            if (!Ready || !SocialReady || !population.Friendships.TryGetValue(session.ToString(), out var links))
+                return false;
             // The native client sends the target profile ID; accept our request ID too for outbox callers.
             var match = links.FirstOrDefault(p => p.Key == target || p.Value.RequestId == target);
-            if (match.Key is null) return false;
+            if (match.Key is null)
+                return false;
             var previous = match.Value;
-            if (previous.Accepted || previous.Removed || previous.Cancelled) return true;
+            if (previous.Accepted || previous.Removed || previous.Cancelled)
+                return true;
             links[match.Key] = new Friendship
             {
                 RequestId = previous.RequestId,
                 RequestedUtc = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
                 Accepted = false,
-                Cancelled = true
+                Cancelled = true,
             };
             try
             {
@@ -183,22 +203,32 @@ public sealed partial class PopulationStore
         {
             lock (gate)
             {
-                if (!Ready || !SocialReady || !population.Friendships.TryGetValue(session.ToString(), out var links)) return result;
+                if (!Ready || !SocialReady || !population.Friendships.TryGetValue(session.ToString(), out var links))
+                    return result;
                 var envelope = JsonNode.Parse(result)?.AsObject();
-                if (envelope?["data"] is not JsonArray rows || envelope["err"]?.GetValue<int>() != 0) return result;
+                if (envelope?["data"] is not JsonArray rows || envelope["err"]?.GetValue<int>() != 0)
+                    return result;
                 var existing = rows.OfType<JsonObject>().Select(r => r["_id"]?.GetValue<string>()).ToHashSet();
                 foreach (var (careerId, request) in links)
                 {
-                    if (request.Accepted || request.Removed || request.Cancelled || existing.Contains(request.RequestId)
-                        || !population.Careers.TryGetValue(careerId, out var career)) continue;
-                    rows.Add(new JsonObject
-                    {
-                        ["_id"] = request.RequestId,
-                        ["from"] = session.ToString(),
-                        ["to"] = career.Id,
-                        ["date"] = request.RequestedUtc,
-                        ["profile"] = JsonNode.Parse(json.Serialize(ChatProfile(career))!)
-                    });
+                    if (
+                        request.Accepted
+                        || request.Removed
+                        || request.Cancelled
+                        || existing.Contains(request.RequestId)
+                        || !population.Careers.TryGetValue(careerId, out var career)
+                    )
+                        continue;
+                    rows.Add(
+                        new JsonObject
+                        {
+                            ["_id"] = request.RequestId,
+                            ["from"] = session.ToString(),
+                            ["to"] = career.Id,
+                            ["date"] = request.RequestedUtc,
+                            ["profile"] = JsonNode.Parse(json.Serialize(ChatProfile(career))!),
+                        }
+                    );
                 }
 
                 return envelope.ToJsonString();
@@ -211,7 +241,8 @@ public sealed partial class PopulationStore
         }
     }
 
-    internal void SocialInstalled(bool fika) => logger.Debug("[PBT] Social handlers installed for vanilla" + (fika ? " and Fika." : "."));
+    internal void SocialInstalled(bool fika) =>
+        logger.Debug("[PBT] Social handlers installed for vanilla" + (fika ? " and Fika." : "."));
 
     private async Task NotifyAccepted(MongoId session, SearchFriendResponse profile, string requestId, string key)
     {
@@ -220,16 +251,28 @@ public sealed partial class PopulationStore
             await Task.Delay(750);
             lock (gate)
             {
-                if (!Ready || !SocialReady || !population.Friendships.TryGetValue(session.ToString(), out var links) || !links.TryGetValue(profile.Id.ToString(), out var link)
-                    || link.RequestId != requestId || !link.Accepted || link.Removed || link.Cancelled) return;
+                if (
+                    !Ready
+                    || !SocialReady
+                    || !population.Friendships.TryGetValue(session.ToString(), out var links)
+                    || !links.TryGetValue(profile.Id.ToString(), out var link)
+                    || link.RequestId != requestId
+                    || !link.Accepted
+                    || link.Removed
+                    || link.Cancelled
+                )
+                    return;
             }
 
-            await notifications.SendMessageAsync(session, new WsFriendsListAccept
-            {
-                EventType = NotificationEventType.friendListRequestAccept,
-                EventIdentifier = new MongoId(requestId),
-                Profile = profile
-            });
+            await notifications.SendMessageAsync(
+                session,
+                new WsFriendsListAccept
+                {
+                    EventType = NotificationEventType.friendListRequestAccept,
+                    EventIdentifier = new MongoId(requestId),
+                    Profile = profile,
+                }
+            );
         }
         catch (Exception ex)
         {
@@ -237,7 +280,8 @@ public sealed partial class PopulationStore
         }
         finally
         {
-            lock (gate) pendingFriendNotifications.Remove(key);
+            lock (gate)
+                pendingFriendNotifications.Remove(key);
         }
     }
 }

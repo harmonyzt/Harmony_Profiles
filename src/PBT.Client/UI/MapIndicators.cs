@@ -33,7 +33,7 @@ internal static class MapIndicators
         {
             throw new MissingMethodException("Map selection button contract changed.");
         }
-        
+
         harmony.Patch(show, postfix: new HarmonyMethod(typeof(MapIndicators), nameof(Shown)));
     }
 
@@ -41,7 +41,8 @@ internal static class MapIndicators
     {
         try
         {
-            if (__instance == null || location?.Id is null) return;
+            if (__instance == null || location?.Id is null)
+                return;
             buttons[__instance] = location.Id;
             Apply(__instance, location.Id);
             if (Time.realtimeSinceStartup - fetched > 15 && fetching.IsCompleted)
@@ -65,14 +66,14 @@ internal static class MapIndicators
             {
                 return;
             }
-            
+
             var next = new Dictionary<string, Stat>(StringComparer.OrdinalIgnoreCase);
             foreach (var map in maps.Properties())
                 next[map.Name] = new Stat
                 {
                     Share = map.Value.Value<double>("Share"),
                     QueueSeconds = map.Value.Value<int>("QueueSeconds"),
-                    WeeklyBoss = map.Value.Value<bool>("WeeklyBoss")
+                    WeeklyBoss = map.Value.Value<bool>("WeeklyBoss"),
                 };
             stats = next;
             changed = true;
@@ -86,7 +87,8 @@ internal static class MapIndicators
     // Unity objects are only touched on the main thread.
     internal static void Tick()
     {
-        if (!changed) return;
+        if (!changed)
+            return;
         changed = false;
         foreach (var pair in buttons.ToArray())
         {
@@ -102,8 +104,10 @@ internal static class MapIndicators
 
     private static void Apply(LocationButton button, string id)
     {
-        var label = button._spawnableToggle != null ? button._spawnableToggle.GetComponentInChildren<TextMeshProUGUI>(true) : null;
-        if (label == null) return;
+        var label =
+            button._spawnableToggle != null ? button._spawnableToggle.GetComponentInChildren<TextMeshProUGUI>(true) : null;
+        if (label == null)
+            return;
         var root = label.transform.Find(Name) as RectTransform ?? Create(label);
         if (!TryStat(id, out var stat))
         {
@@ -113,7 +117,12 @@ internal static class MapIndicators
 
         root.gameObject.SetActive(true);
         root.anchoredPosition = new Vector2(Mathf.Min(label.preferredWidth, label.rectTransform.rect.width) / 2 + 3, -2);
-        int bars = stat.Share >= .15 ? 4 : stat.Share >= .09 ? 3 : stat.Share >= .04 ? 2 : stat.Share > 0 ? 1 : 0;
+        int bars =
+            stat.Share >= .15 ? 4
+            : stat.Share >= .09 ? 3
+            : stat.Share >= .04 ? 2
+            : stat.Share > 0 ? 1
+            : 0;
         var lit = stat.WeeklyBoss ? new Color(1f, .7f, .3f, .95f) : new Color(.85f, .9f, .85f, .95f);
         for (int i = 0; i < 4; i++)
             root.GetChild(i).GetComponent<Image>().color = i < bars ? lit : new Color(1, 1, 1, .2f);
@@ -124,14 +133,18 @@ internal static class MapIndicators
     // Map select has one Factory button for both times of day, so it shows them combined.
     private static bool TryStat(string id, out Stat stat)
     {
-        if (!id.StartsWith("factory4", StringComparison.OrdinalIgnoreCase)) return stats.TryGetValue(id, out stat!);
-        bool day = stats.TryGetValue("factory4_day", out var d), night = stats.TryGetValue("factory4_night", out var n);
-        stat = !day ? n! :
-            !night ? d : new Stat
+        if (!id.StartsWith("factory4", StringComparison.OrdinalIgnoreCase))
+            return stats.TryGetValue(id, out stat!);
+        bool day = stats.TryGetValue("factory4_day", out var d),
+            night = stats.TryGetValue("factory4_night", out var n);
+        stat =
+            !day ? n!
+            : !night ? d
+            : new Stat
             {
                 Share = d.Share + n.Share,
                 QueueSeconds = Math.Min(d.QueueSeconds, n.QueueSeconds),
-                WeeklyBoss = d.WeeklyBoss || n.WeeklyBoss
+                WeeklyBoss = d.WeeklyBoss || n.WeeklyBoss,
             };
         return day || night;
     }

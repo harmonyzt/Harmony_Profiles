@@ -20,7 +20,12 @@
 <link href="/pbt-assets/pbt.css?v=20261108-peak-hero" rel="stylesheet"/>
 <div class="pbt-editor" data-theme="@(dark ? "dark" : "light")">
 <nav class="fb-topbar">
-    <button type="button" class="fb-icon-button fb-menu" aria-label="Toggle navigation" aria-expanded="@(menuOpen ? "true" : "false")" @onclick="() => menuOpen = !menuOpen">
+    <button
+        type="button"
+        class="fb-icon-button fb-menu"
+        aria-label="Toggle navigation"
+        aria-expanded="@(menuOpen ? "true" : "false")"
+        @onclick="() => menuOpen = !menuOpen">
         <svg viewBox="0 0 20 20" aria-hidden="true">
             <path d="M3 5h14M3 10h14M3 15h14"/>
         </svg>
@@ -31,13 +36,22 @@
     <span class="fb-spacer"></span>
     @if (presets.FirstOrDefault(p => p.Selected) is { } chosen)
     {
-        <button type="button" class="fb-pill fb-pill-button" title="Manage presets" @onclick='() => Go("Presets")'>Preset: @chosen.Name@(chosen.Modified ? " (changed)" : "")</button>
+        <button
+            type="button"
+            class="fb-pill fb-pill-button"
+            title="Manage presets"
+            @onclick='() => Go("Presets")'>Preset: @chosen.Name@(chosen.Modified ? " (changed)" : "")</button>
     }
     @if (snapshot is null)
     {
         <span class="fb-pill fb-pill-red"><span class="fb-pill-dot" aria-hidden="true"></span>Settings unavailable</span>
     }
-    <button type="button" class="fb-icon-button" title="@(dark ? "Switch to light mode" : "Switch to dark mode")" aria-label="Toggle dark mode" @onclick="() => dark = !dark">
+    <button
+        type="button"
+        class="fb-icon-button"
+        title="@(dark ? "Switch to light mode" : "Switch to dark mode")"
+        aria-label="Toggle dark mode"
+        @onclick="() => dark = !dark">
         @if (dark)
         {
             <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -60,7 +74,11 @@
             @if (item == "Simulation")
             {
                 <li>
-                    <button type="button" class="fb-nav-item @(simulationPages.Contains(page) ? "fb-parent-active" : "")" aria-expanded="@(simulationOpen ? "true" : "false")" @onclick="() => simulationOpen = !simulationOpen">
+                    <button
+                        type="button"
+                        class="fb-nav-item @(simulationPages.Contains(page) ? "fb-parent-active" : "")"
+                        aria-expanded="@(simulationOpen ? "true" : "false")"
+                        @onclick="() => simulationOpen = !simulationOpen">
                         @Icon("Simulation")<span class="fb-nav-label">Simulation</span>
                         @if (Dirty("simulation"))
                         {
@@ -77,7 +95,11 @@
                             @foreach (var sub in simulationPages)
                             {
                                 <li>
-                                    <button type="button" class="fb-nav-item @(page == sub ? "fb-active" : "")" aria-current="@(page == sub ? "page" : null)" @onclick="() => Go(sub)">@SubIcon(sub)@Title(sub)</button>
+                                    <button
+                                        type="button"
+                                        class="fb-nav-item @(page == sub ? "fb-active" : "")"
+                                        aria-current="@(page == sub ? "page" : null)"
+                                        @onclick="() => Go(sub)">@SubIcon(sub)@Title(sub)</button>
                                 </li>
                             }
                         </ul>
@@ -87,7 +109,11 @@
             else
             {
                 <li>
-                    <button type="button" class="fb-nav-item @(page == item ? "fb-active" : "")" aria-current="@(page == item ? "page" : null)" @onclick="() => Go(item)">
+                    <button
+                        type="button"
+                        class="fb-nav-item @(page == item ? "fb-active" : "")"
+                        aria-current="@(page == item ? "page" : null)"
+                        @onclick="() => Go(item)">
                         @Icon(item)<span class="fb-nav-label">@Title(item)</span>
                         @if (PageDirty(item))
                         {
@@ -146,7 +172,10 @@
     <div class="fb-alert fb-alert-yellow" role="alertdialog" aria-label="Discard unsaved settings">
         <div><strong>Discard unsaved changes?</strong> Every section with edits goes back to the saved settings.</div>
         <div class="fb-actions">
-            <button type="button" class="fb-button fb-button-red" @onclick="Reload">Discard and reload</button><button type="button" class="fb-button fb-button-light" @onclick="() => confirmReload = false">Keep editing</button>
+            <button
+                type="button"
+                class="fb-button fb-button-red"
+                @onclick="Reload">Discard and reload</button><button type="button" class="fb-button fb-button-light" @onclick="() => confirmReload = false">Keep editing</button>
         </div>
     </div>
 }
@@ -169,7 +198,10 @@ else if (page == "Overview")
         <div class="fb-hero-track" style="transform:translateX(-@(slide * 100)%)">
             @foreach (var map in maps)
             {
-                <article class="fb-slide" @key="map.Id" style="--fb-map-hue:@Hue(map.Id);background-image:url('/pbt-assets/maps/@(map.Id).jpg'),linear-gradient(135deg,hsl(@Hue(map.Id) 35% 28%),hsl(@((Hue(map.Id) + 40) % 360) 30% 12%))">
+                <article
+                    class="fb-slide"
+                    @key="map.Id"
+                    style="--fb-map-hue:@Hue(map.Id);background-image:url('/pbt-assets/maps/@(map.Id).jpg'),linear-gradient(135deg,hsl(@Hue(map.Id) 35% 28%),hsl(@((Hue(map.Id) + 40) % 360) 30% 12%))">
                     <div class="fb-slide-shade"></div>
                     <div class="fb-slide-body">
                         @if (map.WeeklyBoss)
@@ -201,12 +233,22 @@ else if (page == "Overview")
         </div>
         @if (maps.Count > 1)
         {
-            <button type="button" class="fb-hero-arrow fb-hero-prev" aria-label="Previous map" title="Previous map" @onclick="() => SlideBy(-1)">
+            <button
+                type="button"
+                class="fb-hero-arrow fb-hero-prev"
+                aria-label="Previous map"
+                title="Previous map"
+                @onclick="() => SlideBy(-1)">
                 <svg viewBox="0 0 20 20" aria-hidden="true">
                     <path d="m12 5-5 5 5 5"/>
                 </svg>
             </button>
-            <button type="button" class="fb-hero-arrow fb-hero-next" aria-label="Next map" title="Next map" @onclick="() => SlideBy(1)">
+            <button
+                type="button"
+                class="fb-hero-arrow fb-hero-next"
+                aria-label="Next map"
+                title="Next map"
+                @onclick="() => SlideBy(1)">
                 <svg viewBox="0 0 20 20" aria-hidden="true">
                     <path d="m8 5 5 5-5 5"/>
                 </svg>
@@ -215,7 +257,11 @@ else if (page == "Overview")
                 @for (int index = 0; index < maps.Count; index++)
                 {
                     int target = index;
-                    <button type="button" class="@(index == slide ? "fb-dot-active" : "")" aria-label="Show @maps[index].Name" @onclick="() => { slide = target; slideHeld = true; }"></button>
+                    <button
+                        type="button"
+                        class="@(index == slide ? "fb-dot-active" : "")"
+                        aria-label="Show @maps[index].Name"
+                        @onclick="() => { slide = target; slideHeld = true; }"></button>
                 }
             </div>
         }
@@ -223,22 +269,29 @@ else if (page == "Overview")
 
     <div class="fb-stats fb-stats-6">
         <article class="fb-card fb-stat">
-            <span class="fb-stat-label">Online@(Tip("Accounts playing right now: in the menu, queueing, in a raid or in transit."))</span><strong>@Num("online", world?.Online ?? 0)</strong>
+            <span class="fb-stat-label">Online@(Tip(
+                "Accounts playing right now: in the menu, queueing, in a raid or in transit."))</span>
+            <strong>@Num("online", world?.Online ?? 0)</strong>
         </article>
         <article class="fb-card fb-stat">
-            <span class="fb-stat-label">In raid@(Tip("Players in a raid, including the ones in yours."))</span><strong>@Num("raid", world?.InRaid ?? 0)</strong>
+            <span class="fb-stat-label">In raid@(Tip("Players in a raid, including the ones in yours."))</span>
+            <strong>@Num("raid", world?.InRaid ?? 0)</strong>
         </article>
         <article class="fb-card fb-stat">
-            <span class="fb-stat-label">Queueing@(Tip("Players waiting for a match. Busy maps fill faster."))</span><strong>@Num("queue", world?.Queueing ?? 0)</strong>
+            <span class="fb-stat-label">Queueing@(Tip("Players waiting for a match. Busy maps fill faster."))</span>
+            <strong>@Num("queue", world?.Queueing ?? 0)</strong>
         </article>
         <article class="fb-card fb-stat">
-            <span class="fb-stat-label">Main menu@(Tip("Online between raids: sorting the stash, regearing, flea."))</span><strong>@Num("menu", world?.InMenu ?? 0)</strong>
+            <span class="fb-stat-label">Main menu@(Tip("Online between raids: sorting the stash, regearing, flea."))</span>
+            <strong>@Num("menu", world?.InMenu ?? 0)</strong>
         </article>
         <article class="fb-card fb-stat">
-            <span class="fb-stat-label">In transit@(Tip("Survivors moving to a connected map with their gear."))</span><strong>@Num("transit", world?.InTransit ?? 0)</strong>
+            <span class="fb-stat-label">In transit@(Tip("Survivors moving to a connected map with their gear."))</span>
+            <strong>@Num("transit", world?.InTransit ?? 0)</strong>
         </article>
         <article class="fb-card fb-stat">
-            <span class="fb-stat-label">Pending stories@(Tip("PMCs from your raids whose outcome is still to come."))</span><strong>@Num("stories", world?.PendingStories ?? 0)</strong>
+            <span class="fb-stat-label">Pending stories@(Tip("PMCs from your raids whose outcome is still to come."))</span>
+            <strong>@Num("stories", world?.PendingStories ?? 0)</strong>
         </article>
     </div>
 
@@ -269,10 +322,14 @@ else if (page == "Overview")
                                 }
                                 @if (map.Solo)
                                 {
-                                    <span class="fb-badge fb-badge-green fb-inline-badge" title="Private instance, no random PMCs">Solo</span>
+                                    <span
+                                        class="fb-badge fb-badge-green fb-inline-badge"
+                                        title="Private instance, no random PMCs">Solo</span>
                                 }
                             </td>
-                            <td>@Num("raid-" + map.Id, map.InRaid)</td><td>@Num("queue-" + map.Id, map.Queueing)</td><td>@Clock(map.QueueSeconds)</td>
+                            <td>@Num("raid-" + map.Id, map.InRaid)</td>
+                            <td>@Num("queue-" + map.Id, map.Queueing)</td>
+                            <td>@Clock(map.QueueSeconds)</td>
                             <td>
                                 <span class="fb-signal" title="@((map.Share * 100).ToString("0.0"))% of players">
                                     @for (int bar = 0; bar < 4; bar++)
@@ -358,7 +415,8 @@ else if (page == "Players")
     <section class="fb-card">
         <div class="fb-toolbar fb-toolbar-wrap">
             <label class="fb-field">
-                <span class="fb-label">Search</span><input placeholder="Name" @bind="playerSearch" @bind:event="oninput" @bind:after="() => playerPage = 0"/>
+                <span class="fb-label">Search</span>
+                <input placeholder="Name" @bind="playerSearch" @bind:event="oninput" @bind:after="() => playerPage = 0"/>
             </label>
             <label class="fb-field">
                 <span class="fb-label">Status</span>
@@ -378,7 +436,10 @@ else if (page == "Players")
                     }
                 </select>
             </label>
-            <button type="button" class="fb-button fb-button-light" @onclick="() => sortDescending = !sortDescending">@(sortDescending ? "Descending" : "Ascending")</button>
+            <button
+                type="button"
+                class="fb-button fb-button-light"
+                @onclick="() => sortDescending = !sortDescending">@(sortDescending ? "Descending" : "Ascending")</button>
         </div>
     </section>
     <section class="fb-card fb-flush">
@@ -388,14 +449,25 @@ else if (page == "Players")
                 <p>Updates every few seconds.</p>
             </div>
             <div class="fb-actions">
-                <button type="button" class="fb-button fb-button-light" disabled="@(current == 0)" @onclick="() => playerPage = current - 1">Previous</button><span class="fb-muted fb-pager">@(current + 1) / @pages</span><button type="button" class="fb-button fb-button-light" disabled="@(current >= pages - 1)" @onclick="() => playerPage = current + 1">Next</button>
+                <button
+                    type="button"
+                    class="fb-button fb-button-light"
+                    disabled="@(current == 0)"
+                    @onclick="() => playerPage = current - 1">Previous</button><span class="fb-muted fb-pager">@(current + 1) / @pages</span><button type="button" class="fb-button fb-button-light" disabled="@(current >= pages - 1)" @onclick="() => playerPage = current + 1">Next</button>
             </div>
         </div>
         <div class="fb-table-scroll">
             <table class="fb-table">
                 <thead>
                 <tr>
-                    <th>Name</th><th>Personality</th><th>Level</th><th title="Prestige">Prest.</th><th>Raids</th><th title="PMC kills per death">K/D</th><th>Status</th><th>For</th>
+                    <th>Name</th>
+                    <th>Personality</th>
+                    <th>Level</th>
+                    <th title="Prestige">Prest.</th>
+                    <th>Raids</th>
+                    <th title="PMC kills per death">K/D</th>
+                    <th>Status</th>
+                    <th>For</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -403,7 +475,9 @@ else if (page == "Players")
                 {
                     <tr>
                         <td>
-                            <span class="fb-person @(row.Team.Length > 0 ? "fb-in-team" : "")" style="@(row.Team.Length > 0 ? $"--fb-team-hue:{TeamHue(row)}" : null)">
+                            <span
+                                class="fb-person @(row.Team.Length > 0 ? "fb-in-team" : "")"
+                                style="@(row.Team.Length > 0 ? $"--fb-team-hue:{TeamHue(row)}" : null)">
                                 <span class="fb-avatar @(row.Side.Equals("Bear", StringComparison.OrdinalIgnoreCase) ? "fb-avatar-bear" : "fb-avatar-usec")">@row.Name[..1].ToUpperInvariant()</span>
                                 <span>
                                     <span class="fb-name-line">
@@ -417,19 +491,28 @@ else if (page == "Players")
                                         @row.Side.ToUpperInvariant()@(row.Notable ? " · streamer" : "")
                                         @if (row.Squad.Length > 0)
                                         {
-                                            <span class="fb-squad" title="Squad with @string.Join(", ", row.Squad)">@Icon("Users") @(row.Squad.Length + 1)</span>
+                                            <span
+                                                class="fb-squad"
+                                                title="Squad with @string.Join(", ", row.Squad)">@Icon("Users") @(row.Squad.Length + 1)</span>
                                         }
                                     </small>
                                 </span>
                             </span>
                         </td>
-                        <td>@row.Personality</td><td>@row.Level</td><td>@row.Prestige</td><td>@row.Raids.ToString("N0")</td><td>@row.KillDeath.ToString("0.00")</td>
+                        <td>@row.Personality</td>
+                        <td>@row.Level</td>
+                        <td>@row.Prestige</td>
+                        <td>@row.Raids.ToString("N0")</td>
+                        <td>@row.KillDeath.ToString("0.00")</td>
                         <td>
                             <span class="fb-state fb-state-@row.State.ToLowerInvariant()">
                                 <span class="fb-state-label">@StateLabel(row.State)</span><span class="fb-state-detail">@row.Status</span>
                                 @if (row.Team.Length > 0)
                                 {
-                                    <span class="fb-team" style="--fb-team-hue:@TeamHue(row)" title="Playing with @string.Join(", ", row.Team)">@Icon("Users")Team of @(row.Team.Length + 1)</span>
+                                    <span
+                                        class="fb-team"
+                                        style="--fb-team-hue:@TeamHue(row)"
+                                        title="Playing with @string.Join(", ", row.Team)">@Icon("Users")Team of @(row.Team.Length + 1)</span>
                                 }
                             </span>
                         </td>
@@ -505,7 +588,10 @@ else if (page == "Watching")
 else if (page == "Player")
 {
     <div class="fb-toolbar">
-        <button type="button" class="fb-button fb-button-light" @onclick="() => Go(playerBack)">Back to @Title(playerBack)</button>
+        <button
+            type="button"
+            class="fb-button fb-button-light"
+            @onclick="() => Go(playerBack)">Back to @Title(playerBack)</button>
     </div>
     @if (profile is not { } p)
     {
@@ -574,16 +660,24 @@ else if (page == "Player")
             </section>
             <div class="fb-stats fb-profile-stats">
                 <article class="fb-card fb-stat">
-                    <span class="fb-stat-label">Level</span><strong>@p.Level</strong><span class="fb-stat-foot">@p.Experience.ToString("N0") XP@(p.Prestige > 0 ? $" · prestige {p.Prestige}" : "")</span>
+                    <span class="fb-stat-label">Level</span>
+                    <strong>@p.Level</strong>
+                    <span class="fb-stat-foot">@p.Experience.ToString("N0") XP@(p.Prestige > 0 ? $" · prestige {p.Prestige}" : "")</span>
                 </article>
                 <article class="fb-card fb-stat">
-                    <span class="fb-stat-label">Raids</span><strong>@p.Raids.ToString("N0")</strong><span class="fb-stat-foot">@p.SurvivalRate.ToString("P0") survived</span>
+                    <span class="fb-stat-label">Raids</span>
+                    <strong>@p.Raids.ToString("N0")</strong>
+                    <span class="fb-stat-foot">@p.SurvivalRate.ToString("P0") survived</span>
                 </article>
                 <article class="fb-card fb-stat">
-                    <span class="fb-stat-label">K/D</span><strong>@p.KillDeath.ToString("0.00")</strong><span class="fb-stat-foot">@p.PmcKills.ToString("N0") PMC kills</span>
+                    <span class="fb-stat-label">K/D</span>
+                    <strong>@p.KillDeath.ToString("0.00")</strong>
+                    <span class="fb-stat-foot">@p.PmcKills.ToString("N0") PMC kills</span>
                 </article>
                 <article class="fb-card fb-stat">
-                    <span class="fb-stat-label">Time in game</span><strong>@(p.InGameSeconds / 3600)h</strong><span class="fb-stat-foot">Registered @(p.RegisteredUtc > 0 ? DateTimeOffset.FromUnixTimeSeconds(p.RegisteredUtc).ToString("d MMM yyyy") : "unknown")</span>
+                    <span class="fb-stat-label">Time in game</span>
+                    <strong>@(p.InGameSeconds / 3600)h</strong>
+                    <span class="fb-stat-foot">Registered @(p.RegisteredUtc > 0 ? DateTimeOffset.FromUnixTimeSeconds(p.RegisteredUtc).ToString("d MMM yyyy") : "unknown")</span>
                 </article>
             </div>
             @if (p.BannedUtc > 0 || p.PreviousAccounts.Count > 0)
@@ -610,7 +704,10 @@ else if (page == "Player")
                             @foreach (var old in p.PreviousAccounts)
                             {
                                 <li>
-                                    <button type="button" class="fb-name-link" @onclick="() => OpenPlayer(old.Id)">@old.Name</button>
+                                    <button
+                                        type="button"
+                                        class="fb-name-link"
+                                        @onclick="() => OpenPlayer(old.Id)">@old.Name</button>
                                     <span class="fb-muted">level @old.Level, @(old.Reason.Length > 0 ? old.Reason.ToLowerInvariant() : "banned") @Ago(old.BannedUtc)</span>
                                 </li>
                             }
@@ -687,7 +784,10 @@ else if (page == "Player")
                     <p>
                         @foreach (var mate in p.Squad)
                         {
-                            <button type="button" class="fb-name-link fb-link-chip" @onclick="() => OpenPlayer(mate.Id)">@mate.Name</button>
+                            <button
+                                type="button"
+                                class="fb-name-link fb-link-chip"
+                                @onclick="() => OpenPlayer(mate.Id)">@mate.Name</button>
                         }
                     </p>
                 </section>
@@ -715,19 +815,25 @@ else if (page == "Dashboard")
     int total = Math.Max(1, snapshot.Careers);
     <div class="fb-stats">
         <article class="fb-card fb-stat">
-            <span class="fb-stat-label">Accounts@(Tip("Persistent PMC Players, one per bot name."))</span><strong>@Num("careers", snapshot.Careers)</strong>
+            <span class="fb-stat-label">Accounts@(Tip("Persistent PMC Players, one per bot name."))</span>
+            <strong>@Num("careers", snapshot.Careers)</strong>
             <span class="fb-stat-foot">@Icon("Users") Persistent identities</span>
         </article>
         <article class="fb-card fb-stat">
-            <span class="fb-stat-label">Simulated online@(Tip("Accounts playing right now. Each account comes online and logs off around its daily raid hours."))</span><strong>@Num("online-all", snapshot.Online)</strong>
+            <span class="fb-stat-label">Simulated online@(Tip(
+                "Accounts playing right now. Each account comes online and logs off around its daily raid hours."))</span>
+            <strong>@Num("online-all", snapshot.Online)</strong>
             <span class="fb-stat-foot"><span class="fb-up">@Percent(snapshot.Online, total)</span> of accounts</span>
         </article>
         <article class="fb-card fb-stat">
-            <span class="fb-stat-label">Prestiged@(Tip("Accounts that have prestiged at least once."))</span><strong>@Num("prestiged", snapshot.Prestiged)</strong>
+            <span class="fb-stat-label">Prestiged@(Tip("Accounts that have prestiged at least once."))</span>
+            <strong>@Num("prestiged", snapshot.Prestiged)</strong>
             <span class="fb-stat-foot"><span class="fb-up">@Percent(snapshot.Prestiged, total)</span> of accounts</span>
         </article>
         <article class="fb-card fb-stat">
-            <span class="fb-stat-label">Pending stories@(Tip("PMCs from your raids whose outcome (a later death, regear, transit or survival) is still to come."))</span><strong>@Num("stories-all", snapshot.PendingStories)</strong>
+            <span class="fb-stat-label">Pending stories@(Tip(
+                "PMCs from your raids whose outcome (a later death, regear, transit or survival) is still to come."))</span>
+            <strong>@Num("stories-all", snapshot.PendingStories)</strong>
             <span class="fb-stat-foot">@Icon("Clock") Outcomes awaiting resolution</span>
         </article>
     </div>
@@ -745,9 +851,13 @@ else if (page == "Dashboard")
                 @for (int band = 0; band < insights.LevelBands.Length; band++)
                 {
                     int count = insights.LevelBands[band];
-                    <div class="fb-bar" title="Level @(band * 10 + 1)-@(band == 7 ? 79 : band * 10 + 10): @count.ToString("N0") accounts">
+                    <div
+                        class="fb-bar"
+                        title="Level @(band * 10 + 1)-@(band == 7 ? 79 : band * 10 + 10): @count.ToString("N0") accounts">
                         <span class="fb-bar-value">@count.ToString("N0")</span>
-                        <span class="fb-bar-fill" style="height:@((count * 100.0 / peak).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></span>
+                        <span
+                            class="fb-bar-fill"
+                            style="height:@((count * 100.0 / peak).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></span>
                         <span class="fb-bar-label">@(band * 10 + 1)-@(band == 7 ? 79 : band * 10 + 10)</span>
                     </div>
                 }
@@ -764,7 +874,11 @@ else if (page == "Dashboard")
                 </div>
             </div>
             @{ double bear = insights.Bear * 100.0 / Math.Max(1, insights.Bear + insights.Usec); }
-            <div class="fb-donut" style="--fb-share:@(bear.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))" role="img" aria-label="@bear.ToString("0")% BEAR">
+            <div
+                class="fb-donut"
+                style="--fb-share:@(bear.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))"
+                role="img"
+                aria-label="@bear.ToString("0")% BEAR">
                 <span>
                     <strong>@bear.ToString("0")%</strong><small>BEAR</small>
                 </span>
@@ -788,7 +902,13 @@ else if (page == "Dashboard")
                 <table class="fb-table">
                     <thead>
                     <tr>
-                        <th>Name</th><th>Personality</th><th>Level</th><th title="Prestige">Prest.</th><th>Raids</th><th title="PMC kills per death">K/D</th><th>Status</th>
+                        <th>Name</th>
+                        <th>Personality</th>
+                        <th>Level</th>
+                        <th title="Prestige">Prest.</th>
+                        <th>Raids</th>
+                        <th title="PMC kills per death">K/D</th>
+                        <th>Status</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -799,11 +919,18 @@ else if (page == "Dashboard")
                                 <span class="fb-person">
                                     <span class="fb-avatar @(row.Side.Equals("Bear", StringComparison.OrdinalIgnoreCase) ? "fb-avatar-bear" : "fb-avatar-usec")">@row.Name[..1].ToUpperInvariant()</span>
                                     <span>
-                                        <button type="button" class="fb-name-link" @onclick="() => OpenPlayer(row.Id)">@row.Name</button><small>@row.Side.ToUpperInvariant()</small>
+                                        <button
+                                            type="button"
+                                            class="fb-name-link"
+                                            @onclick="() => OpenPlayer(row.Id)">@row.Name</button><small>@row.Side.ToUpperInvariant()</small>
                                     </span>
                                 </span>
                             </td>
-                            <td>@row.Personality</td><td>@row.Level</td><td>@row.Prestige</td><td>@row.Raids.ToString("N0")</td><td>@row.KillDeath.ToString("0.00")</td>
+                            <td>@row.Personality</td>
+                            <td>@row.Level</td>
+                            <td>@row.Prestige</td>
+                            <td>@row.Raids.ToString("N0")</td>
+                            <td>@row.KillDeath.ToString("0.00")</td>
                             <td>
                                 <span class="fb-status">
                                     <span class="fb-status-dot @(row.Online ? "fb-online" : "")"></span>@(row.Online ? "Online" : "Offline")
@@ -870,7 +997,8 @@ else if (page == "Dashboard")
                     <dt>Unmatched level ranges</dt><dd>@snapshot.ApbsFallback.ToString("N0")</dd>
                 </div>
             </dl>
-            <p class="fb-muted">APBS supplies equipment and appearance. Players keep their identity, history and friendships between raids.</p>
+            <p class="fb-muted">APBS supplies equipment and appearance. Players keep their identity, history and friendships
+                between raids.</p>
         </section>
     </div>
 }
@@ -895,22 +1023,32 @@ else if (page == "Personalities")
             <h2>Identity &amp; distribution</h2>
             <div class="fb-grid">
                 <label class="fb-field">
-                    <span class="fb-label">Name@(Tip("Personality ID. Players store this name, so renaming it moves existing players to the first personality."))</span><input @bind="p.Id"/>
+                    <span class="fb-label">Name@(Tip(
+                        "Personality ID. Players store this name, so renaming it moves existing players to the first "
+                        + "personality."))</span>
+                    <input @bind="p.Id"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Population weight@(Tip("How often new accounts roll this personality, relative to the other weights."))</span><input type="number" min="1" max="1000" @bind="p.Weight"/>
+                    <span class="fb-label">Population weight@(Tip(
+                        "How often new accounts roll this personality, relative to the other weights."))</span>
+                    <input type="number" min="1" max="1000" @bind="p.Weight"/>
                 </label>
             </div>
         </section>
         <section class="fb-card">
             <h2>Starting experience</h2>
-            <p class="fb-muted">Ranges used when a new account is created. Raids, hours and kills are worked out from the level, so they always fit it.</p>
+            <p class="fb-muted">Ranges used when a new account is created. Raids, hours and kills are worked out from the
+                level, so they always fit it.</p>
             <div class="fb-grid">
                 <label class="fb-field">
-                    <span class="fb-label">Starting level, minimum@(Tip("Lowest level a new account of this personality starts at."))</span><input type="number" min="1" max="79" @bind="p.MinimumLevel"/>
+                    <span class="fb-label">Starting level, minimum@(Tip(
+                        "Lowest level a new account of this personality starts at."))</span>
+                    <input type="number" min="1" max="79" @bind="p.MinimumLevel"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Starting level, maximum@(Tip("Highest level a new account of this personality starts at."))</span><input type="number" min="1" max="79" @bind="p.MaximumLevel"/>
+                    <span class="fb-label">Starting level, maximum@(Tip(
+                        "Highest level a new account of this personality starts at."))</span>
+                    <input type="number" min="1" max="79" @bind="p.MaximumLevel"/>
                 </label>
             </div>
         </section>
@@ -919,22 +1057,33 @@ else if (page == "Personalities")
             <p class="fb-muted">Hours are daily totals. Survival chances use 0 to 1 (0.5 = 50%).</p>
             <div class="fb-grid">
                 <label class="fb-field">
-                    <span class="fb-label">Daily raid hours, minimum@(Tip("Least time per day this account plays. It also sets how often the account shows as online."))</span><input type="number" step="0.05" @bind="p.MinimumDailyHours"/>
+                    <span class="fb-label">Daily raid hours, minimum@(Tip(
+                        "Least time per day this account plays. It also sets how often the account shows as online."))</span>
+                    <input type="number" step="0.05" @bind="p.MinimumDailyHours"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Daily raid hours, maximum@(Tip("Most time per day this account plays. It also sets how often the account shows as online."))</span><input type="number" step="0.05" @bind="p.MaximumDailyHours"/>
+                    <span class="fb-label">Daily raid hours, maximum@(Tip(
+                        "Most time per day this account plays. It also sets how often the account shows as online."))</span>
+                    <input type="number" step="0.05" @bind="p.MaximumDailyHours"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Survival chance, minimum@(Tip("Survival chance (0 to 1) of the least skilled accounts. Skill also sets kills, so low survival means fewer kills."))</span><input type="number" min="0" max="1" step="0.01" @bind="p.MinimumSurvival"/>
+                    <span class="fb-label">Survival chance, minimum@(Tip(
+                        "Survival chance (0 to 1) of the least skilled accounts. Skill also sets kills, so low survival "
+                        + "means fewer kills."))</span>
+                    <input type="number" min="0" max="1" step="0.01" @bind="p.MinimumSurvival"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Survival chance, maximum@(Tip("Survival chance (0 to 1) of the most skilled accounts."))</span><input type="number" min="0" max="1" step="0.01" @bind="p.MaximumSurvival"/>
+                    <span class="fb-label">Survival chance, maximum@(Tip(
+                        "Survival chance (0 to 1) of the most skilled accounts."))</span>
+                    <input type="number" min="0" max="1" step="0.01" @bind="p.MaximumSurvival"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Raid minutes, minimum@(Tip("Shortest simulated raid. Clamped to 3-60 minutes."))</span><input type="number" @bind="p.MinimumRaidMinutes"/>
+                    <span class="fb-label">Raid minutes, minimum@(Tip("Shortest simulated raid. Clamped to 3-60 minutes."))</span>
+                    <input type="number" @bind="p.MinimumRaidMinutes"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Raid minutes, maximum@(Tip("Longest simulated raid. Clamped to 3-60 minutes."))</span><input type="number" @bind="p.MaximumRaidMinutes"/>
+                    <span class="fb-label">Raid minutes, maximum@(Tip("Longest simulated raid. Clamped to 3-60 minutes."))</span>
+                    <input type="number" @bind="p.MaximumRaidMinutes"/>
                 </label>
             </div>
         </section>
@@ -942,7 +1091,8 @@ else if (page == "Personalities")
             <h2>Personality progression</h2>
             <div class="fb-grid">
                 <label class="fb-field">
-                    <span class="fb-label">Progress to@(Tip("Personality this account turns into after enough raid hours, e.g. Timmy into Casual."))</span>
+                    <span class="fb-label">Progress to@(Tip(
+                        "Personality this account turns into after enough raid hours, e.g. Timmy into Casual."))</span>
                     <select @bind="p.ProgressTo">
                         <option value="">Stay this personality</option>
                         @foreach (var target in people.Where(t => t != p))
@@ -952,7 +1102,9 @@ else if (page == "Personalities")
                     </select>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Progress after account raid hours@(Tip("Total raid hours before the account switches to the Progress to personality."))</span><input type="number" @bind="p.TransitionHours"/>
+                    <span class="fb-label">Progress after account raid hours@(Tip(
+                        "Total raid hours before the account switches to the Progress to personality."))</span>
+                    <input type="number" @bind="p.TransitionHours"/>
                 </label>
             </div>
         </section>
@@ -972,14 +1124,19 @@ else if (page == "Progression")
         <div class="fb-card-head fb-padded">
             <div>
                 <h2>Raid history priors</h2>
-                <p>Bands must increase and end at level 79. These averages are priors, not identical targets for every account.</p>
+                <p>Bands must increase and end at level 79. These averages are priors, not identical targets for every
+                    account.</p>
             </div>
         </div>
         <div class="fb-table-scroll">
             <table class="fb-table">
                 <thead>
                 <tr>
-                    <th>Maximum level</th><th title="Average length of a raid the account survives.">Survived raid min</th><th title="Average length of a raid that ends in death.">Death raid min</th><th title="For an average-skill account. Skill and personality scale it.">PMC kills / raid</th><th title="For an average-skill account. Skill and personality scale it.">Scav kills / raid</th>
+                    <th>Maximum level</th>
+                    <th title="Average length of a raid the account survives.">Survived raid min</th>
+                    <th title="Average length of a raid that ends in death.">Death raid min</th>
+                    <th title="For an average-skill account. Skill and personality scale it.">PMC kills / raid</th>
+                    <th title="For an average-skill account. Skill and personality scale it.">Scav kills / raid</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -988,19 +1145,48 @@ else if (page == "Progression")
                     var row = simulation.ProgressionPriors.IndexOf(prior) + 1;
                     <tr @key="prior">
                         <td>
-                            <input aria-label="Maximum level, band @row" type="number" min="1" max="79" @bind="prior.MaximumLevel"/>
+                            <input
+                                aria-label="Maximum level, band @row"
+                                type="number"
+                                min="1"
+                                max="79"
+                                @bind="prior.MaximumLevel"/>
                         </td>
                         <td>
-                            <input aria-label="Survived raid minutes, band @row" type="number" min="3" max="60" step="0.5" @bind="prior.SurvivedMinutes"/>
+                            <input
+                                aria-label="Survived raid minutes, band @row"
+                                type="number"
+                                min="3"
+                                max="60"
+                                step="0.5"
+                                @bind="prior.SurvivedMinutes"/>
                         </td>
                         <td>
-                            <input aria-label="Death raid minutes, band @row" type="number" min="3" max="60" step="0.5" @bind="prior.DeathMinutes"/>
+                            <input
+                                aria-label="Death raid minutes, band @row"
+                                type="number"
+                                min="3"
+                                max="60"
+                                step="0.5"
+                                @bind="prior.DeathMinutes"/>
                         </td>
                         <td>
-                            <input aria-label="PMC kills per raid, band @row" type="number" min="0" max="20" step="0.01" @bind="prior.PmcKills"/>
+                            <input
+                                aria-label="PMC kills per raid, band @row"
+                                type="number"
+                                min="0"
+                                max="20"
+                                step="0.01"
+                                @bind="prior.PmcKills"/>
                         </td>
                         <td>
-                            <input aria-label="Scav kills per raid, band @row" type="number" min="0" max="20" step="0.01" @bind="prior.ScavKills"/>
+                            <input
+                                aria-label="Scav kills per raid, band @row"
+                                type="number"
+                                min="0"
+                                max="20"
+                                step="0.01"
+                                @bind="prior.ScavKills"/>
                         </td>
                     </tr>
                 }
@@ -1010,40 +1196,56 @@ else if (page == "Progression")
     </section>
     <section class="fb-card">
         <h2>Raid experience &amp; time</h2>
-        <p class="fb-muted">With the defaults an average account needs about 60 raids for level 15, 440 for level 40 and 3,800 for level 79.</p>
+        <p class="fb-muted">With the defaults an average account needs about 60 raids for level 15, 440 for level 40 and
+            3,800 for level 79.</p>
         <div class="fb-grid">
             <label class="fb-field">
-                <span class="fb-label">Survived raid XP, base@(Tip("XP for a survived raid at level 0. Raid XP decides how many raids an account needed to reach its level."))</span><input type="number" min="100" max="100000" step="100" @bind="simulation.RaidExperience.SurvivedBase"/>
+                <span class="fb-label">Survived raid XP, base@(Tip(
+                    "XP for a survived raid at level 0. Raid XP decides how many raids an account needed to reach its "
+                    + "level."))</span>
+                <input type="number" min="100" max="100000" step="100" @bind="simulation.RaidExperience.SurvivedBase"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Survived raid XP, per level@(Tip("Extra survived raid XP per level."))</span><input type="number" min="0" max="10000" step="10" @bind="simulation.RaidExperience.SurvivedPerLevel"/>
+                <span class="fb-label">Survived raid XP, per level@(Tip("Extra survived raid XP per level."))</span>
+                <input type="number" min="0" max="10000" step="10" @bind="simulation.RaidExperience.SurvivedPerLevel"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Survived raid XP, per level squared@(Tip("Extra survived raid XP per level squared, so high levels earn much more per raid."))</span><input type="number" min="0" max="1000" step="0.5" @bind="simulation.RaidExperience.SurvivedPerLevelSquared"/>
+                <span class="fb-label">Survived raid XP, per level squared@(Tip(
+                    "Extra survived raid XP per level squared, so high levels earn much more per raid."))</span>
+                <input type="number" min="0" max="1000" step="0.5" @bind="simulation.RaidExperience.SurvivedPerLevelSquared"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Death XP share@(Tip("Share (0 to 1) of the survived XP a death still earns."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.RaidExperience.DeathShare"/>
+                <span class="fb-label">Death XP share@(Tip("Share (0 to 1) of the survived XP a death still earns."))</span>
+                <input type="number" min="0" max="1" step="0.05" @bind="simulation.RaidExperience.DeathShare"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Online time factor, minimum@(Tip("Online time is raid time times a factor between these two, for menus, hideout and flea."))</span><input type="number" min="1" max="5" step="0.05" @bind="simulation.OnlineTimeMinimum"/>
+                <span class="fb-label">Online time factor, minimum@(Tip(
+                    "Online time is raid time times a factor between these two, for menus, hideout and flea."))</span>
+                <input type="number" min="1" max="5" step="0.05" @bind="simulation.OnlineTimeMinimum"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Online time factor, maximum@(Tip("Upper end of the online time factor."))</span><input type="number" min="1" max="5" step="0.05" @bind="simulation.OnlineTimeMaximum"/>
+                <span class="fb-label">Online time factor, maximum@(Tip("Upper end of the online time factor."))</span>
+                <input type="number" min="1" max="5" step="0.05" @bind="simulation.OnlineTimeMaximum"/>
             </label>
         </div>
     </section>
     <section class="fb-card">
         <h2>Achievements</h2>
-        <p class="fb-muted">Share of level 79, average-skill accounts that own a given achievement. Lower levels own fewer, skill scales it.</p>
+        <p class="fb-muted">Share of level 79, average-skill accounts that own a given achievement. Lower levels own fewer,
+            skill scales it.</p>
         <div class="fb-grid fb-grid-3">
             <label class="fb-field">
-                <span class="fb-label">Common@(Tip("Share (0 to 1) of level 79, average-skill accounts that own a given Common achievement."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.Achievements.Common"/>
+                <span class="fb-label">Common@(Tip(
+                    "Share (0 to 1) of level 79, average-skill accounts that own a given Common achievement."))</span>
+                <input type="number" min="0" max="1" step="0.01" @bind="simulation.Achievements.Common"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Rare@(Tip("Same for Rare achievements, mostly boss kills."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.Achievements.Rare"/>
+                <span class="fb-label">Rare@(Tip("Same for Rare achievements, mostly boss kills."))</span>
+                <input type="number" min="0" max="1" step="0.01" @bind="simulation.Achievements.Rare"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Legendary@(Tip("Same for Legendary achievements, mostly events and Kappa."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.Achievements.Legendary"/>
+                <span class="fb-label">Legendary@(Tip("Same for Legendary achievements, mostly events and Kappa."))</span>
+                <input type="number" min="0" max="1" step="0.01" @bind="simulation.Achievements.Legendary"/>
             </label>
         </div>
     </section>
@@ -1053,28 +1255,44 @@ else if (page == "Hideout")
 {
     <section class="fb-card">
         <h2>Construction</h2>
-        <p class="fb-muted">Season cohort observations guide module preferences. Time, wealth, personality and native prerequisites still decide upgrades. Existing construction is never downgraded.</p>
+        <p class="fb-muted">Season cohort observations guide module preferences. Time, wealth, personality and native
+            prerequisites still decide upgrades. Existing construction is never downgraded.</p>
         <div class="fb-grid">
             <label class="fb-field">
-                <span class="fb-label">Construction speed@(Tip("How fast simulated accounts build hideout modules. 1 is normal, 2 is twice as fast."))</span><input type="number" min="0.25" max="4" step="0.05" @bind="simulation.Hideout.ConstructionSpeed"/>
+                <span class="fb-label">Construction speed@(Tip(
+                    "How fast simulated accounts build hideout modules. 1 is normal, 2 is twice as fast."))</span>
+                <input type="number" min="0.25" max="4" step="0.05" @bind="simulation.Hideout.ConstructionSpeed"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Material cost multiplier@(Tip("How much simulated hideout upgrades cost the account. Higher means slower upgrades."))</span><input type="number" min="0.25" max="4" step="0.05" @bind="simulation.Hideout.MaterialCostMultiplier"/>
+                <span class="fb-label">Material cost multiplier@(Tip(
+                    "How much simulated hideout upgrades cost the account. Higher means slower upgrades."))</span>
+                <input type="number" min="0.25" max="4" step="0.05" @bind="simulation.Hideout.MaterialCostMultiplier"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Built chance multiplier@(Tip("Scales how likely each hideout module is to be built at all for an account's level."))</span><input type="number" min="0.25" max="4" step="0.05" @bind="simulation.Hideout.BuiltChanceMultiplier"/>
+                <span class="fb-label">Built chance multiplier@(Tip(
+                    "Scales how likely each hideout module is to be built at all for an account's level."))</span>
+                <input type="number" min="0.25" max="4" step="0.05" @bind="simulation.Hideout.BuiltChanceMultiplier"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Hideout neglecters@(Tip("Share of accounts that mostly ignore the hideout: few modules, none past level 1, whatever their level."))</span><input type="number" min="0" max="0.5" step="0.01" @bind="simulation.Hideout.NeglectedShare"/>
+                <span class="fb-label">Hideout neglecters@(Tip(
+                    "Share of accounts that mostly ignore the hideout: few modules, none past level 1, whatever their "
+                    + "level."))</span>
+                <input type="number" min="0" max="0.5" step="0.01" @bind="simulation.Hideout.NeglectedShare"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Fully built from level@(Tip("Each account finishes its whole hideout at a level between these two. Neglecters finish 15 levels later."))</span><input type="number" min="1" max="79" step="1" @bind="simulation.Hideout.CompleteFromLevel"/>
+                <span class="fb-label">Fully built from level@(Tip(
+                    "Each account finishes its whole hideout at a level between these two. Neglecters finish 15 levels "
+                    + "later."))</span>
+                <input type="number" min="1" max="79" step="1" @bind="simulation.Hideout.CompleteFromLevel"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Fully built by level@(Tip("The latest level an account (not a neglecter) still has unbuilt modules."))</span><input type="number" min="1" max="79" step="1" @bind="simulation.Hideout.CompleteByLevel"/>
+                <span class="fb-label">Fully built by level@(Tip(
+                    "The latest level an account (not a neglecter) still has unbuilt modules."))</span>
+                <input type="number" min="1" max="79" step="1" @bind="simulation.Hideout.CompleteByLevel"/>
             </label>
         </div>
-        <p class="fb-hint">Speed and cost default to 1, built chance to 2. Edition starting privileges remain. Seasonal events and emergency-wall history are not fabricated.</p>
+        <p class="fb-hint">Speed and cost default to 1, built chance to 2. Edition starting privileges remain. Seasonal
+            events and emergency-wall history are not fabricated.</p>
     </section>
     @SimulationSave
 }
@@ -1082,69 +1300,134 @@ else if (page == "Gear")
 {
     <section class="fb-card">
         <h2>APBS bridge</h2>
-        <p class="fb-muted">APBS builds every PMC. PBT picks which career a PMC is and, with the takeover on, which kit it wears.</p>
+        <p class="fb-muted">APBS builds every PMC. PBT picks which career a PMC is and, with the takeover on, which kit it
+            wears.</p>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.EnableApbsCareerIntegration"/><span class="fb-switch-track"></span>Select persistent players within APBS level ranges@(Tip("When APBS spawns a PMC, reuse an existing player whose level fits APBS's level range, so you meet the same players again."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.EnableApbsCareerIntegration"/>
+                <span class="fb-switch-track"></span>
+                Select persistent players within APBS level ranges@(Tip(
+                    "When APBS spawns a PMC, reuse an existing player whose level fits APBS's level range, so you meet the "
+                    + "same players again."))
+            </label>
         </div>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.RetainProfileGearInRaid"/><span class="fb-switch-track"></span>APBS takeover in raid@(Tip("On: a career's in-raid PMC wears the kit its PBT profile shows, plus fresh APBS loot. Off: APBS gears the PMC as usual and PBT saves that kit to the career's profile."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.RetainProfileGearInRaid"/>
+                <span class="fb-switch-track"></span>
+                APBS takeover in raid@(Tip(
+                    "On: a career's in-raid PMC wears the kit its PBT profile shows, plus fresh APBS loot. Off: APBS gears "
+                    + "the PMC as usual and PBT saves that kit to the career's profile."))
+            </label>
         </div>
         @if (simulation.RetainProfileGearInRaid)
         {
-            @Warn("PBT replaces the gear APBS rolled for these PMCs. Your APBS loadout config is only used when PBT builds a profile kit, not at spawn. PBT refills the magazines itself, so APBS toploading and ammo choices don't apply to them. Loot still comes from APBS.")
+            @Warn(
+                "PBT replaces the gear APBS rolled for these PMCs. Your APBS loadout config is only used when PBT builds a "
+                + "profile kit, not at spawn. PBT refills the magazines itself, so APBS toploading and ammo choices don't "
+                + "apply to them. Loot still comes from APBS.")
         }
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.Cheaters.AlwaysPbtGear"/><span class="fb-switch-track"></span>Cheaters always wear PBT gear@(Tip("Cheater careers wear their PBT kit (welding masks, meta gear) in raid even with the takeover off."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.Cheaters.AlwaysPbtGear"/>
+                <span class="fb-switch-track"></span>
+                Cheaters always wear PBT gear@(Tip(
+                    "Cheater careers wear their PBT kit (welding masks, meta gear) in raid even with the takeover off."))
+            </label>
         </div>
     </section>
     <section class="fb-card">
         <h2>Loadout features</h2>
-        <p class="fb-muted">These change the kits APBS builds for career profiles. Each one moves the result away from your APBS config, so use them at your discretion.</p>
+        <p class="fb-muted">These change the kits APBS builds for career profiles. Each one moves the result away from your
+            APBS config, so use them at your discretion.</p>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.WealthGearTiers"/><span class="fb-switch-track"></span>Gear follows wealth@(Tip("Broke accounts wear one or two APBS tiers below their level and rich ones one above. Anyone sometimes runs a budget kit or goes all in."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.WealthGearTiers"/>
+                <span class="fb-switch-track"></span>
+                Gear follows wealth@(Tip(
+                    "Broke accounts wear one or two APBS tiers below their level and rich ones one above. Anyone sometimes "
+                    + "runs a budget kit or goes all in."))
+            </label>
         </div>
         @if (simulation.WealthGearTiers)
         {
-            @Warn("Overrides APBS's level-to-tier table: the tier is shifted by the account's wealth, so kits don't always match the tier APBS would pick for that level.")
+            @Warn(
+                "Overrides APBS's level-to-tier table: the tier is shifted by the account's wealth, so kits don't always "
+                + "match the tier APBS would pick for that level.")
         }
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.GearProgression"/><span class="fb-switch-track"></span>Gear progression@(Tip("Survivors keep their kit and now and then buy one better piece with their wealth. The dead rebuy, often their usual gun. Off means every raid rolls a whole new kit."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.GearProgression"/>
+                <span class="fb-switch-track"></span>
+                Gear progression@(Tip(
+                    "Survivors keep their kit and now and then buy one better piece with their wealth. The dead rebuy, often "
+                    + "their usual gun. Off means every raid rolls a whole new kit."))
+            </label>
         </div>
         @if (simulation.GearProgression)
         {
-            @Warn("Mixes pieces from different APBS kits (gun and rig from one, armor or helmet from another), so APBS's per-kit rules like weapon and rig pairing or tier caps may not hold.")
+            @Warn(
+                "Mixes pieces from different APBS kits (gun and rig from one, armor or helmet from another), so APBS's "
+                + "per-kit rules like weapon and rig pairing or tier caps may not hold.")
         }
         <div class="fb-grid">
             <label class="fb-field">
-                <span class="fb-label">Upgrade chance@(Tip("Share (0 to 1) of survived raids after which a player shops for one better piece of gear, if they can afford it."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.GearUpgradeChance"/>
+                <span class="fb-label">Upgrade chance@(Tip(
+                    "Share (0 to 1) of survived raids after which a player shops for one better piece of gear, if they can "
+                    + "afford it."))</span>
+                <input type="number" min="0" max="1" step="0.05" @bind="simulation.GearUpgradeChance"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Insurance return chance@(Tip("Share (0 to 1) of deaths where the player gets their gun and rig back from insurance. Some others rebuy the same loadout."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.InsuranceReturnChance"/>
+                <span class="fb-label">Insurance return chance@(Tip(
+                    "Share (0 to 1) of deaths where the player gets their gun and rig back from insurance. Some others rebuy "
+                    + "the same loadout."))</span>
+                <input type="number" min="0" max="1" step="0.05" @bind="simulation.InsuranceReturnChance"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Regear, minimum minutes@(Tip("Shortest time a dead account stays in the menu before it rebuys a kit."))</span><input type="number" min="0" max="20" step="1" @bind="simulation.RegearMinimumMinutes"/>
+                <span class="fb-label">Regear, minimum minutes@(Tip(
+                    "Shortest time a dead account stays in the menu before it rebuys a kit."))</span>
+                <input type="number" min="0" max="20" step="1" @bind="simulation.RegearMinimumMinutes"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Regear, maximum minutes@(Tip("Longest time a dead account waits to rebuy, 20 at most. Broke accounts take up to 30 minutes more to bring a scav kit out."))</span><input type="number" min="0" max="20" step="1" @bind="simulation.RegearMaximumMinutes"/>
+                <span class="fb-label">Regear, maximum minutes@(Tip(
+                    "Longest time a dead account waits to rebuy, 20 at most. Broke accounts take up to 30 minutes more to "
+                    + "bring a scav kit out."))</span>
+                <input type="number" min="0" max="20" step="1" @bind="simulation.RegearMaximumMinutes"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Night kit chance@(Tip("Share (0 to 1) of generated profile loadouts built as night raid kits, which can carry NVGs."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.NightGearChance"/>
+                <span class="fb-label">Night kit chance@(Tip(
+                    "Share (0 to 1) of generated profile loadouts built as night raid kits, which can carry NVGs."))</span>
+                <input type="number" min="0" max="1" step="0.05" @bind="simulation.NightGearChance"/>
             </label>
         </div>
-        @Warn("Night kit chance replaces APBS's own day or night choice for profile kits, since a profile isn't tied to a raid time.")
+        @Warn(
+            "Night kit chance replaces APBS's own day or night choice for profile kits, since a profile isn't tied to a raid "
+            + "time.")
     </section>
     <section class="fb-card">
         <h2>Showcases</h2>
-        <p class="fb-muted">Only accounts that built the weapon rack or trophy stand get a showcase. Favorites stay pinned until an item becomes unavailable.</p>
+        <p class="fb-muted">Only accounts that built the weapon rack or trophy stand get a showcase. Favorites stay pinned
+            until an item becomes unavailable.</p>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.EnableShowcase"/><span class="fb-switch-track"></span>Hideout-gated showcases@(Tip("Fill weapon racks and trophy stands, only for accounts that have built those hideout modules."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.EnableShowcase"/>
+                <span class="fb-switch-track"></span>
+                Hideout-gated showcases@(Tip(
+                    "Fill weapon racks and trophy stands, only for accounts that have built those hideout modules."))
+            </label>
         </div>
         <div class="fb-grid">
             <label class="fb-field">
-                <span class="fb-label">Rack gun tier boost, minimum@(Tip("Fewest APBS gear tiers above the account's own that rack guns are built at. Capped at APBS's top tier."))</span><input type="number" min="0" max="6" @bind="simulation.RackTierBoostMinimum"/>
+                <span class="fb-label">Rack gun tier boost, minimum@(Tip(
+                    "Fewest APBS gear tiers above the account's own that rack guns are built at. Capped at APBS's top "
+                    + "tier."))</span>
+                <input type="number" min="0" max="6" @bind="simulation.RackTierBoostMinimum"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Rack gun tier boost, maximum@(Tip("Most APBS gear tiers above the account's own that rack guns are built at. Each rack loadout rolls in this range."))</span><input type="number" min="0" max="6" @bind="simulation.RackTierBoostMaximum"/>
+                <span class="fb-label">Rack gun tier boost, maximum@(Tip(
+                    "Most APBS gear tiers above the account's own that rack guns are built at. Each rack loadout rolls in "
+                    + "this range."))</span>
+                <input type="number" min="0" max="6" @bind="simulation.RackTierBoostMaximum"/>
             </label>
         </div>
         @Warn("Rack guns are built above the account's APBS tier. They are only shown, never carried into raid.")
@@ -1155,34 +1438,54 @@ else if (page == "Notable")
 {
     <section class="fb-card">
         <h2>Chads and streamers</h2>
-        <p class="fb-muted">Accounts with "chad" in the name or a TTV, YT or TV tag are better players and always wear gear above their level's tier, in raid and on their profile.</p>
+        <p class="fb-muted">Accounts with "chad" in the name or a TTV, YT or TV tag are better players and always wear gear
+            above their level's tier, in raid and on their profile.</p>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.NotableNames.Enabled"/><span class="fb-switch-track"></span>Boost chads and streamers@(Tip("Give chad and streamer names better stats and gear."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.NotableNames.Enabled"/>
+                <span class="fb-switch-track"></span>
+                Boost chads and streamers@(Tip("Give chad and streamer names better stats and gear."))
+            </label>
         </div>
         <div class="fb-grid fb-grid-3">
             <label class="fb-field">
-                <span class="fb-label">Skill bonus@(Tip("How far their hidden skill roll moves towards the best player. 0.3 closes 30% of the gap, which raises survival, kills and K/D."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.NotableNames.SkillBonus"/>
+                <span class="fb-label">Skill bonus@(Tip(
+                    "How far their hidden skill roll moves towards the best player. 0.3 closes 30% of the gap, which raises "
+                    + "survival, kills and K/D."))</span>
+                <input type="number" min="0" max="1" step="0.05" @bind="simulation.NotableNames.SkillBonus"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Gear tier boost, minimum@(Tip("Fewest APBS gear tiers they skip ahead of their level."))</span><input type="number" min="0" max="6" @bind="simulation.NotableNames.TierBoostMinimum"/>
+                <span class="fb-label">Gear tier boost, minimum@(Tip(
+                    "Fewest APBS gear tiers they skip ahead of their level."))</span>
+                <input type="number" min="0" max="6" @bind="simulation.NotableNames.TierBoostMinimum"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Gear tier boost, maximum@(Tip("Most APBS gear tiers they skip ahead of their level. Each account rolls once in this range and keeps it."))</span><input type="number" min="0" max="6" @bind="simulation.NotableNames.TierBoostMaximum"/>
+                <span class="fb-label">Gear tier boost, maximum@(Tip(
+                    "Most APBS gear tiers they skip ahead of their level. Each account rolls once in this range and keeps "
+                    + "it."))</span>
+                <input type="number" min="0" max="6" @bind="simulation.NotableNames.TierBoostMaximum"/>
             </label>
         </div>
         <h3>Extra streamers</h3>
-        <p class="fb-muted">Names without a tag that should count as streamers. A name no player has yet goes into Bot Callsigns, and that player only exists after a server restart.</p>
+        <p class="fb-muted">Names without a tag that should count as streamers. A name no player has yet goes into Bot
+            Callsigns, and that player only exists after a server restart.</p>
         <div class="fb-toolbar fb-toolbar-wrap">
             <label class="fb-field">
-                <span class="fb-label">Name</span><input maxlength="32" placeholder="Streamer name" @bind="streamerName" @bind:event="oninput"/>
+                <span class="fb-label">Name</span>
+                <input maxlength="32" placeholder="Streamer name" @bind="streamerName" @bind:event="oninput"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Side if new@(Tip("Bot Callsigns keeps USEC and BEAR names apart. Only used when the name is new."))</span>
+                <span class="fb-label">Side if new@(Tip(
+                    "Bot Callsigns keeps USEC and BEAR names apart. Only used when the name is new."))</span>
                 <select @bind="streamerSide">
                     <option value="Usec">USEC</option><option value="Bear">BEAR</option>
                 </select>
             </label>
-            <button type="button" class="fb-button" disabled="@(string.IsNullOrWhiteSpace(streamerName))" @onclick="AddStreamer">Add streamer</button>
+            <button
+                type="button"
+                class="fb-button"
+                disabled="@(string.IsNullOrWhiteSpace(streamerName))"
+                @onclick="AddStreamer">Add streamer</button>
         </div>
         @if (simulation.NotableNames.ExtraNames.Count > 0)
         {
@@ -1202,32 +1505,57 @@ else if (page == "Cheaters")
 {
     <section class="fb-card">
         <h2>Cheater accounts</h2>
-        <p class="fb-muted">A small share of accounts cheat. Their names look like anyone else's; their kit, their stats and how they play give them away. Report one from the death screen and it may get banned, with your lost gear returned.</p>
+        <p class="fb-muted">A small share of accounts cheat. Their names look like anyone else's; their kit, their stats and
+            how they play give them away. Report one from the death screen and it may get banned, with your
+            lost gear returned.</p>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.Cheaters.Enabled"/><span class="fb-switch-track"></span>Cheaters@(Tip("Off makes every cheater play like a normal account again."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.Cheaters.Enabled"/>
+                <span class="fb-switch-track"></span>
+                Cheaters@(Tip("Off makes every cheater play like a normal account again."))
+            </label>
         </div>
         <div class="fb-grid">
             <label class="fb-field">
-                <span class="fb-label">Share of accounts@(Tip("Share (0 to 0.2) of accounts that cheat. Bans replace them slowly."))</span><input type="number" min="0" max="0.2" step="0.005" @bind="simulation.Cheaters.Share"/>
+                <span class="fb-label">Share of accounts@(Tip(
+                    "Share (0 to 0.2) of accounts that cheat. Bans replace them slowly."))</span>
+                <input type="number" min="0" max="0.2" step="0.005" @bind="simulation.Cheaters.Share"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Closet cheaters@(Tip("Share (0 to 1) of cheaters with good but believable stats, a smaller gear boost and at most one tell in their kit (the head pick, odd melee or the drum gun)."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.ClosetShare"/>
+                <span class="fb-label">Closet cheaters@(Tip(
+                    "Share (0 to 1) of cheaters with good but believable stats, a smaller gear boost and at most one tell in "
+                    + "their kit (the head pick, odd melee or the drum gun)."))</span>
+                <input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.ClosetShare"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Undercover cheaters@(Tip("Share (0 to 1) of cheaters whose profile is fully ordinary: normal stats, normal APBS kit, no gear boost. Only how they play gives them away. Closet plus undercover can't go over 1; the rest are blatant, with absurd survival and K/D."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.UndercoverShare"/>
+                <span class="fb-label">Undercover cheaters@(Tip(
+                    "Share (0 to 1) of cheaters whose profile is fully ordinary: normal stats, normal APBS kit, no gear "
+                    + "boost. Only how they play gives them away. Closet plus undercover can't go over 1; the rest are "
+                    + "blatant, with absurd survival and K/D."))</span>
+                <input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.UndercoverShare"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Ban chance@(Tip("Chance (0 to 1) that a reported cheater gets banned."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.BanChance"/>
+                <span class="fb-label">Ban chance@(Tip("Chance (0 to 1) that a reported cheater gets banned."))</span>
+                <input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.BanChance"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Compensation, roubles@(Tip("Roubles mailed to you when someone you reported is banned."))</span><input type="number" min="0" max="50000000" step="10000" @bind="simulation.Cheaters.RewardRubles"/>
+                <span class="fb-label">Compensation, roubles@(Tip(
+                    "Roubles mailed to you when someone you reported is banned."))</span>
+                <input type="number" min="0" max="50000000" step="10000" @bind="simulation.Cheaters.RewardRubles"/>
             </label>
         </div>
     </section>
     <section class="fb-card">
         <h2>Cheater gear</h2>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.Cheaters.CheaterGear"/><span class="fb-switch-track"></span>Cheater loadouts@(Tip("Welding masks or helmets with the face shield down and nothing else on the head, melee nobody carries, a bare SA-58 with a suppressor and 50-round drum, or no gear at all with a stock gun and a raid backpack. Off: cheaters wear whatever PBT gave them."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.Cheaters.CheaterGear"/>
+                <span class="fb-switch-track"></span>
+                Cheater loadouts@(Tip(
+                    "Welding masks or helmets with the face shield down and nothing else on the head, melee nobody carries, "
+                    + "a bare SA-58 with a suppressor and 50-round drum, or no gear at all with a stock gun and a raid "
+                    + "backpack. Off: cheaters wear whatever PBT gave them."))
+            </label>
         </div>
         @if (simulation.Cheaters.CheaterGear)
         {
@@ -1235,17 +1563,32 @@ else if (page == "Cheaters")
         }
         <div class="fb-grid">
             <label class="fb-field">
-                <span class="fb-label">No gear share@(Tip("Share (0 to 1) of cheater kits that are no gear at all: a stock AKM, Kedr, PKM or 100-round M4 and a raid backpack."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.NakedShare"/>
+                <span class="fb-label">No gear share@(Tip(
+                    "Share (0 to 1) of cheater kits that are no gear at all: a stock AKM, Kedr, PKM or 100-round M4 and a "
+                    + "raid backpack."))</span>
+                <input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.NakedShare"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Bare SA-58 chance@(Tip("Chance (0 to 1) the other kits carry an SA-58 with no sights, a suppressor and the 50-round drum."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.Sa58Chance"/>
+                <span class="fb-label">Bare SA-58 chance@(Tip(
+                    "Chance (0 to 1) the other kits carry an SA-58 with no sights, a suppressor and the 50-round drum."))</span>
+                <input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.Sa58Chance"/>
             </label>
         </div>
     </section>
     <section class="fb-card">
         <h2>In raid</h2>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.Cheaters.Behaviour"/><span class="fb-switch-track"></span>Cheat in raid@(Tip("Each cheater is a type (closet, looter, hunter, rage or troll) and rolls the cheats its type allows. Patrol stays with whatever moves your bots (Questing Bots, Looting Bots, ORBIT or the game's own). Once a cheater is in a fight, or its ESP finds someone, it fights with its cheats: rage cheaters push straight in, hunters flank, closet cheaters take cover and hold an angle with their crosshair on you through the wall. Cheaters fight each other too. Nobody shoots through walls; without ESP a cheater only knows what it saw and searches your last position."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.Cheaters.Behaviour"/>
+                <span class="fb-switch-track"></span>
+                Cheat in raid@(Tip(
+                    "Each cheater is a type (closet, looter, hunter, rage or troll) and rolls the cheats its type allows. "
+                    + "Patrol stays with whatever moves your bots (Questing Bots, Looting Bots, ORBIT or the game's own). Once "
+                    + "a cheater is in a fight, or its ESP finds someone, it fights with its cheats: rage cheaters push "
+                    + "straight in, hunters flank, closet cheaters take cover and hold an angle with their crosshair on you "
+                    + "through the wall. Cheaters fight each other too. Nobody shoots through walls; without ESP a cheater "
+                    + "only knows what it saw and searches your last position."))
+            </label>
         </div>
         @Warn("Needs BigBrain on the client. Without it cheaters still wear their kit but play like normal bots.")
         @if (simulation.Cheaters.Behaviour)
@@ -1263,22 +1606,45 @@ else if (page == "Cheaters")
         var play = simulation.Cheaters.Play;
         <section class="fb-card">
             <h2>What cheaters are after</h2>
-            <p class="fb-muted">Each cheater is one type. Shares are relative, so they need not add up to 1. A type decides which cheats below it can roll at all.</p>
+            <p class="fb-muted">Each cheater is one type. Shares are relative, so they need not add up to 1. A type decides
+                which cheats below it can roll at all.</p>
             <div class="fb-grid">
                 <label class="fb-field">
-                    <span class="fb-label">Closet@(Tip("Aimbot or ESP, otherwise plays like anyone else. In a fight it works angles: crouched behind cover with its crosshair following you through the wall, short peeks and leans, and a new angle after a few peeks or a hit. With ESP it waits until you look away. Aims mostly at the body and misses now and then."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Types.Closet"/>
+                    <span class="fb-label">Closet@(Tip(
+                        "Aimbot or ESP, otherwise plays like anyone else. In a fight it works angles: crouched behind cover "
+                        + "with its crosshair following you through the wall, short peeks and leans, and a new angle after a "
+                        + "few peeks or a hit. With ESP it waits until you look away. Aims mostly at the body and misses now "
+                        + "and then."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.Types.Closet"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Looter@(Tip("In for money or quests. Loots and quests on its normal AI (Looting Bots or Questing Bots if you run them), keeps away from PMCs and you, running to cover when one gets within 70 m, and only fights players when cornered or shot. Fights scavs like anyone. Can have loot vacuum, ESP, aimbot or speedhack."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Types.Looter"/>
+                    <span class="fb-label">Looter@(Tip(
+                        "In for money or quests. Loots and quests on its normal AI (Looting Bots or Questing Bots if you run "
+                        + "them), keeps away from PMCs and you, running to cover when one gets within 70 m, and only fights "
+                        + "players when cornered or shot. Fights scavs like anyone. Can have loot vacuum, ESP, aimbot or "
+                        + "speedhack."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.Types.Looter"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Hunter@(Tip("In for kills. Always ESP and aimbot. Hunts a handful of players a raid: circles round behind you, then works an angle and opens up when you look away or are busy with someone else. Can add speedhack, bunny hop, fight teleports and godmode."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Types.Hunter"/>
+                    <span class="fb-label">Hunter@(Tip(
+                        "In for kills. Always ESP and aimbot. Hunts a handful of players a raid: circles round behind you, "
+                        + "then works an angle and opens up when you look away or are busy with someone else. Can add "
+                        + "speedhack, bunny hop, fight teleports and godmode."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.Types.Hunter"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Rage@(Tip("Everything on. Always aimbot, and can roll any cheat: spinbot, flying, teleports, godmode, voice spam. Walks straight at you and strafes side to side while it sprays. Never waits for a better moment."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Types.Rage"/>
+                    <span class="fb-label">Rage@(Tip(
+                        "Everything on. Always aimbot, and can roll any cheat: spinbot, flying, teleports, godmode, voice "
+                        + "spam. Walks straight at you and strafes side to side while it sprays. Never waits for a better "
+                        + "moment."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.Types.Rage"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Troll@(Tip("Leaves you alone for the first few minutes. Then it visits: pops up off to your side, teabags, jumps and spams voice lines, and vanishes the moment you aim at it. After a few visits, or once you hit it, it sets a trap on an angle near you."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Types.Troll"/>
+                    <span class="fb-label">Troll@(Tip(
+                        "Leaves you alone for the first few minutes. Then it visits: pops up off to your side, teabags, "
+                        + "jumps and spams voice lines, and vanishes the moment you aim at it. After a few visits, or once you "
+                        + "hit it, it sets a trap on an angle near you."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.Types.Troll"/>
                 </label>
             </div>
         </section>
@@ -1286,25 +1652,49 @@ else if (page == "Cheaters")
             <h2>Combat</h2>
             <div class="fb-grid">
                 <label class="fb-field">
-                    <span class="fb-label">Aimbot@(Tip("Chance (0 to 1) a cheater that may use it has aimbot: every bullet that has a clear line goes to its target. Closet cheaters aim mostly at the body and miss now and then."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Aimbot"/>
+                    <span class="fb-label">Aimbot@(Tip(
+                        "Chance (0 to 1) a cheater that may use it has aimbot: every bullet that has a clear line goes to "
+                        + "its target. Closet cheaters aim mostly at the body and miss now and then."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.Aimbot"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">ESP@(Tip("Chance (0 to 1) a cheater that may use it knows where everyone nearby is, through walls. It walks straight to you but still needs a clear line to shoot. Without ESP a cheater only knows what it saw and heard, and searches your last position like any bot."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Esp"/>
+                    <span class="fb-label">ESP@(Tip(
+                        "Chance (0 to 1) a cheater that may use it knows where everyone nearby is, through walls. It walks "
+                        + "straight to you but still needs a clear line to shoot. Without ESP a cheater only knows what it saw "
+                        + "and heard, and searches your last position like any bot."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.Esp"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Godmode@(Tip("Chance (0 to 1) a cheater takes no damage at all. Only a ban kills it. 0 if you want every cheater killable."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Godmode"/>
+                    <span class="fb-label">Godmode@(Tip(
+                        "Chance (0 to 1) a cheater takes no damage at all. Only a ban kills it. 0 if you want every cheater "
+                        + "killable."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.Godmode"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Goes after you@(Tip("Share (0 to 1) of fights where a cheater picks you over a bot nearby. Lower it and cheaters mostly wreck other bots."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.TargetsYou"/>
+                    <span class="fb-label">Goes after you@(Tip(
+                        "Share (0 to 1) of fights where a cheater picks you over a bot nearby. Lower it and cheaters mostly "
+                        + "wreck other bots."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.TargetsYou"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Cheater rivalry@(Tip("Chance (0 to 1) a cheater that spots another cheater goes after it instead, and the other one fights back. Two rage cheaters meeting is a show."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Rivalry"/>
+                    <span class="fb-label">Cheater rivalry@(Tip(
+                        "Chance (0 to 1) a cheater that spots another cheater goes after it instead, and the other one "
+                        + "fights back. Two rage cheaters meeting is a show."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.Rivalry"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Aim accuracy@(Tip("Scales how often an aimbot shot lands (0 to 1). At 0.7 a closet cheater lands about half its aimbot shots, mostly to the body, and a rage cheater most of them, mostly to the head. Either way the gun has to point roughly at you first, so a cheater still has to turn."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.AimAccuracy"/>
+                    <span class="fb-label">Aim accuracy@(Tip(
+                        "Scales how often an aimbot shot lands (0 to 1). At 0.7 a closet cheater lands about half its aimbot "
+                        + "shots, mostly to the body, and a rage cheater most of them, mostly to the head. Either way the gun "
+                        + "has to point roughly at you first, so a cheater still has to turn."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.AimAccuracy"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Reaction time@(Tip("Scales how long a cheater takes to shoot once it sees you (0.5 to 3, higher is slower). At 1 a closet cheater takes 0.35 to 0.6 s and a rage cheater 0.15 to 0.3 s, a bit less when it held the angle pre-aimed."))</span><input type="number" min="0.5" max="3" step="0.1" @bind="play.ReactionTime"/>
+                    <span class="fb-label">Reaction time@(Tip(
+                        "Scales how long a cheater takes to shoot once it sees you (0.5 to 3, higher is slower). At 1 a "
+                        + "closet cheater takes 0.35 to 0.6 s and a rage cheater 0.15 to 0.3 s, a bit less when it held the "
+                        + "angle pre-aimed."))</span>
+                    <input type="number" min="0.5" max="3" step="0.1" @bind="play.ReactionTime"/>
                 </label>
             </div>
         </section>
@@ -1312,22 +1702,33 @@ else if (page == "Cheaters")
             <h2>Movement</h2>
             <div class="fb-grid">
                 <label class="fb-field">
-                    <span class="fb-label">Speedhack@(Tip("Chance (0 to 1) a cheater moves faster than anyone can run."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Speedhack"/>
+                    <span class="fb-label">Speedhack@(Tip("Chance (0 to 1) a cheater moves faster than anyone can run."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.Speedhack"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Speedhack multiplier@(Tip("How much faster (1 to 6) a speedhacker moves."))</span><input type="number" min="1" max="6" step="0.1" @bind="play.SpeedMultiplier"/>
+                    <span class="fb-label">Speedhack multiplier@(Tip("How much faster (1 to 6) a speedhacker moves."))</span>
+                    <input type="number" min="1" max="6" step="0.1" @bind="play.SpeedMultiplier"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Spinbot@(Tip("Chance (0 to 1) a cheater spins like a top while it walks at its target."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Spinbot"/>
+                    <span class="fb-label">Spinbot@(Tip(
+                        "Chance (0 to 1) a cheater spins like a top while it walks at its target."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.Spinbot"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Bunny hop@(Tip("Chance (0 to 1) a cheater bunny hops, and behind close cover jumps far higher than anyone can to shoot over it."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.BunnyHop"/>
+                    <span class="fb-label">Bunny hop@(Tip(
+                        "Chance (0 to 1) a cheater bunny hops, and behind close cover jumps far higher than anyone can to "
+                        + "shoot over it."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.BunnyHop"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Teleports in fights@(Tip("Chance (0 to 1) a cheater now and then teleports behind its target mid-fight. It shouts a moment before and needs a moment after landing before it can shoot, so you can turn on it."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.FightTeleport"/>
+                    <span class="fb-label">Teleports in fights@(Tip(
+                        "Chance (0 to 1) a cheater now and then teleports behind its target mid-fight. It shouts a moment "
+                        + "before and needs a moment after landing before it can shoot, so you can turn on it."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.FightTeleport"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Flying@(Tip("Chance (0 to 1) a cheater hovers in the air over its target."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Fly"/>
+                    <span class="fb-label">Flying@(Tip("Chance (0 to 1) a cheater hovers in the air over its target."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.Fly"/>
                 </label>
             </div>
         </section>
@@ -1335,44 +1736,73 @@ else if (page == "Cheaters")
             <h2>Map and griefing</h2>
             <div class="fb-grid">
                 <label class="fb-field">
-                    <span class="fb-label">Loot vacuum@(Tip("Chance (0 to 1) a looter has a loot vacuum: every few minutes the best loose items within 200 m vanish into its bag, and once the bag is full it extracts."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.Vacuum"/>
+                    <span class="fb-label">Loot vacuum@(Tip(
+                        "Chance (0 to 1) a looter has a loot vacuum: every few minutes the best loose items within 200 m "
+                        + "vanish into its bag, and once the bag is full it extracts."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.Vacuum"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Voice spam@(Tip("Chance (0 to 1) a cheater spams Scav ahead or Hold fire nonstop. Only heard within 80 m."))</span><input type="number" min="0" max="1" step="0.05" @bind="play.VoiceSpam"/>
+                    <span class="fb-label">Voice spam@(Tip(
+                        "Chance (0 to 1) a cheater spams Scav ahead or Hold fire nonstop. Only heard within 80 m."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.VoiceSpam"/>
                 </label>
             </div>
         </section>
         <section class="fb-card">
             <h2>In-raid anticheat</h2>
-            <p class="fb-muted">Every cheater builds up suspicion as it plays: each teleport, flight, impossible jump, spin and headshot counts. The more it has, the sooner it drops dead mid-raid, banned on the spot.</p>
+            <p class="fb-muted">Every cheater builds up suspicion as it plays: each teleport, flight, impossible jump, spin
+                and headshot counts. The more it has, the sooner it drops dead mid-raid, banned on the spot.</p>
             <div class="fb-switch-row">
-                <label class="fb-switch"><input type="checkbox" role="switch" @bind="play.BanNotice"/><span class="fb-switch-track"></span>Tell me about bans@(Tip("Shows a notification when a cheater in your raid gets banned."))</label>
+                <label class="fb-switch">
+                    <input type="checkbox" role="switch" @bind="play.BanNotice"/>
+                    <span class="fb-switch-track"></span>
+                    Tell me about bans@(Tip("Shows a notification when a cheater in your raid gets banned."))
+                </label>
             </div>
             <div class="fb-grid">
                 <label class="fb-field">
-                    <span class="fb-label">Ban chance per minute@(Tip("Chance (0 to 1) each minute that an average cheater is banned mid-raid. 0.02 bans about a third of them in a 20-minute raid. 0 turns in-raid bans off."))</span><input type="number" min="0" max="1" step="0.01" @bind="play.BanPerMinute"/>
+                    <span class="fb-label">Ban chance per minute@(Tip(
+                        "Chance (0 to 1) each minute that an average cheater is banned mid-raid. 0.02 bans about a third of "
+                        + "them in a 20-minute raid. 0 turns in-raid bans off."))</span>
+                    <input type="number" min="0" max="1" step="0.01" @bind="play.BanPerMinute"/>
                 </label>
                 <label class="fb-field">
-                    <span class="fb-label">Blatant play raises it@(Tip("How much suspicion counts (0 to 3). At 1 a rage cheater that flies and teleports is gone within minutes, while a closet cheater can last several raids. 0 bans everyone at the same rate."))</span><input type="number" min="0" max="3" step="0.1" @bind="play.BlatantBanBoost"/>
+                    <span class="fb-label">Blatant play raises it@(Tip(
+                        "How much suspicion counts (0 to 3). At 1 a rage cheater that flies and teleports is gone within "
+                        + "minutes, while a closet cheater can last several raids. 0 bans everyone at the same rate."))</span>
+                    <input type="number" min="0" max="3" step="0.1" @bind="play.BlatantBanBoost"/>
                 </label>
             </div>
         </section>
     }
     <section class="fb-card">
         <h2>Bans and new accounts</h2>
-        <p class="fb-muted">A banned cheater is gone for good, but the person behind it often is not. They come back on a new account: a fresh level 1, or a bought account that already has the levels. Banned profiles stay viewable in All players under Banned.</p>
+        <p class="fb-muted">A banned cheater is gone for good, but the person behind it often is not. They come back on a new
+            account: a fresh level 1, or a bought account that already has the levels. Banned profiles stay
+            viewable in All players under Banned.</p>
         <div class="fb-grid">
             <label class="fb-field">
-                <span class="fb-label">Ban wave every, hours@(Tip("Out of raid, the anticheat bans a batch of cheaters every this many hours, give or take 30%. 0 turns ban waves off; reports and in-raid bans still work."))</span><input type="number" min="0" max="720" step="1" @bind="simulation.Cheaters.BanWaveHours"/>
+                <span class="fb-label">Ban wave every, hours@(Tip(
+                    "Out of raid, the anticheat bans a batch of cheaters every this many hours, give or take 30%. 0 turns "
+                    + "ban waves off; reports and in-raid bans still work."))</span>
+                <input type="number" min="0" max="720" step="1" @bind="simulation.Cheaters.BanWaveHours"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Ban wave share@(Tip("Share (0 to 1) of cheaters a wave takes. Blatant accounts are three times as likely to go as closet ones."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.BanWaveShare"/>
+                <span class="fb-label">Ban wave share@(Tip(
+                    "Share (0 to 1) of cheaters a wave takes. Blatant accounts are three times as likely to go as closet "
+                    + "ones."))</span>
+                <input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.BanWaveShare"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Comes back@(Tip("Chance (0 to 1) a banned cheater makes a new account. The name is usually a twist on the old one."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.ComebackChance"/>
+                <span class="fb-label">Comes back@(Tip(
+                    "Chance (0 to 1) a banned cheater makes a new account. The name is usually a twist on the old one."))</span>
+                <input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.ComebackChance"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Buys an account@(Tip("Chance (0 to 1) the new account is a bought one, level 25 to 55 with a history, instead of a fresh level 1."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.BoughtAccountChance"/>
+                <span class="fb-label">Buys an account@(Tip(
+                    "Chance (0 to 1) the new account is a bought one, level 25 to 55 with a history, instead of a fresh "
+                    + "level 1."))</span>
+                <input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.BoughtAccountChance"/>
             </label>
         </div>
         @{ var bans = Store.RecentBans(8); }
@@ -1399,7 +1829,11 @@ else if (page == "Cheaters")
         <h2>Debug</h2>
         <div class="fb-grid">
             <label class="fb-field">
-                <span class="fb-label">Cheaters per raid@(Tip("This many of the first PMCs generated for each of your raids are cheaters, whatever their level. A career only borrowed for this keeps its own kit and is back to normal after the raid. Pair with the client's Cheaters (debug) settings in the BepInEx config. 0 is off."))</span><input type="number" min="0" max="30" @bind="simulation.Cheaters.DebugCheatersPerRaid"/>
+                <span class="fb-label">Cheaters per raid@(Tip(
+                    "This many of the first PMCs generated for each of your raids are cheaters, whatever their level. A "
+                    + "career only borrowed for this keeps its own kit and is back to normal after the raid. Pair with the "
+                    + "client's Cheaters (debug) settings in the BepInEx config. 0 is off."))</span>
+                <input type="number" min="0" max="30" @bind="simulation.Cheaters.DebugCheatersPerRaid"/>
             </label>
         </div>
     </section>
@@ -1409,19 +1843,32 @@ else if (page == "Prestige")
 {
     <section class="fb-card">
         <h2>Prestige</h2>
-        <p class="fb-muted">Prestige follows the installed requirements and fictional quest histories. Lifetime history and account registration persist.</p>
+        <p class="fb-muted">Prestige follows the installed requirements and fictional quest histories. Lifetime history and
+            account registration persist.</p>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.EnablePrestige"/><span class="fb-switch-track"></span>Prestige progression@(Tip("Let simulated accounts prestige when they meet the installed prestige requirements."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.EnablePrestige"/>
+                <span class="fb-switch-track"></span>
+                Prestige progression@(Tip("Let simulated accounts prestige when they meet the installed prestige requirements."))
+            </label>
         </div>
         <div class="fb-grid fb-grid-3">
             <label class="fb-field">
-                <span class="fb-label">Minimum raid hours per cycle@(Tip("Raid hours an account needs since its last prestige before it can prestige again."))</span><input type="number" min="10" max="10000" @bind="simulation.MinimumPrestigeCycleHours"/>
+                <span class="fb-label">Minimum raid hours per cycle@(Tip(
+                    "Raid hours an account needs since its last prestige before it can prestige again."))</span>
+                <input type="number" min="10" max="10000" @bind="simulation.MinimumPrestigeCycleHours"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Starting prestige share@(Tip("Share of new accounts (not Timmies) that start with at least one prestige behind them, at any current level."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.InitialPrestige.Share"/>
+                <span class="fb-label">Starting prestige share@(Tip(
+                    "Share of new accounts (not Timmies) that start with at least one prestige behind them, at any current "
+                    + "level."))</span>
+                <input type="number" min="0" max="1" step="0.01" @bind="simulation.InitialPrestige.Share"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Further prestige chance@(Tip("Chance of each further starting prestige. 0.45 means about 45% of prestiged accounts have 2 or more, and 20% have 3 or more."))</span><input type="number" min="0" max="0.95" step="0.05" @bind="simulation.InitialPrestige.Repeat"/>
+                <span class="fb-label">Further prestige chance@(Tip(
+                    "Chance of each further starting prestige. 0.45 means about 45% of prestiged accounts have 2 or more, "
+                    + "and 20% have 3 or more."))</span>
+                <input type="number" min="0" max="0.95" step="0.05" @bind="simulation.InitialPrestige.Repeat"/>
             </label>
         </div>
     </section>
@@ -1431,31 +1878,52 @@ else if (page == "Stories")
 {
     <section class="fb-card">
         <h2>Post-raid stories</h2>
-        <p class="fb-muted">Every player from your raid that did not die in front of you gets a delayed outcome: it dies, regears, transits or survives. Your killer and the rest of the raid have their own chances, and personality shifts both. Outcomes never rewrite the equipment you saw.</p>
+        <p class="fb-muted">Every player from your raid that did not die in front of you gets a delayed outcome: it dies,
+            regears, transits or survives. Your killer and the rest of the raid have their own chances, and
+            personality shifts both. Outcomes never rewrite the equipment you saw.</p>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.EnablePostRaidStories"/><span class="fb-switch-track"></span>Enable post-raid stories@(Tip("PMCs from your raid may later die, regear or transit, so their profiles change between raids."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.EnablePostRaidStories"/>
+                <span class="fb-switch-track"></span>
+                Enable post-raid stories@(Tip(
+                    "PMCs from your raid may later die, regear or transit, so their profiles change between raids."))
+            </label>
         </div>
         <div class="fb-grid">
             <label class="fb-field">
-                <span class="fb-label">Your killer, death chance@(Tip("Chance (0 to 1) that a PMC who killed you dies later."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.PostRaidDeathChance"/>
+                <span class="fb-label">Your killer, death chance@(Tip(
+                    "Chance (0 to 1) that a PMC who killed you dies later."))</span>
+                <input type="number" min="0" max="1" step="0.01" @bind="simulation.PostRaidDeathChance"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Your killer, regear chance@(Tip("Chance (0 to 1) that a PMC who killed you swaps to new gear later."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.PostRaidRegearChance"/>
+                <span class="fb-label">Your killer, regear chance@(Tip(
+                    "Chance (0 to 1) that a PMC who killed you swaps to new gear later."))</span>
+                <input type="number" min="0" max="1" step="0.01" @bind="simulation.PostRaidRegearChance"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Other PMCs, death chance@(Tip("Chance (0 to 1) that any other PMC from your raid dies later. Keep it low, a raid can hold a dozen."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.RaidDeathChance"/>
+                <span class="fb-label">Other PMCs, death chance@(Tip(
+                    "Chance (0 to 1) that any other PMC from your raid dies later. Keep it low, a raid can hold a dozen."))</span>
+                <input type="number" min="0" max="1" step="0.01" @bind="simulation.RaidDeathChance"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Other PMCs, regear chance@(Tip("Chance (0 to 1) that any other PMC from your raid swaps to new gear later."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.RaidRegearChance"/>
+                <span class="fb-label">Other PMCs, regear chance@(Tip(
+                    "Chance (0 to 1) that any other PMC from your raid swaps to new gear later."))</span>
+                <input type="number" min="0" max="1" step="0.01" @bind="simulation.RaidRegearChance"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Delay, minimum seconds@(Tip("Earliest time after your death that a story outcome can happen."))</span><input type="number" min="30" max="86400" @bind="simulation.StoryMinimumDelaySeconds"/>
+                <span class="fb-label">Delay, minimum seconds@(Tip(
+                    "Earliest time after your death that a story outcome can happen."))</span>
+                <input type="number" min="30" max="86400" @bind="simulation.StoryMinimumDelaySeconds"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Delay, maximum seconds@(Tip("Latest time after your death that a story outcome can happen."))</span><input type="number" min="30" max="86400" @bind="simulation.StoryMaximumDelaySeconds"/>
+                <span class="fb-label">Delay, maximum seconds@(Tip(
+                    "Latest time after your death that a story outcome can happen."))</span>
+                <input type="number" min="30" max="86400" @bind="simulation.StoryMaximumDelaySeconds"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Outcome visibility, seconds@(Tip("How long a story outcome stays visible before the account carries on normally."))</span><input type="number" min="60" max="86400" @bind="simulation.StoryVisibilitySeconds"/>
+                <span class="fb-label">Outcome visibility, seconds@(Tip(
+                    "How long a story outcome stays visible before the account carries on normally."))</span>
+                <input type="number" min="60" max="86400" @bind="simulation.StoryVisibilitySeconds"/>
             </label>
         </div>
         <p class="fb-hint">Each death and regear pair cannot exceed 1. Otherwise the PMC keeps its kit.</p>
@@ -1466,55 +1934,89 @@ else if (page == "World")
 {
     <section class="fb-card">
         <h2>Maps and queues</h2>
-        <p class="fb-muted">Online careers queue for a map, play a raid, extract, die or transit, then queue again or log off. Busy maps fill faster. Raid time is earned raid by raid, so profiles match what the maps show.</p>
+        <p class="fb-muted">Online careers queue for a map, play a raid, extract, die or transit, then queue again or log
+            off. Busy maps fill faster. Raid time is earned raid by raid, so profiles match what the maps
+            show.</p>
         <div class="fb-grid fb-grid-3">
             <label class="fb-field">
-                <span class="fb-label">Weekly boss boost@(Tip("Popularity of a map whose headline boss is guaranteed. Weekly boss rotations set one boss to 100%, so its map gets busier."))</span><input type="number" min="1" max="5" step="0.1" @bind="simulation.World.WeeklyBossBoost"/>
+                <span class="fb-label">Weekly boss boost@(Tip(
+                    "Popularity of a map whose headline boss is guaranteed. Weekly boss rotations set one boss to 100%, so "
+                    + "its map gets busier."))</span>
+                <input type="number" min="1" max="5" step="0.1" @bind="simulation.World.WeeklyBossBoost"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Streamer map boost@(Tip("How much more streamers and chads play Labs, Streets and Customs, and how much more often they spawn in your raids there."))</span><input type="number" min="1" max="10" step="0.1" @bind="simulation.World.StreamerMapBoost"/>
+                <span class="fb-label">Streamer map boost@(Tip(
+                    "How much more streamers and chads play Labs, Streets and Customs, and how much more often they spawn in "
+                    + "your raids there."))</span>
+                <input type="number" min="1" max="10" step="0.1" @bind="simulation.World.StreamerMapBoost"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Map name boost@(Tip("How much more players with a map in their name (FactoryRat, CustomsMain) play that map, and how much more often they spawn in your raids there."))</span><input type="number" min="1" max="10" step="0.1" @bind="simulation.World.NameMapBoost"/>
+                <span class="fb-label">Map name boost@(Tip(
+                    "How much more players with a map in their name (FactoryRat, CustomsMain) play that map, and how much "
+                    + "more often they spawn in your raids there."))</span>
+                <input type="number" min="1" max="10" step="0.1" @bind="simulation.World.NameMapBoost"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Queue time multiplier@(Tip("Scales every simulated queue time. 2 doubles them."))</span><input type="number" min="0.1" max="10" step="0.1" @bind="simulation.World.QueueTimeMultiplier"/>
+                <span class="fb-label">Queue time multiplier@(Tip("Scales every simulated queue time. 2 doubles them."))</span>
+                <input type="number" min="0.1" max="10" step="0.1" @bind="simulation.World.QueueTimeMultiplier"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Transit chance@(Tip("Chance (0 to 1) that a survivor moves on to a connected map with its gear, in the world and after your raids."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.World.TransitChance"/>
+                <span class="fb-label">Transit chance@(Tip(
+                    "Chance (0 to 1) that a survivor moves on to a connected map with its gear, in the world and after your "
+                    + "raids."))</span>
+                <input type="number" min="0" max="1" step="0.01" @bind="simulation.World.TransitChance"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Log off after a raid@(Tip("Chance (0 to 1) that a players logs off after a raid instead of queueing again. Deaths log off a bit more often."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.World.LogOffChance"/>
+                <span class="fb-label">Log off after a raid@(Tip(
+                    "Chance (0 to 1) that a players logs off after a raid instead of queueing again. Deaths log off a bit "
+                    + "more often."))</span>
+                <input type="number" min="0" max="1" step="0.01" @bind="simulation.World.LogOffChance"/>
             </label>
         </div>
     </section>
     <section class="fb-card">
         <h2>Peak hours</h2>
-        <p class="fb-muted">Players come online on daily schedules. These settings move those hours around the clock and between weekdays and weekends; the online rate multiplier still sets the overall volume.</p>
+        <p class="fb-muted">Players come online on daily schedules. These settings move those hours around the clock and
+            between weekdays and weekends; the online rate multiplier still sets the overall volume.</p>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.World.PeakHours"/><span class="fb-switch-track"></span>Peak hours@(Tip("Fewer players come online late at night (your PC's clock) and more on evenings and weekends, so queues and raids follow the time of day."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.World.PeakHours"/>
+                <span class="fb-switch-track"></span>
+                Peak hours@(Tip(
+                    "Fewer players come online late at night (your PC's clock) and more on evenings and weekends, so queues "
+                    + "and raids follow the time of day."))
+            </label>
         </div>
         <div class="fb-grid fb-grid-3">
             <label class="fb-field">
-                <span class="fb-label">Peak strength@(Tip("0 plays the same all day, 1 keeps the default curves, and higher values exaggerate the peaks and troughs."))</span><input type="number" min="0" max="4" step="0.05" @bind="simulation.World.Peak.Strength"/>
+                <span class="fb-label">Peak strength@(Tip(
+                    "0 plays the same all day, 1 keeps the default curves, and higher values exaggerate the peaks and "
+                    + "troughs."))</span>
+                <input type="number" min="0" max="4" step="0.05" @bind="simulation.World.Peak.Strength"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Shift by hours@(Tip("Moves every schedule forward (+) or back (-) in hours, for clocks outside the default region."))</span><input type="number" min="-12" max="12" step="1" @bind="simulation.World.Peak.ShiftHours"/>
+                <span class="fb-label">Shift by hours@(Tip(
+                    "Moves every schedule forward (+) or back (-) in hours, for clocks outside the default region."))</span>
+                <input type="number" min="-12" max="12" step="1" @bind="simulation.World.Peak.ShiftHours"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Weekend boost@(Tip("Extra multiplier for Saturday and Sunday on top of each schedule's own weekend factor."))</span><input type="number" min="0.25" max="4" step="0.05" @bind="simulation.World.Peak.WeekendBoost"/>
+                <span class="fb-label">Weekend boost@(Tip(
+                    "Extra multiplier for Saturday and Sunday on top of each schedule's own weekend factor."))</span>
+                <input type="number" min="0.25" max="4" step="0.05" @bind="simulation.World.Peak.WeekendBoost"/>
             </label>
         </div>
         <details class="fb-advanced">
             <summary>Player mix and hourly weights</summary>
-            <p class="fb-muted">Shares decide how many accounts follow each schedule. Weekday and weekend factors scale their hours. Hourly weights are relative, from 0 to 100.</p>
+            <p class="fb-muted">Shares decide how many accounts follow each schedule. Weekday and weekend factors scale their
+                hours. Hourly weights are relative, from 0 to 100.</p>
             <div class="fb-peak-mix">
                 <span class="fb-label">Player mix</span>
                 <div class="fb-grid">
                     @foreach (var schedule in simulation.World.Peak.Schedules)
                     {
                         <label class="fb-field">
-                            <span class="fb-label">@schedule.Name share</span><input type="number" min="0" max="1000" step="1" @bind="schedule.Share"/>
+                            <span class="fb-label">@schedule.Name share</span>
+                            <input type="number" min="0" max="1000" step="1" @bind="schedule.Share"/>
                         </label>
                     }
                 </div>
@@ -1541,7 +2043,13 @@ else if (page == "World")
                                         int h = hour;
                                         <label>
                                             <span>@h:00</span>
-                                            <input aria-label="@schedule.Name hour @h" type="number" min="0" max="100" step="0.1" @bind="schedule.Hours[h]"/>
+                                            <input
+                                                aria-label="@schedule.Name hour @h"
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                step="0.1"
+                                                @bind="schedule.Hours[h]"/>
                                         </label>
                                     }
                                 </div>
@@ -1555,37 +2063,64 @@ else if (page == "World")
     </section>
     <section class="fb-card">
         <h2>Matching screen</h2>
-        <p class="fb-muted">Before a raid the loading screen shows Matching with a timer, then Looking for server (5-15 s), Preparing the game and Awaiting response. The players queueing for your map are the ones that load into your raid. With Fika the host runs it and the group sees the same status. Not used on transits.</p>
+        <p class="fb-muted">Before a raid the loading screen shows Matching with a timer, then Looking for server (5-15 s),
+            Preparing the game and Awaiting response. The players queueing for your map are the ones that
+            load into your raid. With Fika the host runs it and the group sees the same status. Not used on
+            transits.</p>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.World.SimulateMatching"/><span class="fb-switch-track"></span>Simulate matching@(Tip("Wait for a match based on the map's simulated queue before the raid starts."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.World.SimulateMatching"/>
+                <span class="fb-switch-track"></span>
+                Simulate matching@(Tip("Wait for a match based on the map's simulated queue before the raid starts."))
+            </label>
         </div>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.World.WaitForPlayers"/><span class="fb-switch-track"></span>Wait for real players@(Tip("Matching lasts until enough careers within 20 levels of you have queued for the map, so busy maps match fast and quiet ones slowly. Queue time settings no longer apply."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.World.WaitForPlayers"/>
+                <span class="fb-switch-track"></span>
+                Wait for real players@(Tip(
+                    "Matching lasts until enough careers within 20 levels of you have queued for the map, so busy maps match "
+                    + "fast and quiet ones slowly. Queue time settings no longer apply."))
+            </label>
         </div>
         <div class="fb-grid fb-grid-3">
             @if (simulation.World.WaitForPlayers)
             {
                 <label class="fb-field">
-                    <span class="fb-label">Longest wait, seconds@(Tip("If the server is still not full after this long, players from the menu fill the rest."))</span><input type="number" min="10" max="1800" @bind="simulation.World.MaximumWaitSeconds"/>
+                    <span class="fb-label">Longest wait, seconds@(Tip(
+                        "If the server is still not full after this long, players from the menu fill the rest."))</span>
+                    <input type="number" min="10" max="1800" @bind="simulation.World.MaximumWaitSeconds"/>
                 </label>
             }
             else
             {
                 <label class="fb-field">
-                    <span class="fb-label">Longest matching, seconds@(Tip("Cap on the Matching stage. Looking for server still adds 5-15 seconds."))</span><input type="number" min="0" max="600" @bind="simulation.World.MaximumMatchingSeconds"/>
+                    <span class="fb-label">Longest matching, seconds@(Tip(
+                        "Cap on the Matching stage. Looking for server still adds 5-15 seconds."))</span>
+                    <input type="number" min="0" max="600" @bind="simulation.World.MaximumMatchingSeconds"/>
                 </label>
             }
             <label class="fb-field">
-                <span class="fb-label">Shortest matching, seconds@(Tip("Matching never ends sooner than this, even on a full queue. Overrides the longest matching time if higher."))</span><input type="number" min="0" max="600" @bind="simulation.World.MinimumMatchingSeconds"/>
+                <span class="fb-label">Shortest matching, seconds@(Tip(
+                    "Matching never ends sooner than this, even on a full queue. Overrides the longest matching time if "
+                    + "higher."))</span>
+                <input type="number" min="0" max="600" @bind="simulation.World.MinimumMatchingSeconds"/>
             </label>
         </div>
     </section>
     <section class="fb-card">
         <h2>Servers and connection</h2>
-        <p class="fb-muted">Players are spread over six servers: EU, EU-2, EU-3, US-1, US-2 and Asia. Matching mostly puts you on a server near you with room, sometimes on a far, full or unstable one. In raid the game's own ping and packet loss icons show that connection: about 35-60 ms on a server in your region (the game only shows the ping icon above 100 ms), 110-140 ms across the Atlantic, more to Asia, a spike to 170-250 ms when the countdown starts, and packet loss in fights on a bad server. Fika clients show their real ping to the host instead.</p>
+        <p class="fb-muted">Players are spread over six servers: EU, EU-2, EU-3, US-1, US-2 and Asia. Matching mostly puts
+            you on a server near you with room, sometimes on a far, full or unstable one. In raid the game's
+            own ping and packet loss icons show that connection: about 35-60 ms on a server in your region
+            (the game only shows the ping icon above 100 ms), 110-140 ms across the Atlantic, more to Asia, a
+            spike to 170-250 ms when the countdown starts, and packet loss in fights on a bad server. Fika
+            clients show their real ping to the host instead.</p>
         <div class="fb-grid fb-grid-3">
             <label class="fb-field">
-                <span class="fb-label">Your location@(Tip("Where you play from. Servers in your region give the lowest ping and are the ones you usually match into."))</span>
+                <span class="fb-label">Your location@(Tip(
+                    "Where you play from. Servers in your region give the lowest ping and are the ones you usually match "
+                    + "into."))</span>
                 <select @bind="simulation.World.Location">
                     @foreach (var region in PopulationStore.Regions)
                     {
@@ -1595,16 +2130,45 @@ else if (page == "World")
             </label>
         </div>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.World.SimulateConnection"/><span class="fb-switch-track"></span>Simulate ping and packet loss@(Tip("Show ping and packet loss from your matched server in raid, using the game's own connection icons."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.World.SimulateConnection"/>
+                <span class="fb-switch-track"></span>
+                Simulate ping and packet loss@(Tip(
+                    "Show ping and packet loss from your matched server in raid, using the game's own connection icons."))
+            </label>
         </div>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.World.ConnectionLossEvents"/><span class="fb-switch-track"></span>Connection lost events@(Tip("Off by default. On a bad server, a fight can end in Server connection lost. Closing the message, or waiting out its timer, ends the raid as missing in action. At most once per raid, not on Fika."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.World.ConnectionLossEvents"/>
+                <span class="fb-switch-track"></span>
+                Connection lost events@(Tip(
+                    "Off by default. On a bad server, a fight can end in Server connection lost. Closing the message, or "
+                    + "waiting out its timer, ends the raid as missing in action. At most once per raid, not on Fika."))
+            </label>
         </div>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.World.RubberBanding"/><span class="fb-switch-track"></span>Rubber banding@(Tip("Off by default. Right after the countdown and when a bad server drops packets, you now and then snap back to where you were a moment ago. Bad servers drop packets most in fights, but also in quiet moments. Heavy loss can hold you in place for a few seconds. When the connection is lost you freeze where the server last saw you. Not on Fika."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.World.RubberBanding"/>
+                <span class="fb-switch-track"></span>
+                Rubber banding@(Tip(
+                    "Off by default. Right after the countdown and when a bad server drops packets, you now and then snap "
+                    + "back to where you were a moment ago. Bad servers drop packets most in fights, but also in quiet "
+                    + "moments. Heavy loss can hold you in place for a few seconds. When the connection is lost you freeze "
+                    + "where the server last saw you. Not on Fika."))
+            </label>
         </div>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.World.RubberBandingBots" disabled="@(!simulation.World.RubberBanding)"/><span class="fb-switch-track"></span>Rubber banding affects bots@(Tip("Off by default. Needs Rubber banding. Every bot within 150 m of you snaps back on the same packet loss, so enemies jump around on a bad server too. Not on Fika."))</label>
+            <label class="fb-switch">
+                <input
+                    type="checkbox"
+                    role="switch"
+                    @bind="simulation.World.RubberBandingBots"
+                    disabled="@(!simulation.World.RubberBanding)"/>
+                <span class="fb-switch-track"></span>
+                Rubber banding affects bots@(Tip(
+                    "Off by default. Needs Rubber banding. Every bot within 150 m of you snaps back on the same packet loss, "
+                    + "so enemies jump around on a bad server too. Not on Fika."))
+            </label>
         </div>
     </section>
     @SimulationSave
@@ -1613,46 +2177,75 @@ else if (page == "Messages")
 {
     <section class="fb-card">
         <h2>Bot messages</h2>
-        <p class="fb-muted">Players you kill, or that kill you, can message you after the raid. They only speak up after something notable: a squad wipe, a long shot, a kill at an exit or on a full bag, a boss raid, a rampage cut short, an underdog win or an expensive kit. Their tone follows the personality, and streamers talk to their chat.</p>
+        <p class="fb-muted">Players you kill, or that kill you, can message you after the raid. They only speak up after
+            something notable: a squad wipe, a long shot, a kill at an exit or on a full bag, a boss raid, a
+            rampage cut short, an underdog win or an expensive kit. Their tone follows the personality, and
+            streamers talk to their chat.</p>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.BotMessages.Enabled"/><span class="fb-switch-track"></span>Send player messages@(Tip("Let bots message you after notable raid events."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.BotMessages.Enabled"/>
+                <span class="fb-switch-track"></span>
+                Send player messages@(Tip("Let bots message you after notable raid events."))
+            </label>
         </div>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.BotMessages.ReplaceNativeMessages"/><span class="fb-switch-track"></span>Silence SPT's own PMC messages@(Tip("Players never send SPT's built-in victim and killer messages."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.BotMessages.ReplaceNativeMessages"/>
+                <span class="fb-switch-track"></span>
+                Silence SPT's own PMC messages@(Tip("Players never send SPT's built-in victim and killer messages."))
+            </label>
         </div>
         <div class="fb-grid fb-grid-3">
             <label class="fb-field">
-                <span class="fb-label">Chance per notable event@(Tip("Chance (0 to 1) that a notable event gets a message. A squad wipe counts three times. At most one message per raid."))</span><input type="number" min="0" max="1" step="0.01" @bind="simulation.BotMessages.Chance"/>
+                <span class="fb-label">Chance per notable event@(Tip(
+                    "Chance (0 to 1) that a notable event gets a message. A squad wipe counts three times. At most one "
+                    + "message per raid."))</span>
+                <input type="number" min="0" max="1" step="0.01" @bind="simulation.BotMessages.Chance"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Delay, minimum seconds@(Tip("Earliest time after the raid that a message arrives."))</span><input type="number" min="0" max="3600" @bind="simulation.BotMessages.MinimumDelaySeconds"/>
+                <span class="fb-label">Delay, minimum seconds@(Tip("Earliest time after the raid that a message arrives."))</span>
+                <input type="number" min="0" max="3600" @bind="simulation.BotMessages.MinimumDelaySeconds"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Delay, maximum seconds@(Tip("Latest time after the raid that a message arrives."))</span><input type="number" min="0" max="3600" @bind="simulation.BotMessages.MaximumDelaySeconds"/>
+                <span class="fb-label">Delay, maximum seconds@(Tip("Latest time after the raid that a message arrives."))</span>
+                <input type="number" min="0" max="3600" @bind="simulation.BotMessages.MaximumDelaySeconds"/>
             </label>
         </div>
     </section>
     <section class="fb-card">
         <h2>Care packages from friends</h2>
-        <p class="fb-muted">An accepted friend may mail you a spare kit (gun, helmet, rig, armor and backpack, no ammo) when you are low level and broke, or keep dying. Never once you have prestiged.</p>
+        <p class="fb-muted">An accepted friend may mail you a spare kit (gun, helmet, rig, armor and backpack, no ammo) when
+            you are low level and broke, or keep dying. Never once you have prestiged.</p>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="simulation.FriendGifts.Enabled"/><span class="fb-switch-track"></span>Friends send care packages@(Tip("A friend builds a kit from their own gear tier and mails it with a short message."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="simulation.FriendGifts.Enabled"/>
+                <span class="fb-switch-track"></span>
+                Friends send care packages@(Tip(
+                    "A friend builds a kit from their own gear tier and mails it with a short message."))
+            </label>
         </div>
         <div class="fb-grid">
             <label class="fb-field">
-                <span class="fb-label">Chance per raid@(Tip("Chance (0 to 1) after each raid that qualifies."))</span><input type="number" min="0" max="1" step="0.05" @bind="simulation.FriendGifts.Chance"/>
+                <span class="fb-label">Chance per raid@(Tip("Chance (0 to 1) after each raid that qualifies."))</span>
+                <input type="number" min="0" max="1" step="0.05" @bind="simulation.FriendGifts.Chance"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Below level@(Tip("You qualify under this level, if you also have less money than the limit below."))</span><input type="number" min="1" max="80" @bind="simulation.FriendGifts.MaximumLevel"/>
+                <span class="fb-label">Below level@(Tip(
+                    "You qualify under this level, if you also have less money than the limit below."))</span>
+                <input type="number" min="1" max="80" @bind="simulation.FriendGifts.MaximumLevel"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Below roubles@(Tip("Roubles in your stash under which you count as broke."))</span><input type="number" min="0" max="1000000000" step="50000" @bind="simulation.FriendGifts.MaximumRubles"/>
+                <span class="fb-label">Below roubles@(Tip("Roubles in your stash under which you count as broke."))</span>
+                <input type="number" min="0" max="1000000000" step="50000" @bind="simulation.FriendGifts.MaximumRubles"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Deaths in a row@(Tip("This many deaths in a row qualify on their own, whatever your level and money."))</span><input type="number" min="1" max="100" @bind="simulation.FriendGifts.DeathStreak"/>
+                <span class="fb-label">Deaths in a row@(Tip(
+                    "This many deaths in a row qualify on their own, whatever your level and money."))</span>
+                <input type="number" min="1" max="100" @bind="simulation.FriendGifts.DeathStreak"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Cooldown hours@(Tip("Shortest time between two care packages."))</span><input type="number" min="0" max="720" step="1" @bind="simulation.FriendGifts.CooldownHours"/>
+                <span class="fb-label">Cooldown hours@(Tip("Shortest time between two care packages."))</span>
+                <input type="number" min="0" max="720" step="1" @bind="simulation.FriendGifts.CooldownHours"/>
             </label>
         </div>
     </section>
@@ -1666,7 +2259,10 @@ else if (page == "Presets")
         <div class="fb-alert fb-alert-yellow" role="alertdialog" aria-label="Discard unsaved settings">
             <div><strong>Load @confirmPreset and discard unsaved changes?</strong> Every section with edits goes back to the preset.</div>
             <div class="fb-actions">
-                <button type="button" class="fb-button fb-button-red" @onclick="() => LoadPreset(confirmPreset, true)">Discard and load</button><button type="button" class="fb-button fb-button-light" @onclick='() => confirmPreset = ""'>Keep editing</button>
+                <button
+                    type="button"
+                    class="fb-button fb-button-red"
+                    @onclick="() => LoadPreset(confirmPreset, true)">Discard and load</button><button type="button" class="fb-button fb-button-light" @onclick='() => confirmPreset = ""'>Keep editing</button>
             </div>
         </div>
     }
@@ -1675,10 +2271,15 @@ else if (page == "Presets")
         <div class="fb-card-head fb-padded">
             <div>
                 <h2>Presets</h2>
-                <p>A preset holds personalities, simulation and population settings. Share one by dropping its .json file in the mod's Presets folder.</p>
+                <p>A preset holds personalities, simulation and population settings. Share one by dropping its .json file in
+                    the mod's Presets folder.</p>
             </div>
             <div class="fb-actions">
-                <button type="button" class="fb-button fb-button-light" title="@presetFolder" @onclick="OpenPresetFolder">Open presets folder</button><button type="button" class="fb-button fb-button-light" @onclick="LoadPresets">@Icon("Reload") Refresh</button>
+                <button
+                    type="button"
+                    class="fb-button fb-button-light"
+                    title="@presetFolder"
+                    @onclick="OpenPresetFolder">Open presets folder</button><button type="button" class="fb-button fb-button-light" @onclick="LoadPresets">@Icon("Reload") Refresh</button>
             </div>
         </div>
         <div class="fb-table-scroll">
@@ -1707,16 +2308,25 @@ else if (page == "Presets")
                         </td>
                         <td>
                             <div class="fb-actions fb-actions-end">
-                                <button type="button" class="fb-button fb-button-light" @onclick="() => LoadPreset(preset.Name, false)">Load</button>
+                                <button
+                                    type="button"
+                                    class="fb-button fb-button-light"
+                                    @onclick="() => LoadPreset(preset.Name, false)">Load</button>
                                 @if (!preset.BuiltIn)
                                 {
                                     if (confirmDelete == preset.Name)
                                     {
-                                        <button type="button" class="fb-button fb-button-red" @onclick="() => DeletePreset(preset.Name)">Delete for good</button>
+                                        <button
+                                            type="button"
+                                            class="fb-button fb-button-red"
+                                            @onclick="() => DeletePreset(preset.Name)">Delete for good</button>
                                     }
                                     else
                                     {
-                                        <button type="button" class="fb-button fb-button-light" @onclick="() => confirmDelete = preset.Name">Delete</button>
+                                        <button
+                                            type="button"
+                                            class="fb-button fb-button-light"
+                                            @onclick="() => confirmDelete = preset.Name">Delete</button>
                                     }
                                 }
                             </div>
@@ -1729,15 +2339,24 @@ else if (page == "Presets")
     </section>
     <section class="fb-card">
         <h2>Save current settings</h2>
-        <p class="fb-muted">Saves every page's current values, unsaved edits included, applies them and makes the preset active.</p>
+        <p class="fb-muted">Saves every page's current values, unsaved edits included, applies them and makes the preset
+            active.</p>
         <div class="fb-toolbar">
             <label class="fb-field">
-                <span class="fb-label">New preset name</span><input maxlength="40" placeholder="My preset" @bind="presetName" @bind:event="oninput"/>
+                <span class="fb-label">New preset name</span>
+                <input maxlength="40" placeholder="My preset" @bind="presetName" @bind:event="oninput"/>
             </label>
-            <button type="button" class="fb-button" disabled="@(string.IsNullOrWhiteSpace(presetName))" @onclick="() => SavePreset(presetName, false)">Save as new preset</button>
+            <button
+                type="button"
+                class="fb-button"
+                disabled="@(string.IsNullOrWhiteSpace(presetName))"
+                @onclick="() => SavePreset(presetName, false)">Save as new preset</button>
             @if (active is { BuiltIn: false })
             {
-                <button type="button" class="fb-button fb-button-light" @onclick="() => SavePreset(active.Name, true)">Update @active.Name</button>
+                <button
+                    type="button"
+                    class="fb-button fb-button-light"
+                    @onclick="() => SavePreset(active.Name, true)">Update @active.Name</button>
             }
         </div>
     </section>
@@ -1747,14 +2366,22 @@ else
     <section class="fb-card">
         <h2>Friendships</h2>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="config.EnableFriendRequests"/><span class="fb-switch-track"></span>Bot friend requests@(Tip("Allow sending friend requests to simulated accounts."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="config.EnableFriendRequests"/>
+                <span class="fb-switch-track"></span>
+                Bot friend requests@(Tip("Allow sending friend requests to simulated accounts."))
+            </label>
         </div>
         <div class="fb-grid">
             <label class="fb-field">
-                <span class="fb-label">Friend acceptance chance@(Tip("Chance (0 to 1) that a simulated account accepts your friend request."))</span><input type="number" min="0" max="1" step="0.01" @bind="config.FriendAcceptanceChance"/>
+                <span class="fb-label">Friend acceptance chance@(Tip(
+                    "Chance (0 to 1) that a simulated account accepts your friend request."))</span>
+                <input type="number" min="0" max="1" step="0.01" @bind="config.FriendAcceptanceChance"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Friend activity multiplier@(Tip("Accepted friends play and show online this many times as often as other accounts."))</span><input type="number" min="0" max="5" step="0.1" @bind="config.FriendActivityMultiplier"/>
+                <span class="fb-label">Friend activity multiplier@(Tip(
+                    "Accepted friends play and show online this many times as often as other accounts."))</span>
+                <input type="number" min="0" max="5" step="0.1" @bind="config.FriendActivityMultiplier"/>
             </label>
         </div>
         <p class="fb-hint">Disabling new friend requests keeps existing accepted friendships.</p>
@@ -1763,20 +2390,32 @@ else
         <h2>Activity</h2>
         <div class="fb-grid fb-grid-3">
             <label class="fb-field">
-                <span class="fb-label">Online rate multiplier@(Tip("Scales how often every account is online. 1 is the default, 2 doubles it."))</span><input type="number" min="0" max="10" step="0.1" @bind="config.OnlineRateMultiplier"/>
+                <span class="fb-label">Online rate multiplier@(Tip(
+                    "Scales how often every account is online. 1 is the default, 2 doubles it."))</span>
+                <input type="number" min="0" max="10" step="0.1" @bind="config.OnlineRateMultiplier"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Offline progression threshold, seconds@(Tip("Minimum server downtime before accounts get simulated progress for the time you were away."))</span><input type="number" min="60" max="86400" @bind="config.ProgressionThresholdSeconds"/>
+                <span class="fb-label">Offline progression threshold, seconds@(Tip(
+                    "Minimum server downtime before accounts get simulated progress for the time you were away."))</span>
+                <input type="number" min="60" max="86400" @bind="config.ProgressionThresholdSeconds"/>
             </label>
             <label class="fb-field">
-                <span class="fb-label">Maximum offline days@(Tip("Cap on how many offline days of progress are simulated at server start."))</span><input type="number" min="1" max="365" @bind="config.MaximumOfflineDays"/>
+                <span class="fb-label">Maximum offline days@(Tip(
+                    "Cap on how many offline days of progress are simulated at server start."))</span>
+                <input type="number" min="1" max="365" @bind="config.MaximumOfflineDays"/>
             </label>
         </div>
     </section>
     <section class="fb-card">
         <h2>Server memory</h2>
         <div class="fb-switch-row">
-            <label class="fb-switch"><input type="checkbox" role="switch" @bind="config.CompactMemory"/><span class="fb-switch-track"></span>Compact memory after raids load@(Tip("Raid starts leave large unused blocks that .NET never gives back. Once the server is quiet, PBT compacts them, at most every 15 minutes. Costs one short pause."))</label>
+            <label class="fb-switch">
+                <input type="checkbox" role="switch" @bind="config.CompactMemory"/>
+                <span class="fb-switch-track"></span>
+                Compact memory after raids load@(Tip(
+                    "Raid starts leave large unused blocks that .NET never gives back. Once the server is quiet, PBT "
+                    + "compacts them, at most every 15 minutes. Costs one short pause."))
+            </label>
         </div>
     </section>
     <div class="fb-savebar">
@@ -1787,9 +2426,48 @@ else
 </div>
 
 @code {
-    private static readonly string[] topPages = ["Overview", "Dashboard", "Players", "Watching", "Personalities", "Simulation", "Population", "Presets"];
-    private static readonly string[] simulationPages = ["Progression", "Hideout", "Gear", "Notable", "Cheaters", "Prestige", "Stories", "Messages", "World"];
-    private static readonly (string Value, string Label)[] statusFilters = [("", "Everyone"), ("Online", "Online"), ("Raid", "In raid"), ("Queue", "Queueing"), ("Menu", "Main menu"), ("Afk", "AFK"), ("Transit", "In transit"), ("Died", "Died"), ("Offline", "Offline"), ("Squad", "In a squad"), ("Favorites", "Watched"), ("Banned", "Banned")];
+    private static readonly string[] topPages =
+    [
+        "Overview",
+        "Dashboard",
+        "Players",
+        "Watching",
+        "Personalities",
+        "Simulation",
+        "Population",
+        "Presets",
+    ];
+
+    private static readonly string[] simulationPages =
+    [
+        "Progression",
+        "Hideout",
+        "Gear",
+        "Notable",
+        "Cheaters",
+        "Prestige",
+        "Stories",
+        "Messages",
+        "World",
+    ];
+
+    private static readonly (string Value, string Label)[] statusFilters =
+    [
+        ("", "Everyone"),
+        ("Online", "Online"),
+        ("Raid", "In raid"),
+        ("Queue", "Queueing"),
+        ("Menu", "Main menu"),
+        ("Afk", "AFK"),
+        ("Transit", "In transit"),
+        ("Died", "Died"),
+        ("Offline", "Offline"),
+        ("Squad", "In a squad"),
+        ("Favorites", "Watched"),
+        ("Banned", "Banned"),
+    ];
+
+
     private static readonly string[] sortOptions = ["Status", "Name", "Level", "Prestige", "Raids", "K/D"];
     private const int PageSize = 50;
     private EditorSnapshot? snapshot;
@@ -1874,7 +2552,9 @@ else
         if (ok)
         {
             string name = streamerName.Trim();
-            if (!simulation.NotableNames.ExtraNames.Contains(name, StringComparer.OrdinalIgnoreCase)) simulation.NotableNames.ExtraNames.Add(name);
+            var extraNames = simulation.NotableNames.ExtraNames;
+            if (!extraNames.Contains(name, StringComparer.OrdinalIgnoreCase))
+                extraNames.Add(name);
             streamerName = "";
         }
 
@@ -2136,8 +2816,11 @@ else
         else Reload();
     }
 
-    private PersonalityTemplate? Current => selectedIndex >= 0 && selectedIndex < people.Count ? people[selectedIndex] : people.FirstOrDefault();
-    private static PopulationStore Store => PopulationStore.Active ?? throw new InvalidOperationException("PBT is not ready.");
+    private PersonalityTemplate? Current =>
+        selectedIndex >= 0 && selectedIndex < people.Count ? people[selectedIndex] : people.FirstOrDefault();
+
+    private static PopulationStore Store =>
+        PopulationStore.Active ?? throw new InvalidOperationException("PBT is not ready.");
 
     protected override void OnInitialized()
     {
@@ -2193,7 +2876,9 @@ else
         else if (page == "Watching") LoadWatched();
         else if (page == "Dashboard") UpdateStatus();
         else return;
-        if (page == "Overview" && !slideHeld && !slideHover && ++ticks % 2 == 0 && world?.Maps.Count > 1) slide = (slide + 1) % world.Maps.Count;
+        bool sliding = page == "Overview" && !slideHeld && !slideHover;
+        if (sliding && ++ticks % 2 == 0 && world?.Maps.Count > 1)
+            slide = (slide + 1) % world.Maps.Count;
         StateHasChanged();
         animating = true;
         try
@@ -2202,7 +2887,10 @@ else
             {
                 await Task.Delay(40);
                 foreach (var key in shownNumbers.Keys.ToList())
-                    shownNumbers[key] = frame == 11 ? targetNumbers[key] : shownNumbers[key] + (targetNumbers[key] - shownNumbers[key]) * .3;
+                    shownNumbers[key] =
+                        frame == 11
+                            ? targetNumbers[key]
+                            : shownNumbers[key] + (targetNumbers[key] - shownNumbers[key]) * .3;
                 StateHasChanged();
             }
         }
@@ -2222,7 +2910,8 @@ else
     private IEnumerable<WorldPlayerRow> FilteredPlayers()
     {
         IEnumerable<WorldPlayerRow> rows = playerFilter == "Banned" ? players : players.Where(p => p.State != "Banned");
-        if (!string.IsNullOrWhiteSpace(playerSearch)) rows = rows.Where(p => p.Name.Contains(playerSearch.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(playerSearch))
+            rows = rows.Where(p => p.Name.Contains(playerSearch.Trim(), StringComparison.OrdinalIgnoreCase));
         if (playerFilter == "Online") rows = rows.Where(p => p.State is not ("Offline" or "Died"));
         else if (playerFilter == "Squad") rows = rows.Where(p => p.Squad.Length > 0);
         else if (playerFilter == "Favorites") rows = rows.Where(p => favorites.Contains(p.Id));
@@ -2271,7 +2960,11 @@ else
     private static int Hue(string id) => (int)((uint)id.Aggregate(17, (h, c) => h * 31 + c) % 360);
     private static int Bars(double share) => share >= .15 ? 4 : share >= .09 ? 3 : share >= .04 ? 2 : share > 0 ? 1 : 0;
     private static string Clock(int seconds) => $"{seconds / 60}:{seconds % 60:D2}";
-    private static string Duration(long seconds) => seconds < 60 ? $"{seconds}s" : seconds < 3600 ? $"{seconds / 60}m" : seconds < 86400 ? $"{seconds / 3600}h {seconds % 3600 / 60}m" : $"{seconds / 86400}d";
+    private static string Duration(long seconds) =>
+        seconds < 60 ? $"{seconds}s"
+        : seconds < 3600 ? $"{seconds / 60}m"
+        : seconds < 86400 ? $"{seconds / 3600}h {seconds % 3600 / 60}m"
+        : $"{seconds / 86400}d";
 
     private static string Ago(long utc)
     {
@@ -2284,7 +2977,13 @@ else
         if (points.Length < 2)
             return @<span class="fb-muted">-</span>;
         int top = Math.Max(1, points.Max());
-        string line = string.Join(" ", points.Select((v, i) => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{i * 100.0 / (points.Length - 1):0.#},{22 - v * 20.0 / top:0.#}")));
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+        string line = string.Join(
+            " ",
+            points.Select((v, i) =>
+                string.Create(invariant, $"{i * 100.0 / (points.Length - 1):0.#},{22 - v * 20.0 / top:0.#}")
+            )
+        );
         return @<svg class="fb-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">
                    <polyline points="@line"/>
                </svg>;
@@ -2321,7 +3020,8 @@ else
             people = nextPeople;
             simulation = nextPolicy;
             config = nextConfig;
-            foreach (string section in new[] { "personalities", "simulation", "settings" }) baselines[section] = Contents(section);
+            foreach (string section in new[] { "personalities", "simulation", "settings" })
+                baselines[section] = Contents(section);
             selectedIndex = 0;
             confirmReload = false;
             error = false;
@@ -2427,7 +3127,14 @@ else
             foreach (var item in people)
                 if (string.IsNullOrWhiteSpace(item.ProgressTo))
                     item.ProgressTo = null;
-            Store.SavePreset(name, overwrite, Contents("personalities"), Contents("simulation"), Contents("settings"), [snapshot!.PersonalitiesRevision, snapshot.PolicyRevision, snapshot.SettingsRevision]);
+            Store.SavePreset(
+                name,
+                overwrite,
+                Contents("personalities"),
+                Contents("simulation"),
+                Contents("settings"),
+                [snapshot!.PersonalitiesRevision, snapshot.PolicyRevision, snapshot.SettingsRevision]
+            );
             Reload();
             LoadPresets();
             presetName = "";

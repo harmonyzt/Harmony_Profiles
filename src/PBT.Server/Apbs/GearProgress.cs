@@ -15,7 +15,7 @@ public sealed partial class PopulationStore
         new("armor", ["ArmorVest"], 3),
         new("helmet", ["Headwear", "Earpiece", "FaceCover", "Eyewear"], 2),
         new("backpack", ["Backpack"], 1),
-        new("sidearm", ["Holster"], 1)
+        new("sidearm", ["Holster"], 1),
     ];
 
     private const int GearHistorySize = 12;
@@ -27,7 +27,9 @@ public sealed partial class PopulationStore
     private static string? SlotTemplate(JsonObject equipment, string slot)
     {
         string root = equipment["Id"]!.ToString();
-        return GearItems(equipment).FirstOrDefault(i => i["parentId"]?.ToString() == root && i["slotId"]?.ToString() == slot)?["_tpl"]?.ToString();
+        return GearItems(equipment)
+            .FirstOrDefault(i => i["parentId"]?.ToString() == root && i["slotId"]?.ToString() == slot)
+            ?["_tpl"]?.ToString();
     }
 
     private static List<JsonObject> Subtree(JsonObject equipment, IEnumerable<string> slots)
@@ -35,7 +37,9 @@ public sealed partial class PopulationStore
         string root = equipment["Id"]!.ToString();
         var wanted = slots.ToHashSet();
         var all = GearItems(equipment).ToArray();
-        var ids = all.Where(i => i["parentId"]?.ToString() == root && wanted.Contains(i["slotId"]?.ToString() ?? "")).Select(i => i["_id"]!.ToString()).ToHashSet();
+        var ids = all.Where(i => i["parentId"]?.ToString() == root && wanted.Contains(i["slotId"]?.ToString() ?? ""))
+            .Select(i => i["_id"]!.ToString())
+            .ToHashSet();
         bool changed;
         do
         {
@@ -53,17 +57,26 @@ public sealed partial class PopulationStore
     }
 
     private static double StackCount(JsonObject item) =>
-        item["upd"]?["StackObjectsCount"] is JsonValue v ? v.TryGetValue<double>(out double d) ? Math.Max(1, d) : v.TryGetValue<int>(out int n) ? Math.Max(1, n) : 1 : 1;
+        item["upd"]?["StackObjectsCount"] is JsonValue v
+            ? v.TryGetValue<double>(out double d)
+                ? Math.Max(1, d)
+                : v.TryGetValue<int>(out int n)
+                    ? Math.Max(1, n)
+                    : 1
+            : 1;
 
     private double GearValue(IEnumerable<JsonObject> items)
     {
         var handbook = HandbookPrices();
-        
+
         return items.Sum(i =>
         {
             string tpl = i["_tpl"]?.ToString() ?? "";
-            if (!IsId(tpl)) return 0;
-            double price = templates.Prices.TryGetValue(new MongoId(tpl), out double flea) ? flea : handbook.GetValueOrDefault(tpl);
+            if (!IsId(tpl))
+                return 0;
+            double price = templates.Prices.TryGetValue(new MongoId(tpl), out double flea)
+                ? flea
+                : handbook.GetValueOrDefault(tpl);
             return price * StackCount(i);
         });
     }
@@ -71,14 +84,32 @@ public sealed partial class PopulationStore
     // The secure container and dogtag are not for sale.
     private double KitValue(JsonObject equipment) =>
         ValidEquipment(equipment)
-            ? GearValue(Subtree(equipment, [
-                "FirstPrimaryWeapon", "SecondPrimaryWeapon", "Holster", "Scabbard", "TacticalVest", "ArmorVest",
-                "Pockets", "Backpack", "Headwear", "Earpiece", "FaceCover", "Eyewear", "ArmBand"
-            ]))
+            ? GearValue(
+                Subtree(
+                    equipment,
+                    [
+                        "FirstPrimaryWeapon",
+                        "SecondPrimaryWeapon",
+                        "Holster",
+                        "Scabbard",
+                        "TacticalVest",
+                        "ArmorVest",
+                        "Pockets",
+                        "Backpack",
+                        "Headwear",
+                        "Earpiece",
+                        "FaceCover",
+                        "Eyewear",
+                        "ArmBand",
+                    ]
+                )
+            )
             : 0;
 
     private bool BlocksArmor(JsonObject equipment) =>
-        SlotTemplate(equipment, "TacticalVest") is { } tpl && IsId(tpl) && templates.Items.TryGetValue(new MongoId(tpl), out var template)
+        SlotTemplate(equipment, "TacticalVest") is { } tpl
+        && IsId(tpl)
+        && templates.Items.TryGetValue(new MongoId(tpl), out var template)
         && template.Properties?.BlocksArmorVest == true;
 
     // An armored rig takes the armor slot with it.
@@ -92,8 +123,10 @@ public sealed partial class PopulationStore
         var take = Subtree(source, slots);
         var ids = take.ToDictionary(i => i["_id"]!.ToString(), _ => new MongoId().ToString());
         ids[source["Id"]!.ToString()] = root;
-        var items = new JsonArray(GearItems(target).Where(i => !drop.Contains(i["_id"]!.ToString())).Select(i => (JsonNode)i.DeepClone()).ToArray());
-        
+        var items = new JsonArray(
+            GearItems(target).Where(i => !drop.Contains(i["_id"]!.ToString())).Select(i => (JsonNode)i.DeepClone()).ToArray()
+        );
+
         foreach (var item in take)
         {
             var copy = item.DeepClone().AsObject();
@@ -102,11 +135,7 @@ public sealed partial class PopulationStore
             items.Add(copy);
         }
 
-        return new JsonObject
-        {
-            ["Id"] = root,
-            ["Items"] = items
-        };
+        return new JsonObject { ["Id"] = root, ["Items"] = items };
     }
 
     private string GearName(JsonObject equipment, string slot)
@@ -115,11 +144,11 @@ public sealed partial class PopulationStore
         {
             return "";
         }
-        
+
         try
         {
             var names = locales.GetLocaleDb();
-            
+
             return names.GetValueOrDefault(tpl + " ShortName") ?? names.GetValueOrDefault(tpl + " Name") ?? "";
         }
         catch
@@ -129,10 +158,18 @@ public sealed partial class PopulationStore
     }
 
     private static string A(string name) =>
-        ("aeiouAEIOU".Contains(name[0]) || name.StartsWith("M4") || name.StartsWith("MP") || name.StartsWith("SR") || name.StartsWith("SV") || name.StartsWith("RSh")
-         || name.StartsWith("RPK") || name.StartsWith("HK")
-            ? "an "
-            : "a ") + name;
+        (
+            "aeiouAEIOU".Contains(name[0])
+            || name.StartsWith("M4")
+            || name.StartsWith("MP")
+            || name.StartsWith("SR")
+            || name.StartsWith("SV")
+            || name.StartsWith("RSh")
+            || name.StartsWith("RPK")
+            || name.StartsWith("HK")
+                ? "an "
+                : "a "
+        ) + name;
 
     private string GroupLabel(GearGroup group, JsonObject kit)
     {
@@ -143,14 +180,14 @@ public sealed partial class PopulationStore
             "armor" => name.Length > 0 ? $"{name} armor" : "better armor",
             "helmet" => name.Length > 0 ? A(name) + " helmet" : "better headgear",
             "backpack" => name.Length > 0 ? A(name) + " backpack" : "a bigger backpack",
-            _ => name.Length > 0 ? A(name) + " sidearm" : "a better sidearm"
+            _ => name.Length > 0 ? A(name) + " sidearm" : "a better sidearm",
         };
     }
 
     private static void RecordGear(Career c, string kind, string text, double rubles, long now)
     {
         c.GearHistory.Insert(0, new GearEvent(now, kind, text, Math.Round(rubles)));
-        
+
         if (c.GearHistory.Count > GearHistorySize)
         {
             c.GearHistory.RemoveRange(GearHistorySize, c.GearHistory.Count - GearHistorySize);
@@ -173,28 +210,29 @@ public sealed partial class PopulationStore
         {
             return candidate;
         }
-        
+
         // Players keep money for a couple of deaths instead of spending their last ruble on gear.
         double spare = c.WealthRubles - KitCost(c) * 2;
         var options = new List<(GearGroup Group, string[] Slots, double Cost)>();
-        
+
         foreach (var group in GearGroups)
         {
             if (group.Name == "armor" && BlocksArmor(current))
             {
                 continue;
             }
-            
+
             var slots = GroupSlots(group, current, candidate);
-            double owned = GearValue(Subtree(current, slots)), bought = GearValue(Subtree(candidate, slots));
-            
+            double owned = GearValue(Subtree(current, slots)),
+                bought = GearValue(Subtree(candidate, slots));
+
             // The old piece is sold, which pays for part of the new one.
             double cost = Math.Max(0, bought - owned * .5);
             if (bought <= 0 || bought < owned * 1.15 || cost > spare)
             {
                 continue;
             }
-            
+
             options.Add((group, slots, cost));
         }
 
@@ -202,7 +240,7 @@ public sealed partial class PopulationStore
         {
             return null;
         }
-        
+
         int roll = Random.Shared.Next(options.Sum(o => o.Group.Weight));
         var pick = options.First(o => (roll -= o.Group.Weight) < 0);
         var result = SwapGroup(current, candidate, pick.Slots);
@@ -211,13 +249,13 @@ public sealed partial class PopulationStore
         {
             return null;
         }
-        
+
         c.WealthRubles = Math.Max(0, c.WealthRubles - pick.Cost);
         string label = GroupLabel(pick.Group, candidate);
-        
+
         Log("gear", $"{c.Name} upgraded to {label}");
         RecordGear(c, "upgrade", $"Upgraded to {label}", -pick.Cost, now);
-        
+
         return result;
     }
 
@@ -226,7 +264,13 @@ public sealed partial class PopulationStore
     {
         if (c.DiedUtc == 0)
         {
-            RecordGear(c, "rebuy", c.PrestigeLevel > 0 && c.GearHistory.Count > 0 ? "Started over with a fresh kit" : "Bought a first kit", 0, now);
+            RecordGear(
+                c,
+                "rebuy",
+                c.PrestigeLevel > 0 && c.GearHistory.Count > 0 ? "Started over with a fresh kit" : "Bought a first kit",
+                0,
+                now
+            );
             return fresh;
         }
 
@@ -247,14 +291,20 @@ public sealed partial class PopulationStore
             var kept = SwapGroup(fresh, previous, GroupSlots(GearGroups[0], fresh, previous));
             if (ValidEquipment(kept) && HasVisibleLoadout(kept))
             {
-                RecordGear(c, insured ? "insurance" : "rebuy", insured ? $"Got the {gun} back from insurance" : $"Rebought the usual {gun} loadout", cost, now);
+                RecordGear(
+                    c,
+                    insured ? "insurance" : "rebuy",
+                    insured ? $"Got the {gun} back from insurance" : $"Rebought the usual {gun} loadout",
+                    cost,
+                    now
+                );
                 return kept;
             }
         }
 
         string next = GearName(fresh, "FirstPrimaryWeapon");
         RecordGear(c, "rebuy", next.Length > 0 ? $"Bought a new kit with {A(next)}" : "Bought a new kit", cost, now);
-        
+
         return fresh;
     }
 }

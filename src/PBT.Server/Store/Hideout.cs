@@ -21,9 +21,11 @@ public sealed partial class PopulationStore
 
     private static readonly Lazy<List<HideoutCohort>> HideoutCohorts = new(() =>
     {
-        using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("PBT.Server.Calibration.hideout-priors.json")
-                           ?? throw new InvalidDataException("Hideout calibration is missing.");
-        return JsonSerializer.Deserialize<List<HideoutCohort>>(stream) ?? throw new InvalidDataException("Hideout calibration is empty.");
+        using var stream =
+            Assembly.GetExecutingAssembly().GetManifestResourceStream("PBT.Server.Calibration.hideout-priors.json")
+            ?? throw new InvalidDataException("Hideout calibration is missing.");
+        return JsonSerializer.Deserialize<List<HideoutCohort>>(stream)
+            ?? throw new InvalidDataException("Hideout calibration is empty.");
     });
 
     // 0 until the career nears its completion level, 1 once its hideout should be fully built.
@@ -31,26 +33,44 @@ public sealed partial class PopulationStore
     {
         var h = policy.Hideout;
         bool neglected = Stable(c.Id + ":neglect") < h.NeglectedShare;
-        double done = h.CompleteFromLevel + Stable(c.Id + ":hideout-done") * (h.CompleteByLevel - h.CompleteFromLevel) + (neglected ? 15 : 0);
+        double done =
+            h.CompleteFromLevel
+            + Stable(c.Id + ":hideout-done") * (h.CompleteByLevel - h.CompleteFromLevel)
+            + (neglected ? 15 : 0);
         double start = Math.Max(1, done - 15);
         return done <= start ? 1 : Math.Clamp((Level(c.Experience) - start) / (done - start), 0, 1);
     }
 
     private int DesiredHideoutLevel(Career c, int type, double hours, int maximum)
     {
-        if (type == 3) return maximum;
+        if (type == 3)
+            return maximum;
         double completion = HideoutCompletion(c);
-        if (completion >= 1) return maximum;
+        if (completion >= 1)
+            return maximum;
         var cohort = HideoutCohorts.Value.First(b => Level(c.Experience) <= b.MaximumLevel);
-        if (!cohort.Modules.TryGetValue(type, out var prior)) return maximum;
-        double focus = c.Archetype == "Timmy" ? .8 : c.Archetype == "Survivor" ? 1.1 : 1;
+        if (!cohort.Modules.TryGetValue(type, out var prior))
+            return maximum;
+        double focus =
+            c.Archetype == "Timmy" ? .8
+            : c.Archetype == "Survivor" ? 1.1
+            : 1;
         double readiness = Math.Clamp(hours / 12, 0, 1);
         bool neglected = Stable(c.Id + ":neglect") < policy.Hideout.NeglectedShare;
-        double chance = Math.Clamp(prior.BuiltChance * focus * readiness * policy.Hideout.BuiltChanceMultiplier * (neglected ? .4 : 1), 0, 1);
+        double chance = Math.Clamp(
+            prior.BuiltChance * focus * readiness * policy.Hideout.BuiltChanceMultiplier * (neglected ? .4 : 1),
+            0,
+            1
+        );
         chance += (1 - chance) * completion;
-        if (Stable(c.Id + ":build:" + type) >= chance) return 0;
-        double target = prior.BuiltChance <= 0 ? 1 : Math.Clamp(prior.MeanLevel / prior.BuiltChance * (.8 + Stable(c.Id + ":stage:" + type) * .4), 1, maximum);
-        if (neglected) target = 1;
+        if (Stable(c.Id + ":build:" + type) >= chance)
+            return 0;
+        double target =
+            prior.BuiltChance <= 0
+                ? 1
+                : Math.Clamp(prior.MeanLevel / prior.BuiltChance * (.8 + Stable(c.Id + ":stage:" + type) * .4), 1, maximum);
+        if (neglected)
+            target = 1;
         target += (maximum - target) * completion;
         int whole = (int)target;
         return Math.Clamp(whole + (Stable(c.Id + ":round:" + type) < target - whole ? 1 : 0), 1, maximum);
@@ -64,14 +84,26 @@ public sealed partial class PopulationStore
                 return new(1, false, false, "Unknown Hideout owner.");
             if (aid is < 1_500_000_000 or >= 2_000_000_000)
                 return new(1, false, false, "Native Hideout permissions apply.");
-            if (!Ready) return new(1, true, false, "PBT is unavailable.");
+            if (!Ready)
+                return new(1, true, false, "PBT is unavailable.");
             byAccount.TryGetValue(aid, out var career);
             if (career is null && encounters.TryGetValue(aid, out var encounter) && CanAccess(encounter, session))
                 population.Careers.TryGetValue(encounter.CareerId, out career);
-            if (career is null) return new(1, true, false, "This account is unavailable.");
-            bool accepted = SocialReady && population.Friendships.TryGetValue(session.ToString(), out var friends) && friends.TryGetValue(career.Id, out var link) && link.Accepted
-                            && !link.Removed && !link.Cancelled;
-            return new(1, true, accepted, accepted ? "Visit your friend's Hideout." : "Become accepted friends to enter. Overview remains available.");
+            if (career is null)
+                return new(1, true, false, "This account is unavailable.");
+            bool accepted =
+                SocialReady
+                && population.Friendships.TryGetValue(session.ToString(), out var friends)
+                && friends.TryGetValue(career.Id, out var link)
+                && link.Accepted
+                && !link.Removed
+                && !link.Cancelled;
+            return new(
+                1,
+                true,
+                accepted,
+                accepted ? "Visit your friend's Hideout." : "Become accepted friends to enter. Overview remains available."
+            );
         }
     }
 }

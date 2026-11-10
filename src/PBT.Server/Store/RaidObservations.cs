@@ -9,7 +9,14 @@ public sealed partial class PopulationStore
     {
         lock (gate)
         {
-            if (!Ready || report.ProtocolVersion != 1 || !Guid.TryParseExact(report.RaidId, "N", out _) || report.Bots is null || report.Bots.Count is < 1 or > 512) return 0;
+            if (
+                !Ready
+                || report.ProtocolVersion != 1
+                || !Guid.TryParseExact(report.RaidId, "N", out _)
+                || report.Bots is null
+                || report.Bots.Count is < 1 or > 512
+            )
+                return 0;
             var previousObservations = population.RaidObservations;
             var next = new Dictionary<int, RaidObservation>(previousObservations);
             var previousCareers = new Dictionary<string, ObservedCareer>();
@@ -26,14 +33,27 @@ public sealed partial class PopulationStore
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             foreach (var incoming in report.Bots)
             {
-                if (incoming is null || !seen.Add(incoming.AccountId) || !encounters.TryGetValue(incoming.AccountId, out var encounter) || !CanAccess(encounter, session)
-                    || encounter.RuntimeProfileId != incoming.RuntimeProfileId || !population.Careers.TryGetValue(encounter.CareerId, out var career) || incoming.ActiveSeconds < 0
-                    || incoming.ActiveSeconds > 21600 || incoming.ActiveSeconds > Math.Max(0, now - encounter.GeneratedUtc) + 60 || incoming.PmcKills is < 0 or > 512
-                    || incoming.ScavKills is < 0 or > 512 || incoming.UsecKills is < 0 or > 512 || incoming.BearKills is < 0 or > 512
-                    || incoming.UsecKills + incoming.BearKills > incoming.PmcKills) continue;
+                if (
+                    incoming is null
+                    || !seen.Add(incoming.AccountId)
+                    || !encounters.TryGetValue(incoming.AccountId, out var encounter)
+                    || !CanAccess(encounter, session)
+                    || encounter.RuntimeProfileId != incoming.RuntimeProfileId
+                    || !population.Careers.TryGetValue(encounter.CareerId, out var career)
+                    || incoming.ActiveSeconds < 0
+                    || incoming.ActiveSeconds > 21600
+                    || incoming.ActiveSeconds > Math.Max(0, now - encounter.GeneratedUtc) + 60
+                    || incoming.PmcKills is < 0 or > 512
+                    || incoming.ScavKills is < 0 or > 512
+                    || incoming.UsecKills is < 0 or > 512
+                    || incoming.BearKills is < 0 or > 512
+                    || incoming.UsecKills + incoming.BearKills > incoming.PmcKills
+                )
+                    continue;
                 next.TryGetValue(incoming.AccountId, out var old);
                 // A cached alias belongs to at most one observed raid. Never rebind it to a later raid.
-                if (old is not null && old.RaidId != report.RaidId) continue;
+                if (old is not null && old.RaidId != report.RaidId)
+                    continue;
                 var merged = incoming with
                 {
                     RaidId = report.RaidId,
@@ -48,29 +68,30 @@ public sealed partial class PopulationStore
                     KilledByPlayer = incoming.KilledByPlayer || old?.KilledByPlayer == true,
                     KilledPlayer = incoming.KilledPlayer || old?.KilledPlayer == true,
                     NearExtract = incoming.NearExtract || old?.NearExtract == true,
-                    LootValue = Math.Clamp(Math.Max(incoming.LootValue, old?.LootValue ?? 0), 0, 1_000_000_000)
+                    LootValue = Math.Clamp(Math.Max(incoming.LootValue, old?.LootValue ?? 0), 0, 1_000_000_000),
                 };
-                if (merged.UsecKills + merged.BearKills > merged.PmcKills) continue;
+                if (merged.UsecKills + merged.BearKills > merged.PmcKills)
+                    continue;
                 accepted++;
-                if (merged == old) continue;
-                merged = merged with
-                {
-                    LastReportUtc = now
-                };
-                if (merged.Finished && old?.Finished != true) finished.Add((encounter, merged));
+                if (merged == old)
+                    continue;
+                merged = merged with { LastReportUtc = now };
+                if (merged.Finished && old?.Finished != true)
+                    finished.Add((encounter, merged));
                 if (merged.Died && old?.Died != true)
                 {
                     newDeaths.Add(career.Id);
-                    if (population.AppliedStories.TryGetValue(incoming.AccountId, out string? story) && story is "Died" or "DiedUncounted")
+                    if (
+                        population.AppliedStories.TryGetValue(incoming.AccountId, out string? story)
+                        && story is "Died" or "DiedUncounted"
+                    )
                         confirmedStoryDeaths[incoming.AccountId] = career.Id;
                 }
 
                 if (!updates.TryGetValue(career.Id, out var totals))
                 {
                     previousCareers.Add(career.Id, career.Observed);
-                    updates.Add(career.Id, totals = career.Observed with
-                    {
-                    });
+                    updates.Add(career.Id, totals = career.Observed with { });
                 }
 
                 totals.Raids += old is null ? 1 : 0;
@@ -86,7 +107,8 @@ public sealed partial class PopulationStore
                 changed = true;
             }
 
-            if (!changed) return accepted;
+            if (!changed)
+                return accepted;
             bool previousDirty = dirty;
             population.RaidObservations = next;
             foreach (var (id, totals) in updates)
@@ -106,7 +128,8 @@ public sealed partial class PopulationStore
             population.AppliedStories = new Dictionary<int, string>(previousStories);
             foreach (var (account, id) in confirmedStoryDeaths)
             {
-                if (previousStories[account] == "Died") population.Careers[id].StoryDeaths = Math.Max(0, population.Careers[id].StoryDeaths - 1);
+                if (previousStories[account] == "Died")
+                    population.Careers[id].StoryDeaths = Math.Max(0, population.Careers[id].StoryDeaths - 1);
                 population.AppliedStories[account] = "ConfirmedDeath";
             }
 
@@ -120,8 +143,10 @@ public sealed partial class PopulationStore
             catch
             {
                 population.RaidObservations = previousObservations;
-                foreach (var (id, totals) in previousCareers) population.Careers[id].Observed = totals;
-                foreach (var (id, achievements) in previousAchievements) population.Careers[id].Achievements = achievements;
+                foreach (var (id, totals) in previousCareers)
+                    population.Careers[id].Observed = totals;
+                foreach (var (id, achievements) in previousAchievements)
+                    population.Careers[id].Achievements = achievements;
                 foreach (var (id, life) in previousLife)
                 {
                     population.Careers[id].NeedsRegear = life.NeedsRegear;

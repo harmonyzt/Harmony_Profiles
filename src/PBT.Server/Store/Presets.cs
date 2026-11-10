@@ -17,10 +17,7 @@ public sealed partial class PopulationStore
 {
     public const string DefaultPreset = "Default";
 
-    private static readonly JsonSerializerOptions PresetJson = new()
-    {
-        WriteIndented = true
-    };
+    private static readonly JsonSerializerOptions PresetJson = new() { WriteIndented = true };
 
     private string PresetFolder => System.IO.Path.Combine(System.IO.Path.GetDirectoryName(directory)!, "Presets");
     private string SelectionPath => System.IO.Path.Combine(PresetFolder, "selected.txt");
@@ -30,13 +27,17 @@ public sealed partial class PopulationStore
         {
             Personalities = DefaultPersonalities(),
             Simulation = new(),
-            Settings = new()
+            Settings = new(),
         };
 
     private static string CheckName(string? name)
     {
         string trimmed = (name ?? "").Trim();
-        if (trimmed.Length is < 1 or > 40 || trimmed.Any(c => !char.IsLetterOrDigit(c) && c is not (' ' or '-' or '_' or '.')) || trimmed.StartsWith('.'))
+        if (
+            trimmed.Length is < 1 or > 40
+            || trimmed.Any(c => !char.IsLetterOrDigit(c) && c is not (' ' or '-' or '_' or '.'))
+            || trimmed.StartsWith('.')
+        )
             throw new InvalidDataException("Preset names are 1-40 letters, digits, spaces, dashes, dots or underscores.");
         return trimmed;
     }
@@ -45,11 +46,16 @@ public sealed partial class PopulationStore
 
     private PbtPreset ReadPreset(string name)
     {
-        if (name.Equals(DefaultPreset, StringComparison.OrdinalIgnoreCase)) return BuiltInPreset();
+        if (name.Equals(DefaultPreset, StringComparison.OrdinalIgnoreCase))
+            return BuiltInPreset();
         string path = PresetPath(name);
-        if (!File.Exists(path)) throw new FileNotFoundException($"Preset {name} no longer exists.");
-        var preset = JsonSerializer.Deserialize<PbtPreset>(File.ReadAllText(path)) ?? throw new InvalidDataException($"Preset {name} is empty.");
-        if (preset.Personalities is { } people) ValidatePersonalities(people);
+        if (!File.Exists(path))
+            throw new FileNotFoundException($"Preset {name} no longer exists.");
+        var preset =
+            JsonSerializer.Deserialize<PbtPreset>(File.ReadAllText(path))
+            ?? throw new InvalidDataException($"Preset {name} is empty.");
+        if (preset.Personalities is { } people)
+            ValidatePersonalities(people);
         preset.Simulation?.Validate();
         preset.Settings?.Validate();
         return preset;
@@ -68,7 +74,10 @@ public sealed partial class PopulationStore
     }
 
     private bool MatchesLive(PbtPreset preset) =>
-        (preset.Personalities is null || JsonSerializer.Serialize(preset.Personalities) == JsonSerializer.Serialize(personalities))
+        (
+            preset.Personalities is null
+            || JsonSerializer.Serialize(preset.Personalities) == JsonSerializer.Serialize(personalities)
+        )
         && (preset.Simulation is null || JsonSerializer.Serialize(preset.Simulation) == JsonSerializer.Serialize(policy))
         && (preset.Settings is null || JsonSerializer.Serialize(preset.Settings) == JsonSerializer.Serialize(settings));
 
@@ -76,11 +85,16 @@ public sealed partial class PopulationStore
     {
         lock (gate)
         {
-            if (!Ready) throw new InvalidOperationException("PBT has not finished loading.");
+            if (!Ready)
+                throw new InvalidOperationException("PBT has not finished loading.");
             Directory.CreateDirectory(PresetFolder);
             string selected = SelectedPreset();
-            var names = Directory.EnumerateFiles(PresetFolder, "*.json").Select(System.IO.Path.GetFileNameWithoutExtension)
-                .Where(n => n is not null && !n.Equals(DefaultPreset, StringComparison.OrdinalIgnoreCase)).Select(n => n!).Order(StringComparer.OrdinalIgnoreCase)
+            var names = Directory
+                .EnumerateFiles(PresetFolder, "*.json")
+                .Select(System.IO.Path.GetFileNameWithoutExtension)
+                .Where(n => n is not null && !n.Equals(DefaultPreset, StringComparison.OrdinalIgnoreCase))
+                .Select(n => n!)
+                .Order(StringComparer.OrdinalIgnoreCase)
                 .Prepend(DefaultPreset);
             var list = new List<PresetInfo>();
             foreach (string name in names)
@@ -109,7 +123,8 @@ public sealed partial class PopulationStore
     {
         lock (gate)
         {
-            if (!Ready) throw new InvalidOperationException("PBT is unavailable.");
+            if (!Ready)
+                throw new InvalidOperationException("PBT is unavailable.");
             var preset = ReadPreset(name);
             WriteLive(preset);
             Select(name);
@@ -117,29 +132,40 @@ public sealed partial class PopulationStore
         }
     }
 
-    public void SavePreset(string name, bool overwrite, string personalitiesJson, string simulationJson, string settingsJson, string[] revisions)
+    public void SavePreset(
+        string name,
+        bool overwrite,
+        string personalitiesJson,
+        string simulationJson,
+        string settingsJson,
+        string[] revisions
+    )
     {
         lock (gate)
         {
-            if (!Ready) throw new InvalidOperationException("PBT is unavailable.");
+            if (!Ready)
+                throw new InvalidOperationException("PBT is unavailable.");
             name = CheckName(name);
             if (name.Equals(DefaultPreset, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("Default is built in. Save under a new name.");
             string path = PresetPath(name);
-            if (!overwrite && File.Exists(path)) throw new InvalidOperationException($"A preset called {name} already exists.");
+            if (!overwrite && File.Exists(path))
+                throw new InvalidOperationException($"A preset called {name} already exists.");
             string[] sections = ["personalities", "simulation", "settings"];
             for (int i = 0; i < sections.Length; i++)
                 if (Revision(File.ReadAllText(EditorPath(sections[i]))) != revisions[i])
-                    throw new InvalidOperationException("Settings changed since you opened them. Reload saved settings before saving.");
+                    throw new InvalidOperationException(
+                        "Settings changed since you opened them. Reload saved settings before saving."
+                    );
             var strict = new JsonSerializerOptions
             {
-                UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
+                UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow,
             };
             var preset = new PbtPreset
             {
                 Personalities = JsonSerializer.Deserialize<List<PersonalityTemplate>>(personalitiesJson, strict),
                 Simulation = JsonSerializer.Deserialize<SimulationPolicy>(simulationJson, strict),
-                Settings = JsonSerializer.Deserialize<PbtSettings>(settingsJson, strict)
+                Settings = JsonSerializer.Deserialize<PbtSettings>(settingsJson, strict),
             };
             if (preset.Personalities is null || preset.Simulation is null || preset.Settings is null)
                 throw new InvalidDataException("Settings are empty.");
@@ -179,16 +205,19 @@ public sealed partial class PopulationStore
         lock (gate)
         {
             name = CheckName(name);
-            if (name.Equals(DefaultPreset, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("Default is built in and cannot be deleted.");
+            if (name.Equals(DefaultPreset, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Default is built in and cannot be deleted.");
             File.Delete(PresetPath(name));
-            if (SelectedPreset().Equals(name, StringComparison.OrdinalIgnoreCase)) Select(DefaultPreset);
+            if (SelectedPreset().Equals(name, StringComparison.OrdinalIgnoreCase))
+                Select(DefaultPreset);
         }
     }
 
     // Caller holds the gate. Everything is validated before the first file changes.
     private void WriteLive(PbtPreset preset)
     {
-        if (preset.Personalities is { } people) ValidatePersonalities(people);
+        if (preset.Personalities is { } people)
+            ValidatePersonalities(people);
         preset.Simulation?.Validate();
         preset.Settings?.Validate();
         if (preset.Personalities is not null)

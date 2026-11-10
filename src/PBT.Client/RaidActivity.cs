@@ -90,40 +90,63 @@ internal static class RaidActivity
 
     private static void Register(IPlayer __0)
     {
-        if (!observing || __0 is not Player player || !player.IsAI || bots.Count >= 512 || player.Profile.Side is not (EPlayerSide.Bear or EPlayerSide.Usec)
-            || bots.ContainsKey(player.ProfileId) || player.HealthController?.IsAlive != true || !int.TryParse(player.Profile.AccountId, out int account) || !IsPbtAccount(account)) return;
-        bots.Add(player.ProfileId, new Observation
-        {
-            AccountId = account,
-            RuntimeProfileId = player.ProfileId,
-            Player = player,
-            Started = Time.realtimeSinceStartup
-        });
-        Plugin.Trace($"PBT bot spawned: {player.Profile.Nickname} (level {player.Profile.Info?.Level}, {player.Profile.Side}), {bots.Count}"
-                     + (expected > 0 ? $" of {expected}" : "") + " PBT careers so far.");
-        if (expected > 0 && bots.Count >= expected) _ = Recount();
+        if (
+            !observing
+            || __0 is not Player player
+            || !player.IsAI
+            || bots.Count >= 512
+            || player.Profile.Side is not (EPlayerSide.Bear or EPlayerSide.Usec)
+            || bots.ContainsKey(player.ProfileId)
+            || player.HealthController?.IsAlive != true
+            || !int.TryParse(player.Profile.AccountId, out int account)
+            || !IsPbtAccount(account)
+        )
+            return;
+        bots.Add(
+            player.ProfileId,
+            new Observation
+            {
+                AccountId = account,
+                RuntimeProfileId = player.ProfileId,
+                Player = player,
+                Started = Time.realtimeSinceStartup,
+            }
+        );
+        Plugin.Trace(
+            $"PBT bot spawned: {player.Profile.Nickname} (level {player.Profile.Info?.Level}, {player.Profile.Side}), {bots.Count}"
+                + (expected > 0 ? $" of {expected}" : "")
+                + " PBT careers so far."
+        );
+        if (expected > 0 && bots.Count >= expected)
+            _ = Recount();
     }
 
     // The server count arrives a moment after raid start, so spawns that came first are checked here too.
     internal static void Expect(int count)
     {
         expected = count;
-        if (observing && count > 0 && bots.Count >= count) _ = Recount();
+        if (observing && count > 0 && bots.Count >= count)
+            _ = Recount();
     }
 
     // More PMCs can be generated mid-raid, so ask again before calling the pool empty.
     private static async Task Recount()
     {
-        if (exhausted || recounting) return;
+        if (exhausted || recounting)
+            return;
         recounting = true;
         try
         {
             var response = JObject.Parse(await RequestHandler.GetJsonAsync("/pbt/world/raid"));
             int loaded = response.Value<int>("Loaded");
-            if (loaded > expected) expected = loaded;
-            if (!observing || bots.Count < expected) return;
+            if (loaded > expected)
+                expected = loaded;
+            if (!observing || bots.Count < expected)
+                return;
             exhausted = true;
-            Plugin.Trace($"All {expected} PBT careers of this raid have spawned. PMCs spawning from now on are regular bots unless the server generates more.");
+            Plugin.Trace(
+                $"All {expected} PBT careers of this raid have spawned. PMCs spawning from now on are regular bots unless the server generates more."
+            );
         }
         catch (Exception ex)
         {
@@ -149,18 +172,18 @@ internal static class RaidActivity
     {
         try
         {
-            if (bot.Died || bot.Player == null || bot.Player.HealthController is not { IsAlive: false }) return;
+            if (bot.Died || bot.Player == null || bot.Player.HealthController is not { IsAlive: false })
+                return;
             bot.Died = true;
             bot.Stopped ??= Time.realtimeSinceStartup;
         }
-        catch
-        {
-        }
+        catch { }
     }
 
     internal static void Killed(Player victim, IPlayer aggressor, bool alreadyFound)
     {
-        if (!observing || alreadyFound || ReferenceEquals(aggressor, victim) || !deaths.Add(victim.ProfileId)) return;
+        if (!observing || alreadyFound || ReferenceEquals(aggressor, victim) || !deaths.Add(victim.ProfileId))
+            return;
         if (bots.TryGetValue(victim.ProfileId, out var dead))
         {
             dead.Died = true;
@@ -181,17 +204,22 @@ internal static class RaidActivity
 
         if (aggressor != null && bots.TryGetValue(aggressor.ProfileId, out var killer))
         {
-            if (victim.IsYourPlayer) killer.KilledPlayer = true;
-            if (victim.Profile.Side == EPlayerSide.Savage) killer.ScavKills++;
+            if (victim.IsYourPlayer)
+                killer.KilledPlayer = true;
+            if (victim.Profile.Side == EPlayerSide.Savage)
+                killer.ScavKills++;
             else if (victim.Profile.Side is EPlayerSide.Bear or EPlayerSide.Usec)
             {
                 killer.PmcKills++;
-                if (victim.Profile.Side == EPlayerSide.Usec) killer.UsecKills++;
-                else killer.BearKills++;
+                if (victim.Profile.Side == EPlayerSide.Usec)
+                    killer.UsecKills++;
+                else
+                    killer.BearKills++;
             }
         }
 
-        if (victim.IsYourPlayer) End();
+        if (victim.IsYourPlayer)
+            End();
     }
 
     // Bot messages mention a kill at an exit or on a full bag.
@@ -216,7 +244,8 @@ internal static class RaidActivity
 
     internal static void Tick()
     {
-        if (!observing || Time.realtimeSinceStartup < nextUpload || !pending.IsCompleted) return;
+        if (!observing || Time.realtimeSinceStartup < nextUpload || !pending.IsCompleted)
+            return;
         nextUpload = Time.realtimeSinceStartup + 60;
         if (currentWorld != null)
             foreach (var player in currentWorld.RegisteredPlayers)
@@ -238,10 +267,12 @@ internal static class RaidActivity
 
     private static void EndCore()
     {
-        if (!observing) return;
+        if (!observing)
+            return;
         observing = false;
         currentWorld = null;
-        foreach (var bot in bots.Values) bot.Stopped ??= Time.realtimeSinceStartup;
+        foreach (var bot in bots.Values)
+            bot.Stopped ??= Time.realtimeSinceStartup;
         Flush();
         if (bots.Count > 0)
         {
@@ -255,38 +286,45 @@ internal static class RaidActivity
 
     private static void Flush()
     {
-        if (bots.Count == 0) return;
+        if (bots.Count == 0)
+            return;
         if (observing && bots.Count != loggedCount)
         {
             loggedCount = bots.Count;
             Plugin.Trace($"{bots.Count} PBT career{(bots.Count == 1 ? "" : "s")} in this raid so far.");
         }
 
-        foreach (var bot in bots.Values) CheckDead(bot);
+        foreach (var bot in bots.Values)
+            CheckDead(bot);
         var entries = new JArray();
         foreach (var bot in bots.Values)
-            entries.Add(new JObject
-            {
-                ["AccountId"] = bot.AccountId,
-                ["RuntimeProfileId"] = bot.RuntimeProfileId,
-                ["ActiveSeconds"] = Math.Max(0, Math.Min(21600, (int)((bot.Stopped ?? Time.realtimeSinceStartup) - bot.Started))),
-                ["Finished"] = bot.Stopped.HasValue,
-                ["Died"] = bot.Died,
-                ["PmcKills"] = bot.PmcKills,
-                ["ScavKills"] = bot.ScavKills,
-                ["UsecKills"] = bot.UsecKills,
-                ["BearKills"] = bot.BearKills,
-                ["KilledByPlayer"] = bot.KilledByPlayer,
-                ["KilledPlayer"] = bot.KilledPlayer,
-                ["NearExtract"] = bot.NearExtract,
-                ["LootValue"] = bot.LootValue
-            });
+            entries.Add(
+                new JObject
+                {
+                    ["AccountId"] = bot.AccountId,
+                    ["RuntimeProfileId"] = bot.RuntimeProfileId,
+                    ["ActiveSeconds"] = Math.Max(
+                        0,
+                        Math.Min(21600, (int)((bot.Stopped ?? Time.realtimeSinceStartup) - bot.Started))
+                    ),
+                    ["Finished"] = bot.Stopped.HasValue,
+                    ["Died"] = bot.Died,
+                    ["PmcKills"] = bot.PmcKills,
+                    ["ScavKills"] = bot.ScavKills,
+                    ["UsecKills"] = bot.UsecKills,
+                    ["BearKills"] = bot.BearKills,
+                    ["KilledByPlayer"] = bot.KilledByPlayer,
+                    ["KilledPlayer"] = bot.KilledPlayer,
+                    ["NearExtract"] = bot.NearExtract,
+                    ["LootValue"] = bot.LootValue,
+                }
+            );
         string payload = new JObject
         {
             ["ProtocolVersion"] = 1,
             ["RaidId"] = raid,
             ["Map"] = map,
-            ["Bots"] = entries
+            ["Bots"] = entries,
         }.ToString(Formatting.None);
         pending = SendAfter(pending, payload);
     }
@@ -297,7 +335,8 @@ internal static class RaidActivity
         try
         {
             var response = JObject.Parse(await RequestHandler.PostJsonAsync("/pbt/activity", payload));
-            if (response.Value<int>("ProtocolVersion") != 1) Plugin.Report("Raid observation protocol mismatch.");
+            if (response.Value<int>("ProtocolVersion") != 1)
+                Plugin.Report("Raid observation protocol mismatch.");
         }
         catch (Exception ex)
         {

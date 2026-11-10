@@ -13,8 +13,12 @@ public sealed partial class PopulationStore
         lock (gate)
         {
             var careers = population.Careers.Values.Where(c => !c.Retired).ToArray();
-            if (!Ready || careers.Length == 0) return [];
-            return installedAchievements.ToDictionary(id => id, id => (int)Math.Round(careers.Count(c => c.Achievements.ContainsKey(id)) * 100d / careers.Length));
+            if (!Ready || careers.Length == 0)
+                return [];
+            return installedAchievements.ToDictionary(
+                id => id,
+                id => (int)Math.Round(careers.Count(c => c.Achievements.ContainsKey(id)) * 100d / careers.Length)
+            );
         }
     }
 
@@ -24,7 +28,7 @@ public sealed partial class PopulationStore
             "Common" => 15 + Stable(id + ":hours") * 85,
             "Rare" => 150 + Stable(id + ":hours") * 600,
             "Legendary" => 1000 + Stable(id + ":hours") * 2000,
-            _ => double.PositiveInfinity
+            _ => double.PositiveInfinity,
         };
 
     // Live PvP share of all players per achievement, keyed by achievement id once matched to English names.
@@ -34,21 +38,30 @@ public sealed partial class PopulationStore
 
     private void LoadAchievementRates()
     {
-        using var stream = System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream("PBT.Server.Calibration.achievement-rates.json");
-        if (stream is null) return;
+        using var stream = System
+            .Reflection.Assembly.GetExecutingAssembly()
+            .GetManifestResourceStream("PBT.Server.Calibration.achievement-rates.json");
+        if (stream is null)
+            return;
         var rates = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, double>>(stream) ?? [];
         var byName = rates.ToDictionary(p => RateKey(p.Key), p => p.Value / 100);
         var names = locales.GetLocaleDb("en");
         foreach (var id in achievementStories.Keys)
             if (names.TryGetValue(id + " name", out var name) && byName.TryGetValue(RateKey(name), out double rate))
                 liveAchievementRates[id] = Math.Clamp(rate, 0, 1);
-        logger.Debug($"[PBT] Live rates matched for {liveAchievementRates.Count} of {achievementStories.Count} story achievements.");
+        logger.Debug(
+            $"[PBT] Live rates matched for {liveAchievementRates.Count} of {achievementStories.Count} story achievements."
+        );
     }
 
     private static string RateKey(string name) => new(name.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
 
     // Rarer achievements lean harder on level, so only veterans own them.
-    private static double RateScale(double rate) => rate >= .3 ? 8 : rate >= .05 ? 20 : rate >= .01 ? 35 : 50;
+    private static double RateScale(double rate) =>
+        rate >= .3 ? 8
+        : rate >= .05 ? 20
+        : rate >= .01 ? 35
+        : 50;
 
     private double AchievementWeight(Career c, double scale) =>
         (1 - Math.Exp(-Level(c.Experience) / scale)) / (1 - Math.Exp(-79 / scale)) * (.4 + 1.2 * Skill(c));
@@ -62,7 +75,8 @@ public sealed partial class PopulationStore
             achievementWeightsUtc = now;
         }
 
-        if (achievementWeightMeans.TryGetValue(scale, out double mean)) return mean;
+        if (achievementWeightMeans.TryGetValue(scale, out double mean))
+            return mean;
         var careers = population.Careers.Values.Where(c => !c.Retired).ToArray();
         mean = careers.Length == 0 ? 1 : Math.Max(.01, careers.Average(c => AchievementWeight(c, scale)));
         achievementWeightMeans[scale] = mean;
@@ -75,7 +89,8 @@ public sealed partial class PopulationStore
         // Matches the live share across the whole population; each account's odds follow its level and skill.
         if (liveAchievementRates.TryGetValue(id, out double live))
         {
-            if (live >= 1) return 1;
+            if (live >= 1)
+                return 1;
             double liveScale = RateScale(live);
             return 1 - Math.Pow(1 - live, AchievementWeight(c, liveScale) / AchievementWeightMean(liveScale));
         }
@@ -85,7 +100,7 @@ public sealed partial class PopulationStore
         {
             "common" => (policy.Achievements.Common, 12d),
             "legendary" => (policy.Achievements.Legendary, 50d),
-            _ => (policy.Achievements.Rare, 30d)
+            _ => (policy.Achievements.Rare, 30d),
         };
         double reach = (1 - Math.Exp(-Level(c.Experience) / scale)) / (1 - Math.Exp(-79 / scale));
         return Math.Min(.98, share * reach * (.4 + 1.2 * Skill(c)) * (.5 + Stable(id + ":difficulty")));
@@ -95,24 +110,34 @@ public sealed partial class PopulationStore
     {
         foreach (var (id, story) in achievementStories)
         {
-            if (milestones.Any(m => m.Id == id) || result.ContainsKey(id) || story.Side is not ("All" or "Pmc") && story.Side != c.Side
-                || Stable(c.Id + ":badge:" + id) >= StoryChance(c, id, story.Rarity)) continue;
+            if (
+                milestones.Any(m => m.Id == id)
+                || result.ContainsKey(id)
+                || story.Side is not ("All" or "Pmc") && story.Side != c.Side
+                || Stable(c.Id + ":badge:" + id) >= StoryChance(c, id, story.Rarity)
+            )
+                continue;
             result.Add(id, now);
         }
     }
 
     // Some setups give the mannequin head a spawn weight. On a profile it looks broken.
     private bool IsMannequin(string? id) =>
-        IsId(id) && templates.Customization.TryGetValue(new MongoId(id!), out var template) && template.Name?.Contains("Mannequin", StringComparison.OrdinalIgnoreCase) == true;
+        IsId(id)
+        && templates.Customization.TryGetValue(new MongoId(id!), out var template)
+        && template.Name?.Contains("Mannequin", StringComparison.OrdinalIgnoreCase) == true;
 
     // The client resolves Head/Body/Feet to a bundle while spawning; an id it can't resolve crashes bot loading.
     private bool Wearable(string part, string? id)
     {
-        if (!IsId(id)) return false;
-        if (wearable.TryGetValue(id!, out bool known)) return known;
-        bool ok = templates.Customization.TryGetValue(new MongoId(id!), out var template) && template.Type == "Item"
-                                                                                          && (part is "Voice" || template.Properties?.BodyPart == part
-                                                                                              && PrefabPath(template.Properties.Prefab));
+        if (!IsId(id))
+            return false;
+        if (wearable.TryGetValue(id!, out bool known))
+            return known;
+        bool ok =
+            templates.Customization.TryGetValue(new MongoId(id!), out var template)
+            && template.Type == "Item"
+            && (part is "Voice" || template.Properties?.BodyPart == part && PrefabPath(template.Properties.Prefab));
         wearable[id!] = ok;
         return ok;
     }
@@ -122,7 +147,8 @@ public sealed partial class PopulationStore
         {
             null => false,
             string path => path.Length > 0,
-            _ => JsonNode.Parse(json.Serialize(prefab) ?? "null") is JsonObject node && !string.IsNullOrEmpty(node["path"]?.ToString())
+            _ => JsonNode.Parse(json.Serialize(prefab) ?? "null") is JsonObject node
+                && !string.IsNullOrEmpty(node["path"]?.ToString()),
         };
 
     private Dictionary<MongoId, double> PlayableHeads(Dictionary<MongoId, double> heads)
@@ -134,7 +160,11 @@ public sealed partial class PopulationStore
     private void RepairAppearance(Career c)
     {
         var native = NativeCharacter(c.Side, c.Edition);
-        if (IsMannequin(c.Customization["Head"]?.ToString()) && bots.Types.TryGetValue(c.Side.ToLowerInvariant(), out var type) && type is not null)
+        if (
+            IsMannequin(c.Customization["Head"]?.ToString())
+            && bots.Types.TryGetValue(c.Side.ToLowerInvariant(), out var type)
+            && type is not null
+        )
         {
             var head = Pick(PlayableHeads(type.BotAppearance.Head));
             if (!IsMannequin(head.ToString()))
@@ -147,8 +177,10 @@ public sealed partial class PopulationStore
         foreach (string part in new[] { "Head", "Body", "Hands", "Feet", "Voice" })
         {
             string? asset = c.Customization[part]?.ToString();
-            if (Wearable(part, asset) && !(part == "Head" && IsMannequin(asset))) continue;
-            if (native["Customization"]?[part] is { } fallback) c.Customization[part] = fallback.DeepClone();
+            if (Wearable(part, asset) && !(part == "Head" && IsMannequin(asset)))
+                continue;
+            if (native["Customization"]?[part] is { } fallback)
+                c.Customization[part] = fallback.DeepClone();
         }
     }
 
@@ -156,17 +188,18 @@ public sealed partial class PopulationStore
     {
         var assets = Assets(c);
         var equipment = RepairEquipment(assets.Equipment);
-        if (equipment.ToJsonString() != assets.Equipment.ToJsonString()) SetEquipment(c, equipment);
-        if (assets.Stash?["stash"] is not JsonValue root || assets.Stash["items"] is not JsonArray items) return;
-        var shape = new JsonObject
-        {
-            ["Id"] = root.DeepClone(),
-            ["Items"] = items.DeepClone()
-        };
+        if (equipment.ToJsonString() != assets.Equipment.ToJsonString())
+            SetEquipment(c, equipment);
+        if (assets.Stash?["stash"] is not JsonValue root || assets.Stash["items"] is not JsonArray items)
+            return;
+        var shape = new JsonObject { ["Id"] = root.DeepClone(), ["Items"] = items.DeepClone() };
         var repaired = RepairEquipment(shape);
-        if (repaired["Items"]!.ToJsonString() == items.ToJsonString()) return;
-        if (repaired["Id"]?.ToString() != root.ToString()) assets.Stash = null;
-        else assets.Stash["items"] = repaired["Items"]!.DeepClone();
+        if (repaired["Items"]!.ToJsonString() == items.ToJsonString())
+            return;
+        if (repaired["Id"]?.ToString() != root.ToString())
+            assets.Stash = null;
+        else
+            assets.Stash["items"] = repaired["Items"]!.DeepClone();
         assets.Changed();
     }
 }

@@ -35,7 +35,8 @@ internal sealed class LoadProgress : IDisposable
         this.logger = logger;
         this.label = label;
         this.total = Math.Max(1, total);
-        if (total <= 0 || !CanAnimate()) return;
+        if (total <= 0 || !CanAnimate())
+            return;
 
         frames = UseBraille() ? Braille : Ascii;
         color = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR")) && EnableAnsi();
@@ -46,10 +47,12 @@ internal sealed class LoadProgress : IDisposable
     public void Step()
     {
         int current = Interlocked.Increment(ref done);
-        if (spinner is not null) return;
+        if (spinner is not null)
+            return;
 
         int step = current * 4 / total;
-        if (step == lastStep || clock.ElapsedMilliseconds < 5000) return;
+        if (step == lastStep || clock.ElapsedMilliseconds < 5000)
+            return;
         lastStep = step;
         reported = true;
         logger.Info($"[PBT] {label}: {current}/{total} ({step * 25}%)");
@@ -57,7 +60,8 @@ internal sealed class LoadProgress : IDisposable
 
     public void Finish()
     {
-        if (stopped) return;
+        if (stopped)
+            return;
         StopSpinner();
         if (reported || (spinner is not null && clock.ElapsedMilliseconds >= 1000))
             logger.Info($"[PBT] {label}: done in {clock.Elapsed.TotalSeconds:0.0}s");
@@ -65,7 +69,8 @@ internal sealed class LoadProgress : IDisposable
 
     public void Dispose()
     {
-        if (!stopped) StopSpinner();
+        if (!stopped)
+            StopSpinner();
         stop.Dispose();
     }
 
@@ -101,7 +106,8 @@ internal sealed class LoadProgress : IDisposable
         stopped = true;
         stop.Set();
         spinner?.Join();
-        if (spinner is null) return;
+        if (spinner is null)
+            return;
 
         lock (renderGate)
         {
@@ -114,7 +120,8 @@ internal sealed class LoadProgress : IDisposable
     {
         try
         {
-            if (Console.OutputEncoding.GetString(Console.OutputEncoding.GetBytes(Braille[0])) == Braille[0]) return true;
+            if (Console.OutputEncoding.GetString(Console.OutputEncoding.GetBytes(Braille[0])) == Braille[0])
+                return true;
             Console.OutputEncoding = Encoding.UTF8;
             return true;
         }
@@ -127,11 +134,13 @@ internal sealed class LoadProgress : IDisposable
     // Windows consoles need VT processing before raw ANSI colors render
     private static bool EnableAnsi()
     {
-        if (!OperatingSystem.IsWindows()) return !IsDumbTerminal();
+        if (!OperatingSystem.IsWindows())
+            return !IsDumbTerminal();
         try
         {
             IntPtr handle = GetStdHandle(StdOutputHandle);
-            if (handle == IntPtr.Zero || handle == new IntPtr(-1)) return false;
+            if (handle == IntPtr.Zero || handle == new IntPtr(-1))
+                return false;
             return GetConsoleMode(handle, out uint mode) && SetConsoleMode(handle, mode | EnableVirtualTerminalProcessing);
         }
         catch (Exception)

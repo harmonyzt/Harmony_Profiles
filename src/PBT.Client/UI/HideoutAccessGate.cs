@@ -18,22 +18,44 @@ public sealed class HideoutAccessGate : MonoBehaviour
     private static readonly FieldInfo EnterButton = AccessTools.Field(typeof(HideoutScreenOverlay), "_enterHideoutButtonSpawner");
     private static readonly FieldInfo EnabledTip = AccessTools.Field(typeof(DefaultUIButton), "_enabledTooltip");
     private static readonly FieldInfo DisabledTip = AccessTools.Field(typeof(DefaultUIButton), "_disabledTooltip");
-    private static readonly MethodInfo Enter = AccessTools.Method(typeof(HideoutScreenOverlay), "EnterHideoutMode", Type.EmptyTypes);
+    private static readonly MethodInfo Enter = AccessTools.Method(
+        typeof(HideoutScreenOverlay),
+        "EnterHideoutMode",
+        Type.EmptyTypes
+    );
     private HideoutScreenOverlay? overlay;
     private HideoutPlayerOwner? owner;
     private DefaultUIButton? button;
-    private string account = "", enabledTip = "", disabledTip = "";
-    private bool interactable, pending, replaying;
+    private string account = "",
+        enabledTip = "",
+        disabledTip = "";
+    private bool interactable,
+        pending,
+        replaying;
     private int revision;
 
     internal static void Install(Harmony harmony)
     {
-        var show = AccessTools.Method(typeof(HideoutScreenOverlay), "Show",
-            new[] { typeof(HideoutPlayerOwner), typeof(bool), typeof(IEftSession), typeof(AreaData[]), typeof(HideoutScreenRear) });
-        if (show == null || Enter?.ReturnType != typeof(void) || Rear?.FieldType != typeof(HideoutScreenRear) || Owner?.FieldType != typeof(HideoutPlayerOwner)
-            || EnterButton?.FieldType != typeof(DefaultUIButton) || EnabledTip?.FieldType != typeof(string) || DisabledTip?.FieldType != typeof(string))
+        var show = AccessTools.Method(
+            typeof(HideoutScreenOverlay),
+            "Show",
+            new[] { typeof(HideoutPlayerOwner), typeof(bool), typeof(IEftSession), typeof(AreaData[]), typeof(HideoutScreenRear) }
+        );
+        if (
+            show == null
+            || Enter?.ReturnType != typeof(void)
+            || Rear?.FieldType != typeof(HideoutScreenRear)
+            || Owner?.FieldType != typeof(HideoutPlayerOwner)
+            || EnterButton?.FieldType != typeof(DefaultUIButton)
+            || EnabledTip?.FieldType != typeof(string)
+            || DisabledTip?.FieldType != typeof(string)
+        )
             throw new MissingMemberException("Native Hideout entrance contract unavailable.");
-        harmony.Patch(show, prefix: new HarmonyMethod(typeof(HideoutAccessGate), nameof(BeforeShow)), postfix: new HarmonyMethod(typeof(HideoutAccessGate), nameof(AfterShow)));
+        harmony.Patch(
+            show,
+            prefix: new HarmonyMethod(typeof(HideoutAccessGate), nameof(BeforeShow)),
+            postfix: new HarmonyMethod(typeof(HideoutAccessGate), nameof(AfterShow))
+        );
         harmony.Patch(Enter, prefix: new HarmonyMethod(typeof(HideoutAccessGate), nameof(BeforeEnter)));
     }
 
@@ -41,7 +63,14 @@ public sealed class HideoutAccessGate : MonoBehaviour
     {
         var rear = Rear.GetValue(screen) as HideoutScreenRear;
         var guest = rear != null ? Owner.GetValue(rear) as HideoutPlayerOwner : null;
-        return guest != null && guest.IsGuest && int.TryParse(guest.HideoutOwnerAccountId, out int aid) && aid >= 1_500_000_000 && aid < 2_000_000_000 ? guest : null;
+        return
+            guest != null
+            && guest.IsGuest
+            && int.TryParse(guest.HideoutOwnerAccountId, out int aid)
+            && aid >= 1_500_000_000
+            && aid < 2_000_000_000
+            ? guest
+            : null;
     }
 
     private static void BeforeShow(HideoutScreenOverlay __instance) => __instance.GetComponent<HideoutAccessGate>()?.Restore();
@@ -51,7 +80,8 @@ public sealed class HideoutAccessGate : MonoBehaviour
         try
         {
             var guest = Guest(__instance);
-            if (guest == null) return;
+            if (guest == null)
+                return;
             var gate = __instance.GetComponent<HideoutAccessGate>() ?? __instance.gameObject.AddComponent<HideoutAccessGate>();
             gate.Bind(__instance, guest);
             gate.StartCoroutine(gate.Check(false));
@@ -65,13 +95,17 @@ public sealed class HideoutAccessGate : MonoBehaviour
     private static bool BeforeEnter(HideoutScreenOverlay __instance)
     {
         var guest = Guest(__instance);
-        if (guest == null) return true;
+        if (guest == null)
+            return true;
         try
         {
             var gate = __instance.GetComponent<HideoutAccessGate>() ?? __instance.gameObject.AddComponent<HideoutAccessGate>();
-            if (gate.replaying && ReferenceEquals(gate.owner, guest) && gate.account == guest.HideoutOwnerAccountId) return true;
-            if (!ReferenceEquals(gate.owner, guest) || gate.account != guest.HideoutOwnerAccountId) gate.Bind(__instance, guest);
-            if (!gate.pending) gate.StartCoroutine(gate.Check(true));
+            if (gate.replaying && ReferenceEquals(gate.owner, guest) && gate.account == guest.HideoutOwnerAccountId)
+                return true;
+            if (!ReferenceEquals(gate.owner, guest) || gate.account != guest.HideoutOwnerAccountId)
+                gate.Bind(__instance, guest);
+            if (!gate.pending)
+                gate.StartCoroutine(gate.Check(true));
         }
         catch (Exception ex)
         {
@@ -102,12 +136,18 @@ public sealed class HideoutAccessGate : MonoBehaviour
         Task<string>? request = null;
         try
         {
-            request = RequestHandler.PostJsonAsync("/pbt/hideout/access", JsonConvert.SerializeObject(new
-            {
-                AccountId = account
-            }));
+            request = RequestHandler.PostJsonAsync(
+                "/pbt/hideout/access",
+                JsonConvert.SerializeObject(new { AccountId = account })
+            );
             // Observe a late fault even when the screen closes before the HTTP request finishes.
-            _ = request.ContinueWith(t => { _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+            _ = request.ContinueWith(
+                t =>
+                {
+                    _ = t.Exception;
+                },
+                TaskContinuationOptions.OnlyOnFaulted
+            );
         }
         catch (Exception ex)
         {
@@ -117,14 +157,22 @@ public sealed class HideoutAccessGate : MonoBehaviour
         float deadline = Time.realtimeSinceStartup + 15;
         while (request != null && !request.IsCompleted && Time.realtimeSinceStartup < deadline)
         {
-            if (current != revision) yield break;
+            if (current != revision)
+                yield break;
             yield return null;
         }
 
-        if (current != revision) yield break;
+        if (current != revision)
+            yield break;
         pending = false;
-        if (overlay == null || owner == null || !overlay.gameObject.activeInHierarchy || !ReferenceEquals(Guest(overlay), owner)
-            || owner.HideoutOwnerAccountId != account) yield break;
+        if (
+            overlay == null
+            || owner == null
+            || !overlay.gameObject.activeInHierarchy
+            || !ReferenceEquals(Guest(overlay), owner)
+            || owner.HideoutOwnerAccountId != account
+        )
+            yield break;
         bool allowed = false;
         string reason = "Friendship could not be checked. Reopen the overview to retry.";
         try
@@ -132,7 +180,8 @@ public sealed class HideoutAccessGate : MonoBehaviour
             if (request?.Status == TaskStatus.RanToCompletion)
             {
                 var result = JObject.Parse(request.Result);
-                allowed = result.Value<int>("ProtocolVersion") == 1 && result.Value<bool>("Managed") && result.Value<bool>("CanEnter");
+                allowed =
+                    result.Value<int>("ProtocolVersion") == 1 && result.Value<bool>("Managed") && result.Value<bool>("CanEnter");
                 reason = result.Value<string>("Reason") ?? reason;
             }
         }
@@ -147,7 +196,8 @@ public sealed class HideoutAccessGate : MonoBehaviour
             button.SetTooltips(allowed ? enabledTip : reason, reason);
         }
 
-        if (!allowed || !enter || !interactable) yield break;
+        if (!allowed || !enter || !interactable)
+            yield break;
         replaying = true;
         try
         {

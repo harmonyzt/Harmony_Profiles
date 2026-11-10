@@ -1,7 +1,7 @@
 using BepInEx;
 using BepInEx.Logging;
-using EFT;
 using Comfort.Common;
+using EFT;
 using HarmonyLib;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -40,7 +40,9 @@ public sealed class Plugin : BaseUnityPlugin
     // Fika clients see bots as observed players with no AI brain, flagged by this field instead.
     private static AccessTools.FieldRef<object, bool>? observedAi;
     private static System.Type? fikaPlayer;
+
     internal static void Report(string message) => log?.LogWarning(message);
+
     internal static void Trace(string message) => log?.LogInfo(message);
 
     private void Awake()
@@ -50,9 +52,17 @@ public sealed class Plugin : BaseUnityPlugin
         {
             var killed = AccessTools.Method(typeof(Player), nameof(Player.OnBeenKilledByAggressor));
             var start = AccessTools.Method(typeof(GameWorld), nameof(GameWorld.OnGameStarted));
-            var view = AccessTools.Method(typeof(ClientBackendSession), nameof(ClientBackendSession.GetOtherPlayerProfile), new[] { typeof(string) });
-            if (killed is null || start is null || view?.ReturnType != typeof(Task<Result<OtherPlayerProfileDescriptor>>)
-                || Array.Find(killed.GetParameters(), p => p.Name == "aggressor")?.ParameterType != typeof(IPlayer))
+            var view = AccessTools.Method(
+                typeof(ClientBackendSession),
+                nameof(ClientBackendSession.GetOtherPlayerProfile),
+                new[] { typeof(string) }
+            );
+            if (
+                killed is null
+                || start is null
+                || view?.ReturnType != typeof(Task<Result<OtherPlayerProfileDescriptor>>)
+                || Array.Find(killed.GetParameters(), p => p.Name == "aggressor")?.ParameterType != typeof(IPlayer)
+            )
                 throw new MissingMethodException("SPT 4.1 killer or raid-start hook unavailable.");
             harmony = new Harmony("com.local.pbt.client");
             harmony.Patch(start, postfix: new HarmonyMethod(typeof(Plugin), nameof(Started)));
@@ -86,7 +96,8 @@ public sealed class Plugin : BaseUnityPlugin
                     Matching.InstallFika(harmony);
                     Logger.LogInfo("Matching simulation hooked into Fika (host only).");
                 }
-                else Matching.Install(harmony);
+                else
+                    Matching.Install(harmony);
             }
             catch (Exception ex)
             {
@@ -110,7 +121,8 @@ public sealed class Plugin : BaseUnityPlugin
                     RegisterCheaterBrain();
                     CheaterRoster.BrainInstalled = true;
                 }
-                else Logger.LogInfo("BigBrain not found; cheaters wear their kit but play like normal bots.");
+                else
+                    Logger.LogInfo("BigBrain not found; cheaters wear their kit but play like normal bots.");
             }
             catch (Exception ex)
             {
@@ -157,8 +169,10 @@ public sealed class Plugin : BaseUnityPlugin
             compatible = status.Value<int>("ProtocolVersion") == 1 && status.Value<bool>("Ready");
             RaidActivity.Supported = compatible && RaidActivity.Installed && status.Value<int>("ActivityProtocolVersion") == 1;
             CheatReports = compatible && status.Value<bool?>("CheatReports") == true;
-            if (!compatible) log?.LogWarning("PBT server is unavailable or incompatible; capture disabled.");
-            else log?.LogInfo("Connected to the PBT server.");
+            if (!compatible)
+                log?.LogWarning("PBT server is unavailable or incompatible; capture disabled.");
+            else
+                log?.LogInfo("Connected to the PBT server.");
         }
         catch (Exception ex)
         {
@@ -169,7 +183,8 @@ public sealed class Plugin : BaseUnityPlugin
 
     private static void Started(GameWorld __instance)
     {
-        if (!headless && __instance.MainPlayer?.IsYourPlayer != true) return;
+        if (!headless && __instance.MainPlayer?.IsYourPlayer != true)
+            return;
         raidId = Guid.NewGuid().ToString("N");
         captured = false;
         try
@@ -194,7 +209,8 @@ public sealed class Plugin : BaseUnityPlugin
         pendingAccount = "";
         pendingProfile = "";
         pendingUpload = Task.CompletedTask;
-        if (!compatible) _ = CheckServer();
+        if (!compatible)
+            _ = CheckServer();
     }
 
     private static void Killed(Player __instance, IPlayer aggressor, bool ___AggressorFound)
@@ -211,14 +227,28 @@ public sealed class Plugin : BaseUnityPlugin
             }
         }
 
-        if (!compatible || captured || raidId.Length == 0 || !__instance.IsYourPlayer || ___AggressorFound || aggressor is not Player killer || !IsBot(killer)
-            || killer.ProfileId == __instance.ProfileId || killer.Profile.Side is not (EPlayerSide.Bear or EPlayerSide.Usec)) return;
+        if (
+            !compatible
+            || captured
+            || raidId.Length == 0
+            || !__instance.IsYourPlayer
+            || ___AggressorFound
+            || aggressor is not Player killer
+            || !IsBot(killer)
+            || killer.ProfileId == __instance.ProfileId
+            || killer.Profile.Side is not (EPlayerSide.Bear or EPlayerSide.Usec)
+        )
+            return;
         try
         {
             // Never serialize live Unity item objects directly.
             var descriptor = new ProfileDescriptor(killer.Profile, VisualsOnlySearchController.Instance);
             var profile = descriptor.ToUnparsedData(Array.Empty<JsonConverter>()).JObject;
-            if (profile["Inventory"] is not JObject inventory || inventory["equipment"] is not JValue equipmentId || inventory["items"] is not JArray items)
+            if (
+                profile["Inventory"] is not JObject inventory
+                || inventory["equipment"] is not JValue equipmentId
+                || inventory["items"] is not JArray items
+            )
                 throw new InvalidOperationException("Native descriptor did not provide equipment and items.");
             if (!int.TryParse(killer.Profile.AccountId, out int accountId))
                 throw new InvalidOperationException("Killer account ID is not numeric.");
@@ -229,9 +259,9 @@ public sealed class Plugin : BaseUnityPlugin
                 ["RuntimeProfileId"] = killer.ProfileId,
                 ["AccountId"] = accountId,
                 ["Equipment"] = EquipmentTree(equipmentId, items),
-                ["Customization"] = profile["Customization"]?.DeepClone() ?? new JObject()
+                ["Customization"] = profile["Customization"]?.DeepClone() ?? new JObject(),
             };
-            
+
             // Finish all access to game objects on this thread; the asynchronous upload owns only text.
             string body = payload.ToString(Formatting.None);
             captured = true;
@@ -247,7 +277,8 @@ public sealed class Plugin : BaseUnityPlugin
 
     internal static bool IsBot(Player player)
     {
-        if (player.IsAI) return true;
+        if (player.IsAI)
+            return true;
         try
         {
             return observedAi is not null && fikaPlayer!.IsInstanceOfType(player) && observedAi(player);
@@ -261,10 +292,7 @@ public sealed class Plugin : BaseUnityPlugin
     private static JObject EquipmentTree(JValue equipmentId, JArray items)
     {
         string root = equipmentId.Value<string>() ?? throw new InvalidOperationException("Missing equipment root.");
-        var included = new System.Collections.Generic.HashSet<string>
-        {
-            root
-        };
+        var included = new System.Collections.Generic.HashSet<string> { root };
         var selected = new JArray();
         bool changed;
         do
@@ -274,29 +302,31 @@ public sealed class Plugin : BaseUnityPlugin
             {
                 string? id = item.Value<string>("_id");
                 string? parent = item.Value<string>("parentId");
-                if (id != null && parent != null && included.Contains(parent) && included.Add(id)) changed = true;
+                if (id != null && parent != null && included.Contains(parent) && included.Add(id))
+                    changed = true;
             }
         } while (changed);
 
         foreach (var item in items)
             if (included.Contains(item.Value<string>("_id") ?? ""))
                 selected.Add(item.DeepClone());
-        return new JObject
-        {
-            ["Id"] = root,
-            ["Items"] = selected
-        };
+        return new JObject { ["Id"] = root, ["Items"] = selected };
     }
 
     private static bool View(ClientBackendSession __instance, string __0, ref Task<Result<OtherPlayerProfileDescriptor>> __result)
     {
         Task upload = pendingUpload;
-        if (__0 != pendingAccount || upload.IsCompleted) return true;
+        if (__0 != pendingAccount || upload.IsCompleted)
+            return true;
         __result = ViewAfterUpload(__instance, __0, upload);
         return false;
     }
 
-    private static async Task<Result<OtherPlayerProfileDescriptor>> ViewAfterUpload(ClientBackendSession session, string account, Task upload)
+    private static async Task<Result<OtherPlayerProfileDescriptor>> ViewAfterUpload(
+        ClientBackendSession session,
+        string account,
+        Task upload
+    )
     {
         await upload;
         return await session.GetOtherPlayerProfile(account);
@@ -309,7 +339,8 @@ public sealed class Plugin : BaseUnityPlugin
             var response = JObject.Parse(await RequestHandler.PostJsonAsync("/pbt/killer", body));
             if (response.Value<int>("ProtocolVersion") != 1 || !response.Value<bool>("Accepted"))
                 log?.LogWarning("PBT server rejected the killer snapshot; generated loadout remains available.");
-            else log?.LogInfo("PBT killer equipment saved.");
+            else
+                log?.LogInfo("PBT killer equipment saved.");
         }
         catch (Exception ex)
         {

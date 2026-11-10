@@ -1,8 +1,5 @@
 using System.Buffers;
 using System.Reflection;
-using SPTarkov.Server.Core.Generators.Bot;
-using SPTarkov.Server.Core.Services.Bot;
-using Path = System.IO.Path;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -11,8 +8,9 @@ using HarmonyLib;
 using SPTarkov.Common.Models.Logging;
 using SPTarkov.DI.Annotations;
 using SPTarkov.Server.Core.DI;
-using SPTarkov.Server.Core.Helpers.Profile;
+using SPTarkov.Server.Core.Generators.Bot;
 using SPTarkov.Server.Core.Helpers.Items;
+using SPTarkov.Server.Core.Helpers.Profile;
 using SPTarkov.Server.Core.Helpers.Server;
 using SPTarkov.Server.Core.Models.Common;
 using SPTarkov.Server.Core.Models.Eft.Common.Tables;
@@ -20,9 +18,11 @@ using SPTarkov.Server.Core.Models.Eft.Profile;
 using SPTarkov.Server.Core.Models.Spt.Bots;
 using SPTarkov.Server.Core.Models.Spt.Tables;
 using SPTarkov.Server.Core.Servers;
+using SPTarkov.Server.Core.Services.Bot;
 using SPTarkov.Server.Core.Services.Locales;
 using SPTarkov.Server.Core.Utils;
 using SPTarkov.Server.Core.Utils.Cloners;
+using Path = System.IO.Path;
 
 namespace PBT.Server;
 
@@ -92,14 +92,25 @@ public sealed partial class PopulationStore(
                 Directory.CreateDirectory(directory);
                 Directory.CreateDirectory(Path.Combine(Path.GetDirectoryName(directory)!, "wwwroot"));
                 // One writer per database, including when two servers point to the same mod folder.
-                ownership = new FileStream(Path.Combine(directory, "population.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                ownership = new FileStream(
+                    Path.Combine(directory, "population.lock"),
+                    FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite,
+                    FileShare.None
+                );
                 var path = Path.Combine(directory, "population.json");
-                population = File.Exists(path) ? ReadPopulation(path) ?? throw new InvalidDataException("Empty population") : new Population();
+                population = File.Exists(path)
+                    ? ReadPopulation(path) ?? throw new InvalidDataException("Empty population")
+                    : new Population();
                 settings = PbtSettings.Load(Path.Combine(Path.GetDirectoryName(directory)!, "config.json"));
                 ValidatePopulation();
                 IndexCareerFiles();
                 allocatedAccounts.UnionWith(population.Careers.Values.Select(c => c.AccountId));
-                var playerAccounts = saves.GetProfiles().Values.Where(p => p.ProfileInfo?.Aid is not null).Select(p => p.ProfileInfo!.Aid!.Value).ToHashSet();
+                var playerAccounts = saves
+                    .GetProfiles()
+                    .Values.Where(p => p.ProfileInfo?.Aid is not null)
+                    .Select(p => p.ProfileInfo!.Aid!.Value)
+                    .ToHashSet();
                 if (allocatedAccounts.Overlaps(playerAccounts))
                     throw new InvalidDataException("A population account collides with a real player account.");
                 allocatedAccounts.UnionWith(playerAccounts);
@@ -111,9 +122,13 @@ public sealed partial class PopulationStore(
                 byAccount = population.Careers.Values.ToDictionary(x => x.AccountId);
                 IndexIdentities();
                 LoadEncounters();
-                population.LastGenerationOrder = Math.Max(population.LastGenerationOrder, encounters.Values.Select(e => e.GenerationOrder).DefaultIfEmpty().Max());
+                population.LastGenerationOrder = Math.Max(
+                    population.LastGenerationOrder,
+                    encounters.Values.Select(e => e.GenerationOrder).DefaultIfEmpty().Max()
+                );
                 RestoreLatestEquipment();
-                foreach (var encounter in encounters.Values) TrimEncounter(encounter);
+                foreach (var encounter in encounters.Values)
+                    TrimEncounter(encounter);
                 LoadMilestones();
                 foreach (int account in population.RaidObservations.Keys.Where(a => !encounters.ContainsKey(a)).ToArray())
                 {
@@ -164,7 +179,9 @@ public sealed partial class PopulationStore(
                 developing.Finish();
                 InitializeWorld(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
                 Active = this;
-                fikaPresent = AppDomain.CurrentDomain.GetAssemblies().Any(a => a.GetType("FikaServer.Controllers.FikaDialogueController", throwOnError: false) is not null);
+                fikaPresent = AppDomain
+                    .CurrentDomain.GetAssemblies()
+                    .Any(a => a.GetType("FikaServer.Controllers.FikaDialogueController", throwOnError: false) is not null);
                 harmony = new Harmony("com.local.pbt.server");
                 ConfigureRequiredApbs(harmony);
                 ServerPatches.Install(harmony);
@@ -194,8 +211,11 @@ public sealed partial class PopulationStore(
                 SavePopulation();
                 Ready = true;
                 checkpoint = new Timer(_ => Checkpoint(), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
-                logger.Info($"[PBT] Ready: {population.Careers.Count} careers, {encounters.Count} encounters"
-                            + (startupPrestiges > 0 ? $", {startupPrestiges} prestiged while away" : "") + (apbsVersion.Length > 0 ? $". APBS {apbsVersion} bridge active." : "."));
+                logger.Info(
+                    $"[PBT] Ready: {population.Careers.Count} careers, {encounters.Count} encounters"
+                        + (startupPrestiges > 0 ? $", {startupPrestiges} prestiged while away" : "")
+                        + (apbsVersion.Length > 0 ? $". APBS {apbsVersion} bridge active." : ".")
+                );
             }
             catch (Exception ex)
             {
@@ -217,28 +237,67 @@ public sealed partial class PopulationStore(
     private void ValidatePopulation()
     {
         if (population.SchemaVersion != 12)
-            throw new InvalidDataException("Population data is from an older build and has no migration; delete the mod's Data folder.");
-        if (population.TemplateFingerprint is null || population.CoverageVersion is < 0 or > 1 || population.Careers is null || population.Friendships is null
-            || population.RaidObservations is null || population.AppliedStories is null || population.SessionEndedUtc is null
-            || population.LastGenerationOrder is < 0 or >= 1_000_000_000_000)
+            throw new InvalidDataException(
+                "Population data is from an older build and has no migration; delete the mod's Data folder."
+            );
+        if (
+            population.TemplateFingerprint is null
+            || population.CoverageVersion is < 0 or > 1
+            || population.Careers is null
+            || population.Friendships is null
+            || population.RaidObservations is null
+            || population.AppliedStories is null
+            || population.SessionEndedUtc is null
+            || population.LastGenerationOrder is < 0 or >= 1_000_000_000_000
+        )
             throw new InvalidDataException("Unsupported population schema; preserve Data and migrate explicitly.");
         foreach (var (account, observation) in population.RaidObservations)
         {
-            if (observation is null || observation.AccountId != account || account is < 1_500_000_000 or >= 2_000_000_000 || !IsId(observation.RuntimeProfileId)
-                || !Guid.TryParseExact(observation.RaidId, "N", out _) || observation.ActiveSeconds is < 0 or > 21600 || observation.PmcKills is < 0 or > 512
-                || observation.ScavKills is < 0 or > 512 || observation.UsecKills is < 0 or > 512 || observation.BearKills is < 0 or > 512
-                || observation.UsecKills + observation.BearKills > observation.PmcKills)
-                throw new InvalidDataException("Invalid raid observation receipt; preserve Data and restore a known-good backup.");
+            if (
+                observation is null
+                || observation.AccountId != account
+                || account is < 1_500_000_000 or >= 2_000_000_000
+                || !IsId(observation.RuntimeProfileId)
+                || !Guid.TryParseExact(observation.RaidId, "N", out _)
+                || observation.ActiveSeconds is < 0 or > 21600
+                || observation.PmcKills is < 0 or > 512
+                || observation.ScavKills is < 0 or > 512
+                || observation.UsecKills is < 0 or > 512
+                || observation.BearKills is < 0 or > 512
+                || observation.UsecKills + observation.BearKills > observation.PmcKills
+            )
+                throw new InvalidDataException(
+                    "Invalid raid observation receipt; preserve Data and restore a known-good backup."
+                );
         }
 
         foreach (var (account, outcome) in population.AppliedStories)
-            if (account is < 1_500_000_000 or >= 2_000_000_000 || outcome is not ("Died" or "DiedUncounted" or "Regeared" or "ObservedDeath" or "Superseded" or "NoLoadoutAvailable"
-                    or "ConfirmedDeath" or "Survived" or "Transited"))
+            if (
+                account is < 1_500_000_000 or >= 2_000_000_000
+                || outcome
+                    is not (
+                        "Died"
+                        or "DiedUncounted"
+                        or "Regeared"
+                        or "ObservedDeath"
+                        or "Superseded"
+                        or "NoLoadoutAvailable"
+                        or "ConfirmedDeath"
+                        or "Survived"
+                        or "Transited"
+                    )
+            )
                 throw new InvalidDataException("Invalid story receipt; preserve Data and restore a known-good backup.");
         population.PendingStories ??= new();
         foreach (var (account, story) in population.PendingStories)
-            if (account is < 1_500_000_000 or >= 2_000_000_000 || story is null || !population.Careers.ContainsKey(story.CareerId)
-                || story.Outcome is not ("Died" or "Survived" or "Transit") || story.DueUtc < 0 || story.ScheduledUtc < 0)
+            if (
+                account is < 1_500_000_000 or >= 2_000_000_000
+                || story is null
+                || !population.Careers.ContainsKey(story.CareerId)
+                || story.Outcome is not ("Died" or "Survived" or "Transit")
+                || story.DueUtc < 0
+                || story.ScheduledUtc < 0
+            )
                 throw new InvalidDataException("Invalid pending story; preserve Data and restore a known-good backup.");
         if (population.SessionEndedUtc.Any(s => !IsId(s.Key) || s.Value < 0))
             throw new InvalidDataException("Invalid saved raid-end state.");
@@ -247,56 +306,157 @@ public sealed partial class PopulationStore(
         var publicNames = new HashSet<string>();
         foreach (var (id, c) in population.Careers)
         {
-            if (id != c.Id || !IsId(id) || c.AccountId < 1_500_000_000 || c.AccountId >= 2_000_000_000 || string.IsNullOrWhiteSpace(c.Name) || c.Side is not ("Usec" or "Bear")
-                || !accounts.Add(c.AccountId) || !names.Add(NameKey(c.Side, SourceName(c)))
-                || (population.SchemaVersion >= 7 && (string.IsNullOrWhiteSpace(c.SourceName) || !publicNames.Add(NameKey("", c.Name)))) || c.Observed is null
-                || c.Observed.Raids < 0 || c.Observed.Deaths < 0 || c.Observed.Deaths > c.Observed.Raids || c.FeatureVersion is < 0 or > 1 || c.PrestigeLevel is < 0 or > 100
-                || c.PrestigeHistory is null || c.PrestigeHistory.Count > 100
+            if (
+                id != c.Id
+                || !IsId(id)
+                || c.AccountId < 1_500_000_000
+                || c.AccountId >= 2_000_000_000
+                || string.IsNullOrWhiteSpace(c.Name)
+                || c.Side is not ("Usec" or "Bear")
+                || !accounts.Add(c.AccountId)
+                || !names.Add(NameKey(c.Side, SourceName(c)))
+                || (
+                    population.SchemaVersion >= 7
+                    && (string.IsNullOrWhiteSpace(c.SourceName) || !publicNames.Add(NameKey("", c.Name)))
+                )
+                || c.Observed is null
+                || c.Observed.Raids < 0
+                || c.Observed.Deaths < 0
+                || c.Observed.Deaths > c.Observed.Raids
+                || c.FeatureVersion is < 0 or > 1
+                || c.PrestigeLevel is < 0 or > 100
+                || c.PrestigeHistory is null
+                || c.PrestigeHistory.Count > 100
                 || c.PrestigeHistory.Any(p =>
-                    p is null || p.Level < 1 || p.Level > c.PrestigeLevel || !IsId(p.DefinitionId) || p.Utc < 0 || !double.IsFinite(p.LifetimeHours) || p.LifetimeHours < 0
-                    || p.PreviousExperience < 0 || p.CarriedItems < 0) || c.PrestigeHistory.Select(p => p.Level).Distinct().Count() != c.PrestigeHistory.Count
-                || !double.IsFinite(c.PrestigeCycleStartSeconds) || c.PrestigeCycleStartSeconds < 0 || c.PrestigeCycleStartSeconds > c.RaidSeconds + c.Observed.ActiveSeconds
-                || c.SkillCarry is null || c.SkillCarry.Any(s => !double.IsFinite(s.Value) || s.Value < 0 || s.Value > 5100) || c.ShowcaseAreas is null
-                || c.ShowcaseAreas.Count > 128 || c.ShowcaseAreas.Any(s => !IsId(s.Key) || s.Value is not (16 or 24)) || c.Edition is null || c.GameVersion is null
-                || (c.Edition.Length > 0 && (!editions.Contains(c.Edition) || c.GameVersion.Length is < 1 or > 64)) || c.MemberCategory is < 0 or > 2047
-                || c.SelectedMemberCategory is < 0 or > 2047 || (c.SelectedMemberCategory & c.MemberCategory) != c.SelectedMemberCategory || c.StoryDeaths < 0
-                || c.Achievements is null || c.Achievements.Any(a => !IsId(a.Key) || a.Value <= 0)
-                || (c.LastEquipmentAccount != 0 && c.LastEquipmentAccount is < 1_500_000_000 or >= 2_000_000_000) || c.DiedUtc < 0
-                || c.LastEquipmentOrder is < 0 or >= 1_000_000_000_000 || c.SimulatedLoadoutOrder is < 0 or >= 1_000_000_000_000 || c.LastEquipmentGeneratedUtc < 0
-                || c.Observed.UsecKills < 0 || c.Observed.BearKills < 0 || c.Observed.UsecKills + c.Observed.BearKills > c.Observed.PmcKills || c.Observed.PmcKills < 0
-                || c.Observed.ScavKills < 0 || c.Observed.ActiveSeconds < 0 || c.Observed.PendingSimulationSeconds < 0
-                || c.Observed.PendingSimulationSeconds > c.Observed.ActiveSeconds || c.Observed.Raids > 1_000_000_000 || c.Observed.PmcKills > 1_000_000_000
-                || c.Observed.ScavKills > 1_000_000_000 || c.Observed.ActiveSeconds > 1_000_000_000_000 || c.Raids < 0 || c.Survived < 0 || c.Survived > c.Raids || c.PmcKills < 0
-                || c.ScavKills < 0 || !double.IsFinite(c.RaidSeconds) || c.RaidSeconds < 0 || !double.IsFinite(c.OnlineSeconds) || c.OnlineSeconds < c.RaidSeconds
-                || !double.IsFinite(c.DailyRaidHours) || c.DailyRaidHours < 0 || c.DailyRaidHours > 24 || !double.IsFinite(c.SurvivalChance) || c.SurvivalChance < 0
-                || c.SurvivalChance > 1 || !double.IsFinite(c.PendingRaidSeconds) || c.PendingRaidSeconds < 0 || c.PendingRaidSeconds >= 3600 || c.LifetimeTotals is null
-                || c.LifetimeTotals.Count > 64 || c.LifetimeTotals.Any(p => string.IsNullOrWhiteSpace(p.Key) || p.Key.Length > 128 || p.Value < 0) || c.GearVersion is < 0 or > 1
-                || c.LastGearUpdateUtc < 0 || c.NextGearAttemptUtc < 0 || c.LifeVersion is < 0 or > 2 || !double.IsFinite(c.TargetRaidSeconds) || c.TargetRaidSeconds < 0
-                || c.TargetRaidSeconds > 3600 || c.MissingRaids < 0 || c.AwolRaids < 0 || c.RunThroughRaids < 0
-                || (long)c.MissingRaids + c.AwolRaids + c.RunThroughRaids + c.Survived > c.Raids || c.CurrentSurvivalStreak < 0 || c.BestSurvivalStreak < c.CurrentSurvivalStreak
-                || !double.IsFinite(c.PendingLiveSeconds) || c.PendingLiveSeconds < 0 || c.Experience < 0 || c.Customization is null || c.DevelopmentVersion is < 0 or > 2
-                || !double.IsFinite(c.WealthRubles) || c.WealthRubles < 0 || !double.IsFinite(c.HideoutInvestment) || c.HideoutInvestment < 0 || c.AreaLevels is null
-                || c.AreaLevels.Any(a => a.Key is < 0 or > 1000 || a.Value is < 1 or > 100) || c.GearHistory is null || c.GearHistory.Count > 64
-                || c.GearHistory.Any(e => e is null || e.Text is null || !double.IsFinite(e.Rubles)))
+                    p is null
+                    || p.Level < 1
+                    || p.Level > c.PrestigeLevel
+                    || !IsId(p.DefinitionId)
+                    || p.Utc < 0
+                    || !double.IsFinite(p.LifetimeHours)
+                    || p.LifetimeHours < 0
+                    || p.PreviousExperience < 0
+                    || p.CarriedItems < 0
+                )
+                || c.PrestigeHistory.Select(p => p.Level).Distinct().Count() != c.PrestigeHistory.Count
+                || !double.IsFinite(c.PrestigeCycleStartSeconds)
+                || c.PrestigeCycleStartSeconds < 0
+                || c.PrestigeCycleStartSeconds > c.RaidSeconds + c.Observed.ActiveSeconds
+                || c.SkillCarry is null
+                || c.SkillCarry.Any(s => !double.IsFinite(s.Value) || s.Value < 0 || s.Value > 5100)
+                || c.ShowcaseAreas is null
+                || c.ShowcaseAreas.Count > 128
+                || c.ShowcaseAreas.Any(s => !IsId(s.Key) || s.Value is not (16 or 24))
+                || c.Edition is null
+                || c.GameVersion is null
+                || (c.Edition.Length > 0 && (!editions.Contains(c.Edition) || c.GameVersion.Length is < 1 or > 64))
+                || c.MemberCategory is < 0 or > 2047
+                || c.SelectedMemberCategory is < 0 or > 2047
+                || (c.SelectedMemberCategory & c.MemberCategory) != c.SelectedMemberCategory
+                || c.StoryDeaths < 0
+                || c.Achievements is null
+                || c.Achievements.Any(a => !IsId(a.Key) || a.Value <= 0)
+                || (c.LastEquipmentAccount != 0 && c.LastEquipmentAccount is < 1_500_000_000 or >= 2_000_000_000)
+                || c.DiedUtc < 0
+                || c.LastEquipmentOrder is < 0 or >= 1_000_000_000_000
+                || c.SimulatedLoadoutOrder is < 0 or >= 1_000_000_000_000
+                || c.LastEquipmentGeneratedUtc < 0
+                || c.Observed.UsecKills < 0
+                || c.Observed.BearKills < 0
+                || c.Observed.UsecKills + c.Observed.BearKills > c.Observed.PmcKills
+                || c.Observed.PmcKills < 0
+                || c.Observed.ScavKills < 0
+                || c.Observed.ActiveSeconds < 0
+                || c.Observed.PendingSimulationSeconds < 0
+                || c.Observed.PendingSimulationSeconds > c.Observed.ActiveSeconds
+                || c.Observed.Raids > 1_000_000_000
+                || c.Observed.PmcKills > 1_000_000_000
+                || c.Observed.ScavKills > 1_000_000_000
+                || c.Observed.ActiveSeconds > 1_000_000_000_000
+                || c.Raids < 0
+                || c.Survived < 0
+                || c.Survived > c.Raids
+                || c.PmcKills < 0
+                || c.ScavKills < 0
+                || !double.IsFinite(c.RaidSeconds)
+                || c.RaidSeconds < 0
+                || !double.IsFinite(c.OnlineSeconds)
+                || c.OnlineSeconds < c.RaidSeconds
+                || !double.IsFinite(c.DailyRaidHours)
+                || c.DailyRaidHours < 0
+                || c.DailyRaidHours > 24
+                || !double.IsFinite(c.SurvivalChance)
+                || c.SurvivalChance < 0
+                || c.SurvivalChance > 1
+                || !double.IsFinite(c.PendingRaidSeconds)
+                || c.PendingRaidSeconds < 0
+                || c.PendingRaidSeconds >= 3600
+                || c.LifetimeTotals is null
+                || c.LifetimeTotals.Count > 64
+                || c.LifetimeTotals.Any(p => string.IsNullOrWhiteSpace(p.Key) || p.Key.Length > 128 || p.Value < 0)
+                || c.GearVersion is < 0 or > 1
+                || c.LastGearUpdateUtc < 0
+                || c.NextGearAttemptUtc < 0
+                || c.LifeVersion is < 0 or > 2
+                || !double.IsFinite(c.TargetRaidSeconds)
+                || c.TargetRaidSeconds < 0
+                || c.TargetRaidSeconds > 3600
+                || c.MissingRaids < 0
+                || c.AwolRaids < 0
+                || c.RunThroughRaids < 0
+                || (long)c.MissingRaids + c.AwolRaids + c.RunThroughRaids + c.Survived > c.Raids
+                || c.CurrentSurvivalStreak < 0
+                || c.BestSurvivalStreak < c.CurrentSurvivalStreak
+                || !double.IsFinite(c.PendingLiveSeconds)
+                || c.PendingLiveSeconds < 0
+                || c.Experience < 0
+                || c.Customization is null
+                || c.DevelopmentVersion is < 0 or > 2
+                || !double.IsFinite(c.WealthRubles)
+                || c.WealthRubles < 0
+                || !double.IsFinite(c.HideoutInvestment)
+                || c.HideoutInvestment < 0
+                || c.AreaLevels is null
+                || c.AreaLevels.Any(a => a.Key is < 0 or > 1000 || a.Value is < 1 or > 100)
+                || c.GearHistory is null
+                || c.GearHistory.Count > 64
+                || c.GearHistory.Any(e => e is null || e.Text is null || !double.IsFinite(e.Rubles))
+            )
                 throw new InvalidDataException($"Invalid career {id}; restore a known-good population backup.");
         }
     }
 
     private void ImportNames()
     {
-        foreach (var c in population.Careers.Values) c.Retired = true;
+        foreach (var c in population.Careers.Values)
+            c.Retired = true;
         var known = population.Careers.Values.ToDictionary(c => NameKey(c.Side, c.SourceName));
-        var pools = new[] { "Usec", "Bear" }.Select(side =>
-        {
-            if (!bots.Types.TryGetValue(side.ToLowerInvariant(), out var type) || type is null)
-                throw new InvalidDataException($"Missing {side} name pool");
-            foreach (var evader in population.Careers.Values.Where(c => c.PreviousAccount.Length > 0 && c.BannedUtc == 0 && c.Side.Equals(side, StringComparison.OrdinalIgnoreCase)))
-                if (!type.FirstNames.Contains(evader.SourceName)) type.FirstNames.Add(evader.SourceName);
-            return (Side: side, Type: type, Names: type.FirstNames.Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
-        }).ToArray();
-        
+        var pools = new[] { "Usec", "Bear" }
+            .Select(side =>
+            {
+                if (!bots.Types.TryGetValue(side.ToLowerInvariant(), out var type) || type is null)
+                    throw new InvalidDataException($"Missing {side} name pool");
+                foreach (
+                    var evader in population.Careers.Values.Where(c =>
+                        c.PreviousAccount.Length > 0
+                        && c.BannedUtc == 0
+                        && c.Side.Equals(side, StringComparison.OrdinalIgnoreCase)
+                    )
+                )
+                    if (!type.FirstNames.Contains(evader.SourceName))
+                        type.FirstNames.Add(evader.SourceName);
+                return (
+                    Side: side,
+                    Type: type,
+                    Names: type.FirstNames.Where(n => !string.IsNullOrWhiteSpace(n))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToArray()
+                );
+            })
+            .ToArray();
+
         using var progress = new LoadProgress(logger, "Creating Bot Profiles", pools.Sum(p => p.Names.Length));
-        
+
         foreach (var (side, type, names) in pools)
         {
             foreach (var name in names)
@@ -337,10 +497,12 @@ public sealed partial class PopulationStore(
             SourceName = name,
             Side = side,
             Archetype = archetype,
-            DailyRaidHours = Random.Shared.NextDouble() < .15
-                ? 0
-                : personality.MinimumDailyHours + Random.Shared.NextDouble() * (personality.MaximumDailyHours - personality.MinimumDailyHours),
-            Experience = floor + (int)((ceiling - floor) * Random.Shared.NextDouble() * .9)
+            DailyRaidHours =
+                Random.Shared.NextDouble() < .15
+                    ? 0
+                    : personality.MinimumDailyHours
+                        + Random.Shared.NextDouble() * (personality.MaximumDailyHours - personality.MinimumDailyHours),
+            Experience = floor + (int)((ceiling - floor) * Random.Shared.NextDouble() * .9),
         };
         c.SurvivalChance = SurvivalFor(c);
         var a = type.BotAppearance;
@@ -354,12 +516,13 @@ public sealed partial class PopulationStore(
             ["Body"] = body.ToString(),
             ["Feet"] = Pick(a.Feet).ToString(),
             ["Hands"] = hands.ToString(),
-            ["Voice"] = Pick(a.Voice).ToString()
+            ["Voice"] = Pick(a.Voice).ToString(),
         };
         EnsureAccountIdentity(c);
         c.LifeVersion = 2;
         c.FeatureVersion = 1;
-        if (startLevel is null) AddPrestigeBackstory(c);
+        if (startLevel is null)
+            AddPrestigeBackstory(c);
         AddRaids(c, RaidsToReach(c, c.Experience) * (.85 + Random.Shared.NextDouble() * .35) * RaidDuration(c, false));
         // A backstory death is long over.
         c.NeedsRegear = false;
@@ -373,12 +536,14 @@ public sealed partial class PopulationStore(
     {
         var valid = values.Where(x => double.IsFinite(x.Value) && x.Value > 0).ToArray();
         double total = valid.Sum(x => x.Value);
-        if (valid.Length == 0 || !double.IsFinite(total)) throw new InvalidDataException("Empty appearance pool");
+        if (valid.Length == 0 || !double.IsFinite(total))
+            throw new InvalidDataException("Empty appearance pool");
         double roll = Random.Shared.NextDouble() * total;
         foreach (var item in valid)
         {
             roll -= item.Value;
-            if (roll <= 0) return item.Key;
+            if (roll <= 0)
+                return item.Key;
         }
 
         return valid[^1].Key;
@@ -394,9 +559,14 @@ public sealed partial class PopulationStore(
 
         // Never move a saved timestamp backwards. Short restarts do not reset the hourly threshold.
         long elapsed = now - population.LastSimulationUtc;
-        if (elapsed < settings.ProgressionThresholdSeconds) return;
+        if (elapsed < settings.ProgressionThresholdSeconds)
+            return;
         double days = Math.Min(elapsed, settings.MaximumOfflineDays * 86400L) / 86400d;
-        var friends = population.Friendships.Values.SelectMany(links => links).Where(p => p.Value.Accepted && !p.Value.Removed).Select(p => p.Key).ToHashSet();
+        var friends = population
+            .Friendships.Values.SelectMany(links => links)
+            .Where(p => p.Value.Accepted && !p.Value.Removed)
+            .Select(p => p.Key)
+            .ToHashSet();
         foreach (var c in population.Careers.Values.Where(c => !c.Retired))
         {
             bool friend = friends.Contains(c.Id);
@@ -405,11 +575,13 @@ public sealed partial class PopulationStore(
             seconds = Math.Max(0, seconds - c.Observed.PendingSimulationSeconds - c.PendingLiveSeconds);
             c.PendingLiveSeconds = 0;
             c.Observed.PendingSimulationSeconds = 0;
-            if (IsObservedActive(c, now) || now < c.StoryHoldUntilUtc || Random.Shared.NextDouble() < (friend ? .15 : .25)) continue;
+            if (IsObservedActive(c, now) || now < c.StoryHoldUntilUtc || Random.Shared.NextDouble() < (friend ? .15 : .25))
+                continue;
             long died = c.DiedUtc;
             ApplySimulation(c, seconds);
             // Catch-up deaths happened somewhere in the simulated gap, not all just now.
-            if (c.DiedUtc != died) c.DiedUtc = now - (long)(Random.Shared.NextDouble() * Math.Min(elapsed, settings.MaximumOfflineDays * 86400L));
+            if (c.DiedUtc != died)
+                c.DiedUtc = now - (long)(Random.Shared.NextDouble() * Math.Min(elapsed, settings.MaximumOfflineDays * 86400L));
         }
 
         population.LastSimulationUtc = now;
@@ -421,7 +593,8 @@ public sealed partial class PopulationStore(
         c.RaidSeconds += seconds;
         c.OnlineSeconds += seconds * OnlineFactor(c);
         c.PendingRaidSeconds += seconds;
-        if (c.TargetRaidSeconds <= 0) c.TargetRaidSeconds = RaidDuration(c, true);
+        if (c.TargetRaidSeconds <= 0)
+            c.TargetRaidSeconds = RaidDuration(c, true);
         while (c.PendingRaidSeconds >= c.TargetRaidSeconds)
         {
             c.PendingRaidSeconds -= c.TargetRaidSeconds;
@@ -437,17 +610,26 @@ public sealed partial class PopulationStore(
             else
             {
                 c.CurrentSurvivalStreak = 0;
-                if (survived) c.RunThroughRaids++;
-                else if (outcome < .012) c.MissingRaids++;
-                else if (outcome < .016) c.AwolRaids++;
+                if (survived)
+                    c.RunThroughRaids++;
+                else if (outcome < .012)
+                    c.MissingRaids++;
+                else if (outcome < .016)
+                    c.AwolRaids++;
                 // Only fresh gear clears this. Surviving a later simulated raid must not bring the dead loadout back.
-                if (!survived) MarkDead(c, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                if (!survived)
+                    MarkDead(c, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             }
 
             AddRaidKills(c);
             if (earnExperience)
-                c.Experience = (int)Math.Min(int.MaxValue,
-                    c.Experience + RaidExperience(Level(c.Experience), survived && outcome >= .015) * (.75 + Random.Shared.NextDouble() * .5));
+                c.Experience = (int)
+                    Math.Min(
+                        int.MaxValue,
+                        c.Experience
+                            + RaidExperience(Level(c.Experience), survived && outcome >= .015)
+                                * (.75 + Random.Shared.NextDouble() * .5)
+                    );
             c.TargetRaidSeconds = RaidDuration(c, true);
         }
     }
@@ -457,22 +639,45 @@ public sealed partial class PopulationStore(
         Volatile.Write(ref lastBotGeneratedUtc, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
         lock (gate)
         {
-            if (!Ready || !details.IsPmc || details.IsPlayerScav || bot.Info?.Nickname is null || bot.Info.Side is null || bot.Id is null || bot.Inventory?.Items is null) return;
+            if (
+                !Ready
+                || !details.IsPmc
+                || details.IsPlayerScav
+                || bot.Info?.Nickname is null
+                || bot.Info.Side is null
+                || bot.Id is null
+                || bot.Inventory?.Items is null
+            )
+                return;
             var selected = ApbsIntegration.Current?.LevelConfirmed == true ? ApbsIntegration.Current.Career : null;
             gearSession = session;
-            Career? career = selected is not null && selected.Side.Equals(bot.Info.Side, StringComparison.OrdinalIgnoreCase) && selected.Name == bot.Info.Nickname
-                ? selected
-                : null;
+            Career? career =
+                selected is not null
+                && selected.Side.Equals(bot.Info.Side, StringComparison.OrdinalIgnoreCase)
+                && selected.Name == bot.Info.Nickname
+                    ? selected
+                    : null;
             string key = NameKey(bot.Info.Side, bot.Info.Nickname);
-            if (career is null && !bySourceName.TryGetValue(key, out career) && !byName.TryGetValue(key, out career)
-                && byBaseName.TryGetValue(NameKey(bot.Info.Side, BaseName(bot.Info.Nickname)), out var holder)) career = holder;
+            if (
+                career is null
+                && !bySourceName.TryGetValue(key, out career)
+                && !byName.TryGetValue(key, out career)
+                && byBaseName.TryGetValue(NameKey(bot.Info.Side, BaseName(bot.Info.Nickname)), out var holder)
+            )
+                career = holder;
             // A retired name variant plays as the player who kept the name.
-            if (career is { Retired: true, BannedUtc: 0 } && byBaseName.TryGetValue(NameKey(career.Side, BaseName(career.SourceName)), out var kept)) career = kept;
-            if (career is { Retired: true }) return;
+            if (
+                career is { Retired: true, BannedUtc: 0 }
+                && byBaseName.TryGetValue(NameKey(career.Side, BaseName(career.SourceName)), out var kept)
+            )
+                career = kept;
+            if (career is { Retired: true })
+                return;
             if (career is null)
             {
                 // Covers names added by mods after startup.
-                if (!bots.Types.TryGetValue(bot.Info.Side.ToLowerInvariant(), out var type) || type is null) return;
+                if (!bots.Types.TryGetValue(bot.Info.Side.ToLowerInvariant(), out var type) || type is null)
+                    return;
                 career = NewCareer(bot.Info.Side, bot.Info.Nickname, type);
                 career.Experience = bot.Info.Experience ?? career.Experience;
                 population.Careers.Add(career.Id, career);
@@ -487,6 +692,15 @@ public sealed partial class PopulationStore(
             }
 
             bot.Info.Nickname = career!.Name;
+            try
+            {
+                ApplyAppearance(career, bot);
+            }
+            catch (Exception ex)
+            {
+                Report(ex);
+            }
+
             if (selected?.Id == career.Id)
                 ApplyAccountIdentity(career, bot.Info);
 
@@ -508,9 +722,9 @@ public sealed partial class PopulationStore(
                 GeneratedPrestige = bot.Info.PrestigeLevel ?? 0,
                 Equipment = equipment,
                 Customization = customization,
-                Map = MapKey(details.Location)
+                Map = MapKey(details.Location),
             };
-            
+
             // Persist the alias before publishing it to a bot. Runtime bot IDs and all inventory IDs stay native.
             WriteEncounter(encounter);
             encounters.Add(encounter.AccountId, encounter);
@@ -538,23 +752,31 @@ public sealed partial class PopulationStore(
     {
         lock (gate)
         {
-            if (!Ready || string.IsNullOrWhiteSpace(query) || query.Length > 64) return [];
-            return population.Careers.Values
-                .Where(c => c.Name.Contains(query, StringComparison.OrdinalIgnoreCase) || c.SourceName.Contains(query, StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(c => c.Name.Equals(query, StringComparison.OrdinalIgnoreCase)).ThenBy(c => c.Name).ThenBy(c => c.Side).Take(50).Select(c =>
-                    new SearchFriendResponse
+            if (!Ready || string.IsNullOrWhiteSpace(query) || query.Length > 64)
+                return [];
+            return population
+                .Careers.Values.Where(c =>
+                    c.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+                    || c.SourceName.Contains(query, StringComparison.OrdinalIgnoreCase)
+                )
+                .OrderByDescending(c => c.Name.Equals(query, StringComparison.OrdinalIgnoreCase))
+                .ThenBy(c => c.Name)
+                .ThenBy(c => c.Side)
+                .Take(50)
+                .Select(c => new SearchFriendResponse
+                {
+                    Id = new MongoId(c.Id),
+                    Aid = c.AccountId,
+                    Info = new UserDialogDetails
                     {
-                        Id = new MongoId(c.Id),
-                        Aid = c.AccountId,
-                        Info = new UserDialogDetails
-                        {
-                            Nickname = c.Name,
-                            Side = c.Side,
-                            Level = Level(c.Experience),
-                            MemberCategory = (SPTarkov.Server.Core.Models.Enums.MemberCategory)c.MemberCategory,
-                            SelectedMemberCategory = (SPTarkov.Server.Core.Models.Enums.MemberCategory)c.SelectedMemberCategory
-                        }
-                    }).ToList();
+                        Nickname = c.Name,
+                        Side = c.Side,
+                        Level = Level(c.Experience),
+                        MemberCategory = (SPTarkov.Server.Core.Models.Enums.MemberCategory)c.MemberCategory,
+                        SelectedMemberCategory = (SPTarkov.Server.Core.Models.Enums.MemberCategory)c.SelectedMemberCategory,
+                    },
+                })
+                .ToList();
         }
     }
 
@@ -564,33 +786,45 @@ public sealed partial class PopulationStore(
         ShowcaseForView(accountId, session);
         lock (gate)
         {
-            if (!Ready) return null;
+            if (!Ready)
+                return null;
             Encounter? encounter = null;
             if (!byAccount.TryGetValue(accountId, out var career))
             {
-                if (!encounters.TryGetValue(accountId, out encounter) || !CanAccess(encounter, session)
-                                                                      || !population.Careers.TryGetValue(encounter.CareerId, out career)) return null;
+                if (
+                    !encounters.TryGetValue(accountId, out encounter)
+                    || !CanAccess(encounter, session)
+                    || !population.Careers.TryGetValue(encounter.CareerId, out career)
+                )
+                    return null;
             }
 
             EnsureShowcase(career);
             RepairShowcase(career);
             QueueShowcase(career);
-            var equipment = encounter is not null ? (EncounterDied(encounter) ? NakedEquipment(EncounterEquipment(encounter)) : EncounterEquipment(encounter)) :
-                career.NeedsRegear ? NakedEquipment(CareerEquipment(career)) : CareerEquipment(career);
+            var equipment =
+                encounter is not null
+                    ? (EncounterDied(encounter) ? NakedEquipment(EncounterEquipment(encounter)) : EncounterEquipment(encounter))
+                : career.NeedsRegear ? NakedEquipment(CareerEquipment(career))
+                : CareerEquipment(career);
             var (hideoutState, areaStashes, hideoutItems) = BuildHideout(career);
             var appearance = encounter?.Customization ?? career.Customization;
             var customization = new JsonObject();
-            foreach (var (key, value) in appearance) customization[char.ToLowerInvariant(key[0]) + key[1..]] = value?.DeepClone();
+            foreach (var (key, value) in appearance)
+                customization[char.ToLowerInvariant(key[0]) + key[1..]] = value?.DeepClone();
             var counters = new JsonArray();
 
             void Counter(long value, params string[] key)
             {
-                if (key[0] is not ("PbtSynthetic" or "CurrentWinStreak")) value = Lifetime(career, string.Join("/", key), value);
-                counters.Add(new JsonObject
-                {
-                    ["Key"] = new JsonArray(key.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray()),
-                    ["Value"] = value
-                });
+                if (key[0] is not ("PbtSynthetic" or "CurrentWinStreak"))
+                    value = Lifetime(career, string.Join("/", key), value);
+                counters.Add(
+                    new JsonObject
+                    {
+                        ["Key"] = new JsonArray(key.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray()),
+                        ["Value"] = value,
+                    }
+                );
             }
 
             Counter(1, "PbtSynthetic");
@@ -601,9 +835,28 @@ public sealed partial class PopulationStore(
             Counter(career.BestSurvivalStreak, "LongestWinStreak");
             Counter(career.Raids + career.Observed.Raids, "Sessions", "Pmc");
             Counter(career.Survived, "ExitStatus", "Survived", "Pmc");
-            Counter(career.Raids - career.Survived - career.MissingRaids - career.AwolRaids - career.RunThroughRaids + career.Observed.Deaths + career.StoryDeaths, "Deaths");
-            Counter(career.Raids - career.Survived - career.MissingRaids - career.AwolRaids - career.RunThroughRaids + career.Observed.Deaths + career.StoryDeaths, "ExitStatus",
-                "Killed", "Pmc");
+            Counter(
+                career.Raids
+                    - career.Survived
+                    - career.MissingRaids
+                    - career.AwolRaids
+                    - career.RunThroughRaids
+                    + career.Observed.Deaths
+                    + career.StoryDeaths,
+                "Deaths"
+            );
+            Counter(
+                career.Raids
+                    - career.Survived
+                    - career.MissingRaids
+                    - career.AwolRaids
+                    - career.RunThroughRaids
+                    + career.Observed.Deaths
+                    + career.StoryDeaths,
+                "ExitStatus",
+                "Killed",
+                "Pmc"
+            );
             Counter((long)career.PmcKills + career.ScavKills + career.Observed.PmcKills + career.Observed.ScavKills, "Kills");
             Counter(career.PmcKills + career.Observed.PmcKills, "KilledPmc");
             Counter(career.ScavKills + career.Observed.ScavKills, "KilledSavage");
@@ -622,7 +875,7 @@ public sealed partial class PopulationStore(
                     ["gameVersion"] = career.GameVersion,
                     ["bannedState"] = false,
                     ["bannedUntil"] = 0,
-                    ["registrationDate"] = career.RegisteredUtc
+                    ["registrationDate"] = career.RegisteredUtc,
                 },
                 ["customization"] = customization,
                 ["skills"] = CareerSkills(career),
@@ -634,27 +887,21 @@ public sealed partial class PopulationStore(
                     ["eft"] = new JsonObject
                     {
                         ["totalInGameTime"] = Lifetime(career, "OnlineTime", (long)OnlineSeconds(career)),
-                        ["overAllCounters"] = new JsonObject
-                        {
-                            ["Items"] = counters
-                        }
-                    }
+                        ["overAllCounters"] = new JsonObject { ["Items"] = counters },
+                    },
                 },
                 ["scavStats"] = new JsonObject
                 {
                     ["eft"] = new JsonObject
                     {
                         ["totalInGameTime"] = 0,
-                        ["overAllCounters"] = new JsonObject
-                        {
-                            ["Items"] = new JsonArray()
-                        }
-                    }
+                        ["overAllCounters"] = new JsonObject { ["Items"] = new JsonArray() },
+                    },
                 },
                 ["hideout"] = hideoutState,
                 ["customizationStash"] = career.CustomizationStashId,
                 ["hideoutAreaStashes"] = areaStashes,
-                ["items"] = hideoutItems
+                ["items"] = hideoutItems,
             };
             return json.Deserialize<GetOtherProfileResponse>(response.ToJsonString());
         }
@@ -664,9 +911,18 @@ public sealed partial class PopulationStore(
     {
         lock (gate)
         {
-            if (!Ready || report.ProtocolVersion != 1 || report.RaidId.Length is < 1 or > 64 || !encounters.TryGetValue(report.AccountId, out var e) || !CanAccess(e, session)
-                || e.RuntimeProfileId != report.RuntimeProfileId || e.KillerCaptured) return false;
-            if (!ValidEquipment(report.Equipment)) return false;
+            if (
+                !Ready
+                || report.ProtocolVersion != 1
+                || report.RaidId.Length is < 1 or > 64
+                || !encounters.TryGetValue(report.AccountId, out var e)
+                || !CanAccess(e, session)
+                || e.RuntimeProfileId != report.RuntimeProfileId
+                || e.KillerCaptured
+            )
+                return false;
+            if (!ValidEquipment(report.Equipment))
+                return false;
             // Customization remains the server-generated set. Only live equipment is client-authored.
             var updated = new Encounter
             {
@@ -684,7 +940,7 @@ public sealed partial class PopulationStore(
                 KillerCaptured = true,
                 RaidId = report.RaidId,
                 Map = e.Map,
-                KillerCapturedUtc = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                KillerCapturedUtc = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
             };
             WriteEncounter(updated);
             encounters[e.AccountId] = updated;
@@ -702,10 +958,7 @@ public sealed partial class PopulationStore(
     {
         string root = inventory["equipment"]!.GetValue<string>();
         var items = inventory["items"]!.AsArray();
-        var included = new HashSet<string>
-        {
-            root
-        };
+        var included = new HashSet<string> { root };
         bool changed;
         do
         {
@@ -714,7 +967,8 @@ public sealed partial class PopulationStore(
             {
                 string? id = item["_id"]?.GetValue<string>();
                 string? parent = item["parentId"]?.GetValue<string>();
-                if (id is not null && parent is not null && included.Contains(parent) && included.Add(id)) changed = true;
+                if (id is not null && parent is not null && included.Contains(parent) && included.Add(id))
+                    changed = true;
             }
         } while (changed);
 
@@ -722,34 +976,62 @@ public sealed partial class PopulationStore(
         return new JsonObject
         {
             ["Id"] = root,
-            ["Items"] = new JsonArray(items.OfType<JsonObject>()
-                .Where(item => included.Contains(item["_id"]!.GetValue<string>()) && (item["_id"]!.GetValue<string>() == root
-                    ? string.IsNullOrEmpty(item["parentId"]?.GetValue<string>())
-                    : item["parentId"] is JsonValue parent && included.Contains(parent.GetValue<string>()))).Select(item => item.DeepClone()).ToArray())
+            ["Items"] = new JsonArray(
+                items
+                    .OfType<JsonObject>()
+                    .Where(item =>
+                        included.Contains(item["_id"]!.GetValue<string>())
+                        && (
+                            item["_id"]!.GetValue<string>() == root
+                                ? string.IsNullOrEmpty(item["parentId"]?.GetValue<string>())
+                                : item["parentId"] is JsonValue parent && included.Contains(parent.GetValue<string>())
+                        )
+                    )
+                    .Select(item => item.DeepClone())
+                    .ToArray()
+            ),
         };
     }
 
     private bool ValidEquipment(JsonObject equipment)
     {
-        if (equipment["Id"] is not JsonValue rootValue || !rootValue.TryGetValue<string>(out var root) || !IsId(root) || equipment["Items"] is not JsonArray items
-            || items.Count is < 1 or > 1024) return false;
+        if (
+            equipment["Id"] is not JsonValue rootValue
+            || !rootValue.TryGetValue<string>(out var root)
+            || !IsId(root)
+            || equipment["Items"] is not JsonArray items
+            || items.Count is < 1 or > 1024
+        )
+            return false;
         var parents = new Dictionary<string, string?>();
         foreach (var item in items)
         {
-            if (item is not JsonObject obj || obj["_id"] is not JsonValue idValue || !idValue.TryGetValue<string>(out var id) || !IsId(id) || obj["_tpl"] is not JsonValue tplValue
-                || !tplValue.TryGetValue<string>(out var tpl) || !IsId(tpl) || !templates.Items.ContainsKey(new MongoId(tpl)) || parents.ContainsKey(id)) return false;
+            if (
+                item is not JsonObject obj
+                || obj["_id"] is not JsonValue idValue
+                || !idValue.TryGetValue<string>(out var id)
+                || !IsId(id)
+                || obj["_tpl"] is not JsonValue tplValue
+                || !tplValue.TryGetValue<string>(out var tpl)
+                || !IsId(tpl)
+                || !templates.Items.ContainsKey(new MongoId(tpl))
+                || parents.ContainsKey(id)
+            )
+                return false;
             string? parent = obj["parentId"]?.GetValue<string>();
             parents.Add(id, parent);
         }
 
-        if (!parents.TryGetValue(root!, out var rootParent) || !string.IsNullOrEmpty(rootParent)) return false;
+        if (!parents.TryGetValue(root!, out var rootParent) || !string.IsNullOrEmpty(rootParent))
+            return false;
         foreach (var id in parents.Keys)
         {
             var visited = new HashSet<string>();
             string? current = id;
             while (current != root)
             {
-                if (current is null || !visited.Add(current) || !parents.TryGetValue(current, out current)) return false;
+                if (current is null || !visited.Add(current) || !parents.TryGetValue(current, out current))
+                    return false;
             }
         }
 
@@ -775,7 +1057,12 @@ public sealed partial class PopulationStore(
         Directory.CreateDirectory(path);
         foreach (var file in Directory.EnumerateFiles(path, "*.json"))
         {
-            if (!int.TryParse(Path.GetFileNameWithoutExtension(file), out int account) || account < 1_500_000_000 || account >= 2_000_000_000 || !allocatedAccounts.Add(account))
+            if (
+                !int.TryParse(Path.GetFileNameWithoutExtension(file), out int account)
+                || account < 1_500_000_000
+                || account >= 2_000_000_000
+                || !allocatedAccounts.Add(account)
+            )
                 throw new InvalidDataException($"Encounter account collision or invalid filename: {file}");
         }
     }
@@ -786,10 +1073,33 @@ public sealed partial class PopulationStore(
         Directory.CreateDirectory(path);
         foreach (string file in Directory.EnumerateFiles(path, "*.json"))
         {
-            var e = JsonSerializer.Deserialize<Encounter>(File.ReadAllText(file)) ?? throw new InvalidDataException($"Empty encounter {file}");
+            Encounter? e;
+            try
+            {
+                e = JsonSerializer.Deserialize<Encounter>(File.ReadAllText(file));
+            }
+            catch (JsonException)
+            {
+                e = null;
+            }
 
-            if (e.SchemaVersion != 1 || e.GenerationOrder is < 0 or >= 1_000_000_000_000 || !population.Careers.ContainsKey(e.CareerId) || byAccount.ContainsKey(e.AccountId)
-                || !IsId(e.RuntimeProfileId) || !IsId(e.SessionId))
+            // Written without fsync, so a crash can leave one empty or cut short. Only that alias is lost.
+            if (e is null)
+            {
+                logger.Warning("[PBT] Dropped unreadable encounter file: " + Path.GetFileName(file));
+                File.Delete(file);
+                File.Delete(file + ".bak");
+                continue;
+            }
+
+            if (
+                e.SchemaVersion != 1
+                || e.GenerationOrder is < 0 or >= 1_000_000_000_000
+                || !population.Careers.ContainsKey(e.CareerId)
+                || byAccount.ContainsKey(e.AccountId)
+                || !IsId(e.RuntimeProfileId)
+                || !IsId(e.SessionId)
+            )
                 throw new InvalidDataException($"Invalid encounter {file}");
             if (Path.GetFileNameWithoutExtension(file) != e.AccountId.ToString())
                 throw new InvalidDataException($"Encounter filename/account mismatch: {file}");
@@ -812,14 +1122,38 @@ public sealed partial class PopulationStore(
         }
     }
 
+    private int checkpointing;
+
+    // The timer fires again while a slow save or gear batch is still running.
     private void Checkpoint()
+    {
+        if (Interlocked.Exchange(ref checkpointing, 1) != 0)
+            return;
+        try
+        {
+            RunCheckpoint();
+        }
+        catch (Exception ex)
+        {
+            // An exception escaping a timer callback would take the server down.
+            Report(ex);
+        }
+        finally
+        {
+            Volatile.Write(ref checkpointing, 0);
+        }
+    }
+
+    private void RunCheckpoint()
     {
         bool snapshot = false;
         List<AssetSnapshot> assets = [];
         List<GearRequest> gear;
+        List<(int Account, Career Career, MongoId Session)> storyGear = [];
         lock (gate)
         {
-            if (!Ready) return;
+            if (!Ready)
+                return;
             try
             {
                 long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -844,6 +1178,7 @@ public sealed partial class PopulationStore(
 
             try
             {
+                storyGear = TakeStoryRegears(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
                 gear = TakeGearRequests(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             }
             catch (Exception ex)
@@ -856,7 +1191,8 @@ public sealed partial class PopulationStore(
         // Disk and APBS work run outside the gate so bot generation and profile requests never wait on them.
         try
         {
-            foreach (var asset in assets) WriteAssets(asset);
+            foreach (var asset in assets)
+                WriteAssets(asset);
             lock (gate)
                 foreach (var asset in assets)
                     Saved(asset);
@@ -874,12 +1210,16 @@ public sealed partial class PopulationStore(
             }
             catch (Exception ex)
             {
-                lock (gate) dirty = true;
+                lock (gate)
+                    dirty = true;
                 logger.Error($"[PBT] Checkpoint save failed; retaining in-memory changes for retry. {ex.Message}");
             }
         }
 
-        foreach (var request in gear) GenerateRequestedGear(request);
+        foreach (var (account, career, session) in storyGear)
+            GenerateStoryRegear(account, career, session);
+        foreach (var request in gear)
+            GenerateRequestedGear(request);
         CompactIfQuiet();
     }
 
@@ -896,7 +1236,8 @@ public sealed partial class PopulationStore(
         lock (saveGate)
         {
             populationBuffer.ResetWrittenCount();
-            using (var writer = new Utf8JsonWriter(populationBuffer)) JsonSerializer.Serialize(writer, population);
+            using (var writer = new Utf8JsonWriter(populationBuffer))
+                JsonSerializer.Serialize(writer, population);
             bufferedSequence = ++saveSequence;
         }
 
@@ -910,7 +1251,8 @@ public sealed partial class PopulationStore(
     {
         lock (saveGate)
         {
-            if (bufferedSequence <= writtenSequence) return;
+            if (bufferedSequence <= writtenSequence)
+                return;
             AtomicFile.Write(Path.Combine(directory, "population.json"), populationBuffer.WrittenSpan);
             writtenSequence = bufferedSequence;
         }
@@ -940,12 +1282,21 @@ public sealed partial class PopulationStore(
     // Written on every PMC spawn, so skip the fsync. Losing one to a power cut only drops that alias.
     private void WriteEncounter(Encounter e)
     {
-        if (e.Trimmed) throw new InvalidOperationException("A trimmed encounter has no equipment to write.");
-        AtomicFile.Write(Path.Combine(directory, "encounters", e.AccountId + ".json"), JsonSerializer.Serialize(e), durable: false);
+        if (e.Trimmed)
+            throw new InvalidOperationException("A trimmed encounter has no equipment to write.");
+        AtomicFile.Write(
+            Path.Combine(directory, "encounters", e.AccountId + ".json"),
+            JsonSerializer.Serialize(e),
+            durable: false,
+            backup: false
+        );
     }
 
-    private static string NameKey(string side, string name) => side.ToUpperInvariant() + "\n" + name.Normalize(NormalizationForm.FormC).ToUpperInvariant();
+    private static string NameKey(string side, string name) =>
+        side.ToUpperInvariant() + "\n" + name.Normalize(NormalizationForm.FormC).ToUpperInvariant();
+
     private static string NewId() => Convert.ToHexString(RandomNumberGenerator.GetBytes(12)).ToLowerInvariant();
+
     private static bool IsId(string? value) => value is { Length: 24 } && value.All(Uri.IsHexDigit);
 
     private static JsonObject EmptyEquipment(string? id = null)
@@ -954,17 +1305,15 @@ public sealed partial class PopulationStore(
         return new JsonObject
         {
             ["Id"] = id,
-            ["Items"] = new JsonArray(new JsonObject
-            {
-                ["_id"] = id,
-                ["_tpl"] = "55d7217a4bdc2d86028b456d"
-            })
+            ["Items"] = new JsonArray(new JsonObject { ["_id"] = id, ["_tpl"] = "55d7217a4bdc2d86028b456d" }),
         };
     }
 
     // JsonUtil's own options, without the string in between.
     private JsonNode ToNode<T>(T value) =>
-        JsonUtil.JsonSerializerOptionsNoIndent is { } options ? JsonSerializer.SerializeToNode(value, options)! : JsonNode.Parse(json.Serialize(value)!)!;
+        JsonUtil.JsonSerializerOptionsNoIndent is { } options
+            ? JsonSerializer.SerializeToNode(value, options)!
+            : JsonNode.Parse(json.Serialize(value)!)!;
 
     public void Report(Exception ex) => logger.Error($"[PBT] Operation failed; native fallback retained. {ex}");
 
@@ -987,7 +1336,8 @@ public sealed partial class PopulationStore(
                 AdvanceOnline(now);
                 Simulate(now);
                 SaveChangedAssets();
-                if (dirty || worldDirty) SavePopulation();
+                if (dirty || worldDirty)
+                    SavePopulation();
             }
             catch (Exception ex)
             {

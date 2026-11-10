@@ -16,19 +16,28 @@ public sealed partial class PopulationStore
 
     // Dead large objects count as heap until a full GC, and as holes after it. Both are memory we can hand back.
     private static long LargeObjectBytes(GCMemoryInfo info) =>
-        info.GenerationInfo.Length > 3 ? info.GenerationInfo[3].SizeAfterBytes + info.GenerationInfo[3].FragmentationAfterBytes : 0;
+        info.GenerationInfo.Length > 3
+            ? info.GenerationInfo[3].SizeAfterBytes + info.GenerationInfo[3].FragmentationAfterBytes
+            : 0;
 
     // Runs on the checkpoint thread without the gate.
     private void CompactIfQuiet()
     {
         try
         {
-            if (!settings.CompactMemory) return;
+            if (!settings.CompactMemory)
+                return;
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            if (now - lastCompactUtc < CompactCooldownSeconds || now - Volatile.Read(ref lastBotGeneratedUtc) < CompactQuietSeconds) return;
-            if (LargeObjectBytes(GC.GetGCMemoryInfo()) - largeObjectsAfterCompact < CompactThresholdBytes) return;
+            if (
+                now - lastCompactUtc < CompactCooldownSeconds
+                || now - Volatile.Read(ref lastBotGeneratedUtc) < CompactQuietSeconds
+            )
+                return;
+            if (LargeObjectBytes(GC.GetGCMemoryInfo()) - largeObjectsAfterCompact < CompactThresholdBytes)
+                return;
             lastCompactUtc = now;
-            long committed = GC.GetGCMemoryInfo().TotalCommittedBytes, large = LargeObjectBytes(GC.GetGCMemoryInfo());
+            long committed = GC.GetGCMemoryInfo().TotalCommittedBytes,
+                large = LargeObjectBytes(GC.GetGCMemoryInfo());
             var clock = Stopwatch.StartNew();
             GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
             GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
@@ -36,7 +45,8 @@ public sealed partial class PopulationStore
             var after = GC.GetGCMemoryInfo();
             largeObjectsAfterCompact = LargeObjectBytes(after);
             logger.Info(
-                $"[PBT] Compacted server memory in {clock.ElapsedMilliseconds} ms: committed {committed / 1048576} MB -> {after.TotalCommittedBytes / 1048576} MB, large objects {large / 1048576} MB -> {largeObjectsAfterCompact / 1048576} MB.");
+                $"[PBT] Compacted server memory in {clock.ElapsedMilliseconds} ms: committed {committed / 1048576} MB -> {after.TotalCommittedBytes / 1048576} MB, large objects {large / 1048576} MB -> {largeObjectsAfterCompact / 1048576} MB."
+            );
         }
         catch (Exception ex)
         {

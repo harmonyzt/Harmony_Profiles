@@ -16,9 +16,14 @@ public sealed partial class PopulationStore
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             population.SessionEndedUtc[session.ToString()] = now;
             // The client's last report can still arrive, so the world tick releases them in 90 s.
-            foreach (var e in encounters.Values.Where(e => e.SessionId == session.ToString() && now - e.GeneratedUtc < 10800
-                                                                                             && !population.RaidObservations.ContainsKey(e.AccountId)
-                                                                                             && !population.PendingStories.ContainsKey(e.AccountId)))
+            foreach (
+                var e in encounters.Values.Where(e =>
+                    e.SessionId == session.ToString()
+                    && now - e.GeneratedUtc < 10800
+                    && !population.RaidObservations.ContainsKey(e.AccountId)
+                    && !population.PendingStories.ContainsKey(e.AccountId)
+                )
+            )
             {
                 if (population.Careers.TryGetValue(e.CareerId, out var c) && activities.TryGetValue(c.Id, out var a) && a.Held)
                     a.Until = Math.Min(a.Until, now + 90);

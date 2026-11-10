@@ -150,8 +150,13 @@ public sealed class CareerAssets
 
     // Null until a prestige carries items over. Before that the stash is rolled from the native template when needed.
     public JsonObject? Stash { get; set; }
-    [JsonIgnore] internal long Version;
-    [JsonIgnore] internal long SavedVersion;
+
+    [JsonIgnore]
+    internal long Version;
+
+    [JsonIgnore]
+    internal long SavedVersion;
+
     internal void Changed() => Version++;
 }
 
@@ -178,7 +183,8 @@ public sealed class Encounter
     public string Map { get; set; } = "";
 
     // Equipment lives only in the encounter file once trimmed.
-    [JsonIgnore] public bool Trimmed { get; set; }
+    [JsonIgnore]
+    public bool Trimmed { get; set; }
 }
 
 public sealed class PendingStory

@@ -20,9 +20,13 @@ internal static class ApbsIntegration
         internal int Level;
         internal int Experience;
         internal bool LevelConfirmed;
+
+        // Rolled once per bot, since APBS asks for the tier several times.
+        internal int? TierShift;
     }
 
-    [ThreadStatic] internal static Scope? Current;
+    [ThreadStatic]
+    internal static Scope? Current;
     private static MethodInfo? prefix;
     private static MethodInfo? relative;
     private static MethodInfo? levelMethod;
@@ -34,28 +38,46 @@ internal static class ApbsIntegration
 
     internal static void Install(Harmony harmony, Assembly apbs)
     {
-        var type = apbs.GetType("ProgressiveBotSystem.Patches.GenerateBotLevel") ?? throw new MissingMethodException("APBS level patch type unavailable.");
+        var type =
+            apbs.GetType("ProgressiveBotSystem.Patches.GenerateBotLevel")
+            ?? throw new MissingMethodException("APBS level patch type unavailable.");
         if (apbs.GetName().Version?.Major != 2)
         {
             throw new NotSupportedException("APBS major version is not supported by this adapter.");
         }
 
-        prefix = AccessTools.Method(type, "Prefix", [
-            typeof(RandomisedBotLevelResult).MakeByRefType(),
-            typeof(MinMax<int>), typeof(BotGenerationDetails), typeof(BotBase)
-        ]);
-        relative = AccessTools.Method(type, "GetRelativePmcBotLevelRange", [typeof(BotGenerationDetails), typeof(MinMax<int>), typeof(int)]);
+        prefix = AccessTools.Method(
+            type,
+            "Prefix",
+            [typeof(RandomisedBotLevelResult).MakeByRefType(), typeof(MinMax<int>), typeof(BotGenerationDetails), typeof(BotBase)]
+        );
+        relative = AccessTools.Method(
+            type,
+            "GetRelativePmcBotLevelRange",
+            [typeof(BotGenerationDetails), typeof(MinMax<int>), typeof(int)]
+        );
 
         var choose = AccessTools.Method(type, "ChooseBotLevel", [typeof(double), typeof(double), typeof(int), typeof(double)]);
-        if (prefix?.ReturnType != typeof(bool) || relative?.ReturnType != typeof(MinMax<int>) || choose?.ReturnType != typeof(int) || !prefix.IsStatic || !relative.IsStatic
-            || !choose.IsStatic)
+        if (
+            prefix?.ReturnType != typeof(bool)
+            || relative?.ReturnType != typeof(MinMax<int>)
+            || choose?.ReturnType != typeof(int)
+            || !prefix.IsStatic
+            || !relative.IsStatic
+            || !choose.IsStatic
+        )
         {
             throw new MissingMethodException("APBS synchronous level contract differs from the supported shape.");
         }
 
         var calls = Calls(prefix);
-        int rangeIndex = calls.FindIndex(m => m == relative), chooseIndex = calls.FindIndex(m => m == choose);
-        if (rangeIndex < 0 || chooseIndex <= rangeIndex || !calls.Skip(chooseIndex + 1).Any(m => m.Name == "GetTierByLevel" && m.DeclaringType?.Assembly == apbs))
+        int rangeIndex = calls.FindIndex(m => m == relative),
+            chooseIndex = calls.FindIndex(m => m == choose);
+        if (
+            rangeIndex < 0
+            || chooseIndex <= rangeIndex
+            || !calls.Skip(chooseIndex + 1).Any(m => m.Name == "GetTierByLevel" && m.DeclaringType?.Assembly == apbs)
+        )
         {
             throw new NotSupportedException("APBS tier calculation does not follow the supported range/level sequence.");
         }
@@ -63,16 +85,27 @@ internal static class ApbsIntegration
         levelMethod = AccessTools.Method(typeof(BotLevelGenerator), nameof(BotLevelGenerator.GenerateBotLevel));
         nameMethod = AccessTools.Method(typeof(BotNameService), nameof(BotNameService.GenerateUniqueBotNickname));
 
-        var generate = AccessTools.Method(typeof(BotGenerator), "GenerateBot", [typeof(MongoId), typeof(BotBase), typeof(BotType), typeof(BotGenerationDetails)]);
-        var prepare = AccessTools.Method(typeof(BotGenerator), nameof(BotGenerator.PrepareAndGenerateBot), [typeof(MongoId), typeof(BotGenerationDetails)]);
+        var generate = AccessTools.Method(
+            typeof(BotGenerator),
+            "GenerateBot",
+            [typeof(MongoId), typeof(BotBase), typeof(BotType), typeof(BotGenerationDetails)]
+        );
+        var prepare = AccessTools.Method(
+            typeof(BotGenerator),
+            nameof(BotGenerator.PrepareAndGenerateBot),
+            [typeof(MongoId), typeof(BotGenerationDetails)]
+        );
         if (levelMethod is null || nameMethod?.ReturnType != typeof(string) || generate is null || prepare is null)
         {
             throw new MissingMethodException("Native generation contract unavailable.");
         }
 
         var nativeCalls = Calls(generate);
-        if (nativeCalls.FindIndex(m => m == levelMethod) < 0 || nativeCalls.FindIndex(m => m == nameMethod) <= nativeCalls.FindIndex(m => m == levelMethod)
-                                                             || Harmony.GetPatchInfo(generate)?.Transpilers.Count > 0)
+        if (
+            nativeCalls.FindIndex(m => m == levelMethod) < 0
+            || nativeCalls.FindIndex(m => m == nameMethod) <= nativeCalls.FindIndex(m => m == levelMethod)
+            || Harmony.GetPatchInfo(generate)?.Transpilers.Count > 0
+        )
         {
             throw new NotSupportedException("Native generation/name ordering differs or has a transpiler owner.");
         }
@@ -83,8 +116,15 @@ internal static class ApbsIntegration
         }
 
         editionMethod = AccessTools.Method(typeof(BotGenerator), "SetRandomisedGameVersionAndCategory", [typeof(Info)]);
-        editionPrefix = AccessTools.Method(apbs.GetType("ProgressiveBotSystem.Patches.SetRandomisedGameVersionAndCategoryPatch"), "Prefix");
-        if (editionMethod?.ReturnType != typeof(string) || editionPrefix is null || Harmony.GetPatchInfo(editionMethod)?.Prefixes.Any(p => p.PatchMethod == editionPrefix) != true)
+        editionPrefix = AccessTools.Method(
+            apbs.GetType("ProgressiveBotSystem.Patches.SetRandomisedGameVersionAndCategoryPatch"),
+            "Prefix"
+        );
+        if (
+            editionMethod?.ReturnType != typeof(string)
+            || editionPrefix is null
+            || Harmony.GetPatchInfo(editionMethod)?.Prefixes.Any(p => p.PatchMethod == editionPrefix) != true
+        )
         {
             throw new MissingMethodException("APBS account-edition contract unavailable.");
         }
@@ -95,20 +135,18 @@ internal static class ApbsIntegration
         }
 
         sample = choose.CreateDelegate<Func<double, double, int, double, int>>();
-        harmony.Patch(prepare, prefix: new HarmonyMethod(typeof(ApbsIntegration), nameof(Begin))
-        {
-            priority = Priority.First
-        }, finalizer: new HarmonyMethod(typeof(ApbsIntegration), nameof(End))
-        {
-            priority = Priority.Last
-        });
+        harmony.Patch(
+            prepare,
+            prefix: new HarmonyMethod(typeof(ApbsIntegration), nameof(Begin)) { priority = Priority.First },
+            finalizer: new HarmonyMethod(typeof(ApbsIntegration), nameof(End)) { priority = Priority.Last }
+        );
         harmony.Patch(relative, postfix: new HarmonyMethod(typeof(ApbsIntegration), nameof(Range)));
         harmony.Patch(prefix, postfix: new HarmonyMethod(typeof(ApbsIntegration), nameof(LevelFinished)));
         harmony.Patch(nameMethod, prefix: new HarmonyMethod(typeof(ApbsIntegration), nameof(Name)));
-        harmony.Patch(editionMethod, prefix: new HarmonyMethod(typeof(ApbsIntegration), nameof(Edition))
-        {
-            priority = Priority.First
-        });
+        harmony.Patch(
+            editionMethod,
+            prefix: new HarmonyMethod(typeof(ApbsIntegration), nameof(Edition)) { priority = Priority.First }
+        );
     }
 
     private static bool OwnershipMatches()
@@ -127,15 +165,27 @@ internal static class ApbsIntegration
                 continue;
             }
 
-            if (patches.Prefixes.Concat(patches.Postfixes).Concat(patches.Transpilers).Concat(patches.Finalizers)
-                .Any(p => p.owner != Owner && (method != levelMethod || p.PatchMethod != prefix)))
+            if (
+                patches
+                    .Prefixes.Concat(patches.Postfixes)
+                    .Concat(patches.Transpilers)
+                    .Concat(patches.Finalizers)
+                    .Any(p => p.owner != Owner && (method != levelMethod || p.PatchMethod != prefix))
+            )
             {
                 return false;
             }
         }
 
-        if (editionMethod is not null && Harmony.GetPatchInfo(editionMethod) is { } editionOwners && editionOwners.Prefixes.Concat(editionOwners.Postfixes)
-                .Concat(editionOwners.Transpilers).Concat(editionOwners.Finalizers).Any(p => p.owner != Owner && p.PatchMethod != editionPrefix))
+        if (
+            editionMethod is not null
+            && Harmony.GetPatchInfo(editionMethod) is { } editionOwners
+            && editionOwners
+                .Prefixes.Concat(editionOwners.Postfixes)
+                .Concat(editionOwners.Transpilers)
+                .Concat(editionOwners.Finalizers)
+                .Any(p => p.owner != Owner && p.PatchMethod != editionPrefix)
+        )
         {
             return false;
         }
@@ -152,7 +202,7 @@ internal static class ApbsIntegration
         {
             return;
         }
-        
+
         try
         {
             if (!OwnershipMatches())
@@ -192,10 +242,11 @@ internal static class ApbsIntegration
         {
             return;
         }
-        
+
         try
         {
-            if (!store.SelectApbsCareer(scope, __result.Min, __result.Max, sample!)) return;
+            if (!store.SelectApbsCareer(scope, __result.Min, __result.Max, sample!))
+                return;
             __result = new(scope.Level, scope.Level);
         }
         catch (Exception ex)
@@ -211,21 +262,17 @@ internal static class ApbsIntegration
         {
             return;
         }
-        
+
         if (__result || __0?.Level != scope.Level)
         {
             PopulationStore.Active?.ReleaseApbsReservation(scope.Session, scope.Career.Id);
             scope.Career = null;
-            
+
             return;
         }
 
         scope.LevelConfirmed = true;
-        __0 = new()
-        {
-            Level = scope.Level,
-            Exp = scope.Experience
-        };
+        __0 = new() { Level = scope.Level, Exp = scope.Experience };
     }
 
     private static bool Name(ref string __result)
@@ -234,9 +281,9 @@ internal static class ApbsIntegration
         {
             return true;
         }
-        
+
         __result = career.Name;
-        
+
         return false;
     }
 
@@ -246,10 +293,10 @@ internal static class ApbsIntegration
         {
             return true;
         }
-        
+
         PopulationStore.ApplyAccountIdentity(career, __0);
         __result = career.GameVersion;
-        
+
         return false;
     }
 
@@ -257,13 +304,18 @@ internal static class ApbsIntegration
     {
         var result = new List<MethodBase>();
         byte[] il = method.GetMethodBody()?.GetILAsByteArray() ?? [];
-        var codes = typeof(OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static).Where(f => f.FieldType == typeof(OpCode)).Select(f => (OpCode)f.GetValue(null)!)
-            .GroupBy(c => unchecked((ushort)c.Value)).ToDictionary(g => g.Key, g => g.First());
-        
-        for (int offset = 0; offset < il.Length;)
+        var codes = typeof(OpCodes)
+            .GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(f => f.FieldType == typeof(OpCode))
+            .Select(f => (OpCode)f.GetValue(null)!)
+            .GroupBy(c => unchecked((ushort)c.Value))
+            .ToDictionary(g => g.Key, g => g.First());
+
+        for (int offset = 0; offset < il.Length; )
         {
             ushort key = il[offset++];
-            if (key == 0xfe) key = (ushort)(0xfe00 | il[offset++]);
+            if (key == 0xfe)
+                key = (ushort)(0xfe00 | il[offset++]);
             var op = codes[key];
             if (op.OperandType == OperandType.InlineMethod)
             {
@@ -281,7 +333,7 @@ internal static class ApbsIntegration
                 OperandType.InlineVar => 2,
                 OperandType.InlineI8 or OperandType.InlineR => 8,
                 OperandType.InlineSwitch => 4 + 4 * BitConverter.ToInt32(il, offset),
-                _ => 4
+                _ => 4,
             };
         }
 
@@ -300,12 +352,14 @@ public sealed partial class PopulationStore
 
     private void InstallApbsIntegration()
     {
-        var apbs = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name?.Contains("progressivebotsystem", StringComparison.OrdinalIgnoreCase) == true);
+        var apbs = AppDomain
+            .CurrentDomain.GetAssemblies()
+            .FirstOrDefault(a => a.GetName().Name?.Contains("progressivebotsystem", StringComparison.OrdinalIgnoreCase) == true);
         if (apbs is null)
         {
             throw new InvalidOperationException("Required APBS assembly is unavailable.");
         }
-        
+
         apbsHarmony = new("com.local.pbt.apbs");
         try
         {
@@ -328,7 +382,12 @@ public sealed partial class PopulationStore
         logger.Warning("[PBT] APBS career bridge inactive; generated profiles remain available. " + reason);
     }
 
-    internal bool SelectApbsCareer(ApbsIntegration.Scope scope, int minimum, int maximum, Func<double, double, int, double, int> sampler)
+    internal bool SelectApbsCareer(
+        ApbsIntegration.Scope scope,
+        int minimum,
+        int maximum,
+        Func<double, double, int, double, int> sampler
+    )
     {
         lock (gate)
         {
@@ -336,13 +395,13 @@ public sealed partial class PopulationStore
             {
                 return false;
             }
-            
+
             string session = scope.Session.ToString();
             if (!reservedCareers.TryGetValue(session, out var used))
             {
                 reservedCareers.Add(session, used = new());
             }
-            
+
             string map = MapKey(scope.Details.Location);
             if (DebugCheater(session, scope.Details.Side ?? "", used) is { } cheat)
             {
@@ -353,29 +412,47 @@ public sealed partial class PopulationStore
                 ApbsMatched++;
                 return true;
             }
-            
+
             // Careers still playing out a story from your last raid are busy elsewhere.
             var storied = population.PendingStories.Values.Select(s => s.CareerId).ToHashSet();
-            var candidates = population.Careers.Values.Where(c => !c.Retired && c.Side.Equals(scope.Details.Side, StringComparison.OrdinalIgnoreCase)
-                                                                             && !used.Contains(c.Id) && !storied.Contains(c.Id)).Select(c => new
-            {
-                Career = c,
-                Level = Level(c.Experience),
-                Weight = RaidWeight(c, map) * MatchBoost(session, map, c.Id)
-            }).Where(c => c.Level >= minimum && c.Level <= maximum && c.Weight > 0).ToArray();
-            
+            var candidates = population
+                .Careers.Values.Where(c =>
+                    !c.Retired
+                    && c.Side.Equals(scope.Details.Side, StringComparison.OrdinalIgnoreCase)
+                    && !used.Contains(c.Id)
+                    && !storied.Contains(c.Id)
+                )
+                .Select(c => new
+                {
+                    Career = c,
+                    Level = Level(c.Experience),
+                    Weight = RaidWeight(c, map) * MatchBoost(session, map, c.Id),
+                })
+                .Where(c => c.Level >= minimum && c.Level <= maximum && c.Weight > 0)
+                .ToArray();
+
             if (candidates.Length == 0)
             {
-                PoolNotice(session, "empty", $"No PBT career left for a {scope.Details.Side} PMC at level {minimum}-{maximum} on {map}. Further PMCs like it are plain APBS bots.");
+                PoolNotice(
+                    session,
+                    "empty",
+                    $"No PBT career left for a {scope.Details.Side} PMC at level {minimum}-{maximum} on {map}. Further PMCs like it are plain APBS bots."
+                );
                 ApbsFallback++;
                 return false;
             }
 
             (Career Career, int Level, double Weight)[] nearest;
-            var mates = squadNext.TryGetValue(session, out var next) ? candidates.Where(c => next.Contains(c.Career.Id)).ToArray() : [];
+            var mates = squadNext.TryGetValue(session, out var next)
+                ? candidates.Where(c => next.Contains(c.Career.Id)).ToArray()
+                : [];
             var matched = candidates.Where(c => MatchBoost(session, map, c.Career.Id) > 1).ToArray();
             if (matched.Length == 0 && lobbies.TryGetValue(session, out var lobby) && lobby.Map == map && lobby.Careers.Count > 0)
-                PoolNotice(session, "lobby", $"All {lobby.Careers.Count} lobby careers on {map} are used up. Further PMCs come from the wider PBT population.");
+                PoolNotice(
+                    session,
+                    "lobby",
+                    $"All {lobby.Careers.Count} lobby careers on {map} are used up. Further PMCs come from the wider PBT population."
+                );
             if (mates.Length > 0 && Random.Shared.NextDouble() < .85)
             {
                 nearest = mates.Select(c => (c.Career, c.Level, c.Weight)).ToArray();
@@ -388,10 +465,12 @@ public sealed partial class PopulationStore
             {
                 int rolled = sampler(minimum, maximum, 1, 1.15);
                 int distance = candidates.Min(c => Math.Abs(c.Level - rolled));
-               
+
                 // Slack lets queueing and transiting careers beat an exact level match.
-                nearest = candidates.Where(c => Math.Abs(c.Level - rolled) <= distance + 2 || MatchBoost(session, map, c.Career.Id) > 1)
-                    .Select(c => (c.Career, c.Level, Weight: c.Weight / (1 + Math.Max(0, Math.Abs(c.Level - rolled) - distance)))).ToArray();
+                nearest = candidates
+                    .Where(c => Math.Abs(c.Level - rolled) <= distance + 2 || MatchBoost(session, map, c.Career.Id) > 1)
+                    .Select(c => (c.Career, c.Level, Weight: c.Weight / (1 + Math.Max(0, Math.Abs(c.Level - rolled) - distance))))
+                    .ToArray();
             }
 
             double roll = Random.Shared.NextDouble() * nearest.Sum(c => c.Weight);
@@ -413,9 +492,15 @@ public sealed partial class PopulationStore
             QueueSquadmates(session, selected.Career, used);
             ApbsMatched++;
             bool profileKit = policy.RetainProfileGearInRaid && !selected.Career.NeedsRegear && selected.Career.VisibleLoadout;
-            logger.Info($"[PBT] PMC {used.Count} on {(map.Length > 0 ? map : "this raid")} is {selected.Career.Name} (level {selected.Level}), "
-                        + (profileKit ? "gear from the PBT profile." : policy.RetainProfileGearInRaid ? "no profile kit yet, APBS gear." : "gear rolled by APBS."));
-            
+            logger.Info(
+                $"[PBT] PMC {used.Count} on {(map.Length > 0 ? map : "this raid")} is {selected.Career.Name} (level {selected.Level}), "
+                    + (
+                        profileKit ? "gear from the PBT profile."
+                        : policy.RetainProfileGearInRaid ? "no profile kit yet, APBS gear."
+                        : "gear rolled by APBS."
+                    )
+            );
+
             return true;
         }
     }

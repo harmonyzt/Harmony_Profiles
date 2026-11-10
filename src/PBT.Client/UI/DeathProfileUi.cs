@@ -9,34 +9,56 @@ internal static class DeathProfileUi
 {
     internal static void Install(Harmony harmony)
     {
-        var show = AccessTools.Method(typeof(SessionResultExitStatus), nameof(SessionResultExitStatus.Show),
-            new[] { typeof(Profile), typeof(PlayerVisualRepresentation), typeof(ESideType), typeof(ExitStatus), typeof(TimeSpan), typeof(IEftSession), typeof(bool) });
-        if (show is null) throw new MissingMethodException("Death-screen Show method unavailable.");
-        harmony.Patch(show, prefix: new HarmonyMethod(typeof(DeathProfileUi), nameof(BeforeShown)), postfix: new HarmonyMethod(typeof(DeathProfileUi), nameof(Shown))
-        {
-            priority = Priority.Last
-        });
+        var show = AccessTools.Method(
+            typeof(SessionResultExitStatus),
+            nameof(SessionResultExitStatus.Show),
+            new[]
+            {
+                typeof(Profile),
+                typeof(PlayerVisualRepresentation),
+                typeof(ESideType),
+                typeof(ExitStatus),
+                typeof(TimeSpan),
+                typeof(IEftSession),
+                typeof(bool),
+            }
+        );
+        if (show is null)
+            throw new MissingMethodException("Death-screen Show method unavailable.");
+        harmony.Patch(
+            show,
+            prefix: new HarmonyMethod(typeof(DeathProfileUi), nameof(BeforeShown)),
+            postfix: new HarmonyMethod(typeof(DeathProfileUi), nameof(Shown)) { priority = Priority.Last }
+        );
         KillerProfileMenu.CheckContract();
-        var interaction = AccessTools.Method(typeof(ReportPanel), "UpdateCanvasGroupInteraction", Type.EmptyTypes)
-                          ?? throw new MissingMethodException("Native report-menu interaction method unavailable.");
+        var interaction =
+            AccessTools.Method(typeof(ReportPanel), "UpdateCanvasGroupInteraction", Type.EmptyTypes)
+            ?? throw new MissingMethodException("Native report-menu interaction method unavailable.");
         harmony.Patch(interaction, postfix: new HarmonyMethod(typeof(DeathProfileUi), nameof(ReportsInteractionUpdated)));
-        var profile = AccessTools.FirstMethod(typeof(OtherPlayerProfileScreen), m => m.Name == "Show" && m.GetParameters().Length == 4)
-                      ?? throw new MissingMethodException("Profile screen Show method unavailable.");
-        harmony.Patch(profile, prefix: new HarmonyMethod(typeof(DeathProfileUi), nameof(BeforeProfileShown)),
-            postfix: new HarmonyMethod(typeof(DeathProfileUi), nameof(ProfileShown)));
+        var profile =
+            AccessTools.FirstMethod(typeof(OtherPlayerProfileScreen), m => m.Name == "Show" && m.GetParameters().Length == 4)
+            ?? throw new MissingMethodException("Profile screen Show method unavailable.");
+        harmony.Patch(
+            profile,
+            prefix: new HarmonyMethod(typeof(DeathProfileUi), nameof(BeforeProfileShown)),
+            postfix: new HarmonyMethod(typeof(DeathProfileUi), nameof(ProfileShown))
+        );
         var lifetime = AccessTools.Method(typeof(OverallStatsPanel), "SetOverallLifetime", Type.EmptyTypes);
-        if (lifetime is null) throw new MissingMethodException("Account lifetime renderer unavailable.");
+        if (lifetime is null)
+            throw new MissingMethodException("Account lifetime renderer unavailable.");
         harmony.Patch(lifetime, postfix: new HarmonyMethod(typeof(DeathProfileUi), nameof(LifetimeShown)));
     }
 
     private static void BeforeShown(ReportPanel ____reportPanel)
     {
-        if (____reportPanel == null) return;
+        if (____reportPanel == null)
+            return;
         try
         {
             var menu = ____reportPanel.GetComponent<KillerProfileMenu>();
-            if (menu == null || !menu.Bound) return;
-            
+            if (menu == null || !menu.Bound)
+                return;
+
             menu.ResetBinding();
             ____reportPanel.Close();
         }
@@ -46,32 +68,56 @@ internal static class DeathProfileUi
         }
     }
 
-    private static void Shown(SessionResultExitStatus __instance, Profile __0, ExitStatus __3, IEftSession __5, ReportPanel ____reportPanel,
-        EFT.Hideout.ComplementaryButton ____showProfileButton)
+    private static void Shown(
+        SessionResultExitStatus __instance,
+        Profile __0,
+        ExitStatus __3,
+        IEftSession __5,
+        ReportPanel ____reportPanel,
+        EFT.Hideout.ComplementaryButton ____showProfileButton
+    )
     {
         try
         {
             var aggressor = __0.EftStats?.Aggressor;
-            if (__3 != ExitStatus.Killed || aggressor == null || ____reportPanel == null || aggressor.Side is not (EPlayerSide.Bear or EPlayerSide.Usec)) return;
-            
-            var menu = ____reportPanel.GetComponent<KillerProfileMenu>() ?? ____reportPanel.gameObject.AddComponent<KillerProfileMenu>();
-            menu.Bind(____reportPanel, ____showProfileButton, __5, aggressor.AccountId ?? "", aggressor.ProfileId ?? "", aggressor.Name ?? "", aggressor.Side.ToString());
+            if (
+                __3 != ExitStatus.Killed
+                || aggressor == null
+                || ____reportPanel == null
+                || aggressor.Side is not (EPlayerSide.Bear or EPlayerSide.Usec)
+            )
+                return;
+
+            var menu =
+                ____reportPanel.GetComponent<KillerProfileMenu>() ?? ____reportPanel.gameObject.AddComponent<KillerProfileMenu>();
+            menu.Bind(
+                ____reportPanel,
+                ____showProfileButton,
+                __5,
+                aggressor.AccountId ?? "",
+                aggressor.ProfileId ?? "",
+                aggressor.Name ?? "",
+                aggressor.Side.ToString()
+            );
         }
         catch (Exception ex)
         {
-            if (____reportPanel != null) ____reportPanel.GetComponent<KillerProfileMenu>()?.ResetBinding();
+            if (____reportPanel != null)
+                ____reportPanel.GetComponent<KillerProfileMenu>()?.ResetBinding();
             Plugin.Report("Killer profile menu unavailable: " + ex);
         }
     }
 
-    internal static bool CareerAccount(string? account) => long.TryParse(account, out long aid) && aid >= 1500000000 && aid < 2000000000;
+    internal static bool CareerAccount(string? account) =>
+        long.TryParse(account, out long aid) && aid >= 1500000000 && aid < 2000000000;
 
     // Offline the looked-up profile offers every report type and none reach anyone. Keep only Cheating, which PBT answers.
     private static void BeforeProfileShown(OtherPlayerProfile __0, IEftSession __3, ReportPanel ____reportPanel)
     {
         try
         {
-            if (____reportPanel == null || __3 is null || __3.ReportAvailable) return;
+            if (____reportPanel == null || __3 is null || __3.ReportAvailable)
+                return;
             bool cheat = Plugin.CheatReports && CareerAccount(__0?.AccountId);
             ____reportPanel._availableReports = cheat ? EReportType.Cheat : 0;
         }
@@ -83,21 +129,34 @@ internal static class DeathProfileUi
 
     private static void ProfileShown(IEftSession __3, ReportPanel ____reportPanel)
     {
-        if (____reportPanel != null && __3 is { ReportAvailable: false } && ____reportPanel._availableReports == 0) ____reportPanel.Close();
+        if (____reportPanel != null && __3 is { ReportAvailable: false } && ____reportPanel._availableReports == 0)
+            ____reportPanel.Close();
     }
 
     private static void ReportsInteractionUpdated(ReportPanel __instance)
     {
         var menu = __instance.GetComponent<KillerProfileMenu>();
-        
-        if (menu != null) menu.EnableMenuInteraction();
+
+        if (menu != null)
+            menu.EnableMenuInteraction();
     }
 
-    private static void LifetimeShown(EFT.Counters.CountersCollection ____pmcStats, int ____registrationDate, bool ____selfStats, LocalizedText ____overallLifetimeLabel)
+    private static void LifetimeShown(
+        EFT.Counters.CountersCollection ____pmcStats,
+        int ____registrationDate,
+        bool ____selfStats,
+        LocalizedText ____overallLifetimeLabel
+    )
     {
         try
         {
-            if (____selfStats || ____registrationDate <= 0 || ____pmcStats == null || ____pmcStats.GetAllInt(new object[] { "PbtSynthetic" }) != 1) return;
+            if (
+                ____selfStats
+                || ____registrationDate <= 0
+                || ____pmcStats == null
+                || ____pmcStats.GetAllInt(new object[] { "PbtSynthetic" }) != 1
+            )
+                return;
             double seconds = Math.Max(0, DateTimeOffset.UtcNow.ToUnixTimeSeconds() - (long)____registrationDate);
             if (seconds < 86400)
             {

@@ -11,19 +11,30 @@ public sealed partial class PopulationStore
 
     private List<QuestNode> QuestCatalog()
     {
-        if (questCatalog is not null) return questCatalog;
+        if (questCatalog is not null)
+            return questCatalog;
         var names = locales.GetLocaleDb();
         var raw = new Dictionary<string, (string Name, int Level, string[] Requires)>();
         foreach (var quest in templates.Quests.Values)
         {
             // Arena and event modes only.
-            if (quest.GameModes is { Count: > 0 }) continue;
+            if (quest.GameModes is { Count: > 0 })
+                continue;
             string id = quest.Id.ToString();
             var start = JsonNode.Parse(json.Serialize(quest.Conditions)!)?["AvailableForStart"]?.AsArray() ?? [];
-            int level = start.OfType<JsonObject>().Where(c => c["conditionType"]?.ToString() == "Level").Select(c => (int)(c["value"]?.GetValue<double>() ?? 0)).DefaultIfEmpty(1)
+            int level = start
+                .OfType<JsonObject>()
+                .Where(c => c["conditionType"]?.ToString() == "Level")
+                .Select(c => (int)(c["value"]?.GetValue<double>() ?? 0))
+                .DefaultIfEmpty(1)
                 .Max();
-            var requires = start.OfType<JsonObject>().Where(c => c["conditionType"]?.ToString() == "Quest").Select(c => c["target"]?.ToString()).Where(t => t is not null)
-                .Select(t => t!).ToArray();
+            var requires = start
+                .OfType<JsonObject>()
+                .Where(c => c["conditionType"]?.ToString() == "Quest")
+                .Select(c => c["target"]?.ToString())
+                .Where(t => t is not null)
+                .Select(t => t!)
+                .ToArray();
             raw[id] = (names.GetValueOrDefault(id + " name") ?? quest.QuestName ?? id, Math.Max(1, level), requires);
         }
 
@@ -32,13 +43,22 @@ public sealed partial class PopulationStore
 
         int Effective(string id, int depth)
         {
-            if (levels.TryGetValue(id, out int known)) return known;
-            if (!raw.TryGetValue(id, out var q) || depth > 64) return 1;
+            if (levels.TryGetValue(id, out int known))
+                return known;
+            if (!raw.TryGetValue(id, out var q) || depth > 64)
+                return 1;
             int level = q.Requires.Where(raw.ContainsKey).Select(r => Effective(r, depth + 1)).Append(q.Level).Max();
             return levels[id] = level;
         }
 
-        questCatalog = raw.Select(p => new QuestNode(p.Key, p.Value.Name, Effective(p.Key, 0), p.Value.Requires.Where(raw.ContainsKey).ToArray())).OrderBy(q => q.Level).ToList();
+        questCatalog = raw.Select(p => new QuestNode(
+                p.Key,
+                p.Value.Name,
+                Effective(p.Key, 0),
+                p.Value.Requires.Where(raw.ContainsKey).ToArray()
+            ))
+            .OrderBy(q => q.Level)
+            .ToList();
         return questCatalog;
     }
 
@@ -49,7 +69,7 @@ public sealed partial class PopulationStore
             "Timmy" => .35,
             "Aggressive" => .45,
             "Survivor" => .75,
-            _ => .55
+            _ => .55,
         };
         share += (Stable(c.Id + ":quests") - .5) * .3 + (Notable(c) ? .1 : 0) - (Blatant(c) ? .35 : 0);
         return Math.Clamp(share, .05, 1);
@@ -73,12 +93,14 @@ public sealed partial class PopulationStore
             (unlocks.TryGetValue(r, out var list) ? list : unlocks[r] = new()).Add(q);
         var ready = new PriorityQueue<QuestNode, double>();
         double Key(QuestNode q) => q.Level + Stable(c.Id + ":quest:" + q.Id) * 6;
-        foreach (var q in open.Where(q => waiting[q.Id] == 0)) ready.Enqueue(q, Key(q));
+        foreach (var q in open.Where(q => waiting[q.Id] == 0))
+            ready.Enqueue(q, Key(q));
         var done = new List<QuestNode>();
         while (done.Count < count && ready.TryDequeue(out var next, out _))
         {
             done.Add(next);
-            if (!unlocks.TryGetValue(next.Id, out var after)) continue;
+            if (!unlocks.TryGetValue(next.Id, out var after))
+                continue;
             foreach (var q in after)
                 if (--waiting[q.Id] == 0)
                     ready.Enqueue(q, Key(q));

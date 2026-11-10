@@ -16,8 +16,13 @@ public sealed partial class PopulationStore
 
     private void ConfigureRequiredApbs(Harmony owner)
     {
-        var assembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name?.Contains("progressivebotsystem", StringComparison.OrdinalIgnoreCase) == true)
-                       ?? throw new InvalidOperationException("PBT requires Acid's Progressive Bot System.");
+        var assembly =
+            AppDomain
+                .CurrentDomain.GetAssemblies()
+                .FirstOrDefault(a =>
+                    a.GetName().Name?.Contains("progressivebotsystem", StringComparison.OrdinalIgnoreCase) == true
+                )
+            ?? throw new InvalidOperationException("PBT requires Acid's Progressive Bot System.");
         gearFactory = new ApbsGearFactory(assembly, owner, json);
         InstallRaidLoadout(owner);
     }
@@ -25,8 +30,13 @@ public sealed partial class PopulationStore
     private static bool HasVisibleLoadout(JsonObject equipment)
     {
         string? root = equipment["Id"]?.ToString();
-        return root is not null && equipment["Items"]?.AsArray().OfType<JsonObject>()
-            .Any(item => item["parentId"]?.ToString() == root && item["slotId"]?.ToString() is not (null or "Scabbard" or "Dogtag")) == true;
+        return root is not null
+            && equipment["Items"]
+                ?.AsArray()
+                .OfType<JsonObject>()
+                .Any(item =>
+                    item["parentId"]?.ToString() == root && item["slotId"]?.ToString() is not (null or "Scabbard" or "Dogtag")
+                ) == true;
     }
 
     private void SeedMissingLoadouts()
@@ -35,7 +45,8 @@ public sealed partial class PopulationStore
         {
             if (career.LastEquipmentOrder == 0 && !career.VisibleLoadout && career.StoryHoldUntilUtc == 0)
                 career.NeedsRegear = false;
-            if (career.GearVersion == 0) career.GearPending = true;
+            if (career.GearVersion == 0)
+                career.GearPending = true;
         }
 
         RestyleCheaterKits();
@@ -51,7 +62,12 @@ public sealed partial class PopulationStore
     }
 
     private long RegearDelay(Career c) =>
-        (long)((policy.RegearMinimumMinutes + Stable(c.Id + ":regear:" + c.DiedUtc) * (policy.RegearMaximumMinutes - policy.RegearMinimumMinutes)) * 60);
+        (long)(
+            (
+                policy.RegearMinimumMinutes
+                + Stable(c.Id + ":regear:" + c.DiedUtc) * (policy.RegearMaximumMinutes - policy.RegearMinimumMinutes)
+            ) * 60
+        );
 
     // Too poor to rebuy anything: the account runs scav raids and kits up from what it brings out.
     private bool Broke(Career c) => c.WealthRubles < KitCost(c) * .15;
@@ -62,16 +78,25 @@ public sealed partial class PopulationStore
     // Only the delay, not the kit: the world dies faster than APBS can regear it.
     private bool WaitingForGear(Career c, long now) => c.NeedsRegear && now - c.DiedUtc < GearDelay(c);
 
-    private bool WantsGear(Career c, long now) => !c.Retired && (c.GearVersion == 0 && c.LastEquipmentAccount == 0 || c.NeedsRegear && now - c.DiedUtc >= GearDelay(c));
+    private bool WantsGear(Career c, long now) =>
+        !c.Retired && (c.GearVersion == 0 && c.LastEquipmentAccount == 0 || c.NeedsRegear && now - c.DiedUtc >= GearDelay(c));
 
     // The APBS worker lags the death rate, so an account heading into a raid rebuys its last kit on the spot instead of going in without one.
     private void RebuyBeforeRaid(Career c, long now)
     {
-        if (!c.NeedsRegear || c.Retired || now - c.DiedUtc < RegearDelay(c) || Broke(c) || IsObservedActive(c, now)) return;
+        if (!c.NeedsRegear || c.Retired || now - c.DiedUtc < RegearDelay(c) || Broke(c) || IsObservedActive(c, now))
+            return;
         var previous = CareerEquipment(c);
-        if (!ValidEquipment(previous) || !HasVisibleLoadout(previous) || !EquippedWeapons(previous).Any()) return;
+        if (!ValidEquipment(previous) || !HasVisibleLoadout(previous) || !EquippedWeapons(previous).Any())
+            return;
         string gun = GearName(previous, "FirstPrimaryWeapon");
-        RecordGear(c, "rebuy", gun.Length > 0 ? $"Rebought the usual {gun} loadout" : "Rebought the usual loadout", -KitCost(c), now);
+        RecordGear(
+            c,
+            "rebuy",
+            gun.Length > 0 ? $"Rebought the usual {gun} loadout" : "Rebought the usual loadout",
+            -KitCost(c),
+            now
+        );
         c.EquipmentIsSimulated = true;
         c.NeedsRegear = false;
         c.LastEquipmentAccount = 0;
@@ -89,9 +114,16 @@ public sealed partial class PopulationStore
         lock (gate)
         {
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            if (!Ready || gearFactory is null) return;
+            if (!Ready || gearFactory is null)
+                return;
             gearSession = session;
-            if (!byAccount.TryGetValue(accountId, out var career) || !WantsGear(career, now) || now < career.NextGearAttemptUtc || GearBlocked(career, now, false)) return;
+            if (
+                !byAccount.TryGetValue(accountId, out var career)
+                || !WantsGear(career, now)
+                || now < career.NextGearAttemptUtc
+                || GearBlocked(career, now, false)
+            )
+                return;
             career.NextGearAttemptUtc = now + 60;
             request = new(career, session, career.LastEquipmentOrder, career.LastGearUpdateUtc);
         }
@@ -100,31 +132,73 @@ public sealed partial class PopulationStore
     }
 
     private bool GearBlocked(Career career, long now, bool story) =>
-        career.Retired || IsObservedActive(career, now) || (!story && (now < career.StoryHoldUntilUtc || now - career.LastEquipmentGeneratedUtc < 900));
+        career.Retired
+        || IsObservedActive(career, now)
+        || (!story && (now < career.StoryHoldUntilUtc || now - career.LastEquipmentGeneratedUtc < 900));
 
-    private bool GenerateCareerGear(Career career, MongoId session, long now, bool story = false)
+    // Story regears waiting for a kit, and the ones whose kit is in.
+    private readonly Dictionary<int, Career> storyRegears = new();
+    private readonly HashSet<int> storyRegeared = new();
+
+    // Caller holds the gate.
+    private List<(int Account, Career Career, MongoId Session)> TakeStoryRegears(long now)
     {
-        if (gearFactory is null || now < career.NextGearAttemptUtc || GearBlocked(career, now, story)) return false;
-        career.NextGearAttemptUtc = now + 60;
+        var result = new List<(int, Career, MongoId)>();
+        if (gearFactory is null || storyRegears.Count == 0 || GearSession() is not MongoId session)
+            return result;
+        foreach (var (account, career) in storyRegears.Take(GearBatch).ToArray())
+        {
+            if (now < career.NextGearAttemptUtc || GearBlocked(career, now, true))
+                continue;
+            career.NextGearAttemptUtc = now + 60;
+            storyRegears.Remove(account);
+            result.Add((account, career, session));
+        }
+
+        return result;
+    }
+
+    // Runs APBS outside the gate, like the profile gear worker.
+    private void GenerateStoryRegear(int account, Career career, MongoId session)
+    {
+        JsonObject equipment;
         try
         {
-            ApplyGear(career, GenerateIsolatedEquipment(career, session), now, story);
-            return true;
+            equipment = GenerateIsolatedEquipment(career, session);
         }
         catch (Exception ex)
         {
-            GearFailed(career, ex);
-            return false;
+            lock (gate)
+                GearFailed(career, ex);
+            return;
+        }
+
+        lock (gate)
+        {
+            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            if (!Ready || !population.PendingStories.ContainsKey(account) || GearBlocked(career, now, true))
+                return;
+            try
+            {
+                ApplyGear(career, equipment, now, story: true);
+                storyRegeared.Add(account);
+            }
+            catch (Exception ex)
+            {
+                GearFailed(career, ex);
+            }
         }
     }
 
     // A story regear is the kit you saw them change into, so it replaces the whole loadout.
     private void ApplyGear(Career career, JsonObject equipment, long now, bool story = false)
     {
-        if (!ValidEquipment(equipment) || !HasVisibleLoadout(equipment)) throw new InvalidDataException("APBS did not produce a usable equipment tree.");
+        if (!ValidEquipment(equipment) || !HasVisibleLoadout(equipment))
+            throw new InvalidDataException("APBS did not produce a usable equipment tree.");
         if (policy.GearProgression && !story)
         {
-            if (career.NeedsRegear) equipment = Rebuy(career, equipment, now);
+            if (career.NeedsRegear)
+                equipment = Rebuy(career, equipment, now);
             else if (Upgrading(career))
             {
                 if (UpgradeGear(career, equipment, now) is not { } upgraded)
@@ -152,18 +226,26 @@ public sealed partial class PopulationStore
     private void GearFailed(Career career, Exception ex)
     {
         if (gearFailures.Add(career.Id))
-            logger.Warning($"[PBT] APBS profile gear deferred for account {career.AccountId}; existing equipment retained. {ex.GetBaseException().Message}");
+            logger.Warning(
+                $"[PBT] APBS profile gear deferred for account {career.AccountId}; existing equipment retained. {ex.GetBaseException().Message}"
+            );
     }
 
     // Caller holds the gate. Claims a bounded batch so a backlog cannot stretch one checkpoint.
     private List<GearRequest> TakeGearRequests(long now)
     {
         var result = new List<GearRequest>();
-        if (gearFactory is null) return result;
+        if (gearFactory is null)
+            return result;
         foreach (var (id, session) in gearRequests.Take(GearBatch).ToArray())
         {
             gearRequests.Remove(id);
-            if (!Ready || !population.Careers.TryGetValue(id, out var career) || now < career.NextGearAttemptUtc || GearBlocked(career, now, false))
+            if (
+                !Ready
+                || !population.Careers.TryGetValue(id, out var career)
+                || now < career.NextGearAttemptUtc
+                || GearBlocked(career, now, false)
+            )
             {
                 gearStats[1]++;
                 continue;
@@ -200,7 +282,12 @@ public sealed partial class PopulationStore
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
             // An encounter may have replaced the loadout while APBS was running. Keep the newer one.
-            if (!Ready || request.Career.LastEquipmentOrder != request.Order || request.Career.LastGearUpdateUtc != request.UpdatedUtc || GearBlocked(request.Career, now, false))
+            if (
+                !Ready
+                || request.Career.LastEquipmentOrder != request.Order
+                || request.Career.LastGearUpdateUtc != request.UpdatedUtc
+                || GearBlocked(request.Career, now, false)
+            )
             {
                 gearStats[3]++;
                 return;
@@ -229,9 +316,20 @@ public sealed partial class PopulationStore
         // SPT's own cloner. A JSON round trip churned megabytes per regear.
         var isolated = cloner.Clone(source) ?? throw new InvalidDataException("Cannot clone PMC inventory template.");
         // Rack guns are favourites, not what the account can afford today. A broke rebuy is the bottom tier, scav-grade gear.
-        int shift = extraTiers > 0 ? TierBoost(career) + extraTiers : career.NeedsRegear && Broke(career) ? -10 : TierShift(career, roll: true);
-        var inventory = gearFactory.Generate(inventoryGenerator, inventoryContainers, session, isolated, career, Level(career.Experience), shift,
-            Random.Shared.NextDouble() < policy.NightGearChance);
+        int shift =
+            extraTiers > 0 ? TierBoost(career) + extraTiers
+            : career.NeedsRegear && Broke(career) ? -10
+            : TierShift(career, roll: true);
+        var inventory = gearFactory.Generate(
+            inventoryGenerator,
+            inventoryContainers,
+            session,
+            isolated,
+            career,
+            Level(career.Experience),
+            shift,
+            Random.Shared.NextDouble() < policy.NightGearChance
+        );
         var equipment = EquipmentTree(ToNode(inventory).AsObject());
 
         if (!ValidEquipment(equipment))
@@ -271,9 +369,16 @@ public sealed partial class PopulationStore
         }
 
         // The dead regear offline too, or they log back in naked.
-        var due = population.Careers.Values.Where(c => !c.Retired
-                                                       && (c.NeedsRegear ? WantsGear(c, now) : c.IsOnline && c.GearPending) && now >= c.NextGearAttemptUtc
-                                                       && now >= c.StoryHoldUntilUtc && now - c.LastEquipmentGeneratedUtc >= 900 && !IsObservedActive(c, now)).ToList();
+        var due = population
+            .Careers.Values.Where(c =>
+                !c.Retired
+                && (c.NeedsRegear ? WantsGear(c, now) : c.IsOnline && c.GearPending)
+                && now >= c.NextGearAttemptUtc
+                && now >= c.StoryHoldUntilUtc
+                && now - c.LastEquipmentGeneratedUtc >= 900
+                && !IsObservedActive(c, now)
+            )
+            .ToList();
 
         // Most raids end with nothing worth buying. That costs no APBS roll, so it never waits for a batch slot.
         foreach (var career in due.Where(Upgrading).ToArray())
@@ -286,9 +391,22 @@ public sealed partial class PopulationStore
         }
 
         // A backlog of the dead must not starve the shoppers, so a few slots are theirs.
-        var shoppers = due.Where(Upgrading).OrderBy(c => c.LastGearUpdateUtc).ThenBy(c => c.AccountId).Take(UpgradeSlots).ToList();
-        foreach (var career in shoppers.Concat(due.Where(c => !Upgrading(c)).OrderByDescending(c => c.NeedsRegear).ThenByDescending(c => c.NeedsRegear && Broke(c)).ThenByDescending(c => c.IsOnline)
-                     .ThenBy(c => c.LastGearUpdateUtc).ThenBy(c => c.AccountId).Take(GearBatch - shoppers.Count)))
+        var shoppers = due.Where(Upgrading)
+            .OrderBy(c => c.LastGearUpdateUtc)
+            .ThenBy(c => c.AccountId)
+            .Take(UpgradeSlots)
+            .ToList();
+        foreach (
+            var career in shoppers.Concat(
+                due.Where(c => !Upgrading(c))
+                    .OrderByDescending(c => c.NeedsRegear)
+                    .ThenByDescending(c => c.NeedsRegear && Broke(c))
+                    .ThenByDescending(c => c.IsOnline)
+                    .ThenBy(c => c.LastGearUpdateUtc)
+                    .ThenBy(c => c.AccountId)
+                    .Take(GearBatch - shoppers.Count)
+            )
+        )
             if (gearRequests.TryAdd(career.Id, session))
             {
                 gearStats[0]++;
@@ -299,7 +417,8 @@ public sealed partial class PopulationStore
             gearStatsUtc = now;
             logger.Info(
                 $"[PBT] Gear worker: {due.Count} due ({due.Count(c => c.NeedsRegear)} dead), {population.Careers.Values.Count(c => !c.Retired && c.NeedsRegear)} dead in total, {population.Careers.Values.Count(c => !c.Retired && WaitingForGear(c, now))} held by the regear delay, "
-                + $"last 30 min queued {gearStats[0]}, skipped {gearStats[1]}, APBS failed {gearStats[2]}, stale {gearStats[3]}, applied {gearStats[4]}, apply failed {gearStats[5]}.");
+                    + $"last 30 min queued {gearStats[0]}, skipped {gearStats[1]}, APBS failed {gearStats[2]}, stale {gearStats[3]}, applied {gearStats[4]}, apply failed {gearStats[5]}."
+            );
 
             Array.Clear(gearStats);
         }

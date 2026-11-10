@@ -1,8 +1,8 @@
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using SPTarkov.Server.Core.Helpers.Profile;
 using SPTarkov.Server.Core.Models.Common;
-using System.Reflection;
 using SPTarkov.Server.Core.Models.Utils;
 
 namespace PBT.Server;
@@ -62,7 +62,7 @@ public sealed class SimulationPolicy
             SurvivedMinutes = 22,
             DeathMinutes = 9,
             PmcKills = .35,
-            ScavKills = .9
+            ScavKills = .9,
         },
         new()
         {
@@ -70,7 +70,7 @@ public sealed class SimulationPolicy
             SurvivedMinutes = 25,
             DeathMinutes = 11,
             PmcKills = .55,
-            ScavKills = 1.1
+            ScavKills = 1.1,
         },
         new()
         {
@@ -78,7 +78,7 @@ public sealed class SimulationPolicy
             SurvivedMinutes = 28,
             DeathMinutes = 12,
             PmcKills = .7,
-            ScavKills = 1.2
+            ScavKills = 1.2,
         },
         new()
         {
@@ -86,8 +86,8 @@ public sealed class SimulationPolicy
             SurvivedMinutes = 30,
             DeathMinutes = 13,
             PmcKills = .85,
-            ScavKills = 1.3
-        }
+            ScavKills = 1.3,
+        },
     ];
 
     public RaidExperienceSettings RaidExperience { get; set; } = new();
@@ -143,45 +143,119 @@ public sealed class SimulationPolicy
 
     public void Validate()
     {
-        if (FriendGifts is null) throw new InvalidDataException("Friend gift policy is missing.");
+        if (FriendGifts is null)
+            throw new InvalidDataException("Friend gift policy is missing.");
         FriendGifts.Validate();
-        if (Cheaters is null) throw new InvalidDataException("Cheater policy is missing.");
+        if (Cheaters is null)
+            throw new InvalidDataException("Cheater policy is missing.");
         Cheaters.Validate();
-        if (World is null) throw new InvalidDataException("World policy is missing.");
+        if (World is null)
+            throw new InvalidDataException("World policy is missing.");
         World.Validate();
-        if (Hideout is null) throw new InvalidDataException("Hideout policy is missing.");
+        if (Hideout is null)
+            throw new InvalidDataException("Hideout policy is missing.");
         Hideout.Validate();
-        if (BotMessages is null) throw new InvalidDataException("Bot message policy is missing.");
+        if (BotMessages is null)
+            throw new InvalidDataException("Bot message policy is missing.");
         BotMessages.Validate();
-        if (NotableNames is null) throw new InvalidDataException("Notable name policy is missing.");
+        if (NotableNames is null)
+            throw new InvalidDataException("Notable name policy is missing.");
         NotableNames.Validate();
-        if (InitialPrestige is null || !double.IsFinite(InitialPrestige.Share) || InitialPrestige.Share is < 0 or > 1 || !double.IsFinite(InitialPrestige.Repeat)
-            || InitialPrestige.Repeat is < 0 or > .95)
+        if (
+            InitialPrestige is null
+            || !double.IsFinite(InitialPrestige.Share)
+            || InitialPrestige.Share is < 0 or > 1
+            || !double.IsFinite(InitialPrestige.Repeat)
+            || InitialPrestige.Repeat is < 0 or > .95
+        )
             throw new InvalidDataException("Starting prestige share must be 0-1 and the repeat chance 0-0.95.");
-        if (ProgressionPriors is null || ProgressionPriors.Count is < 1 or > 79 || ProgressionPriors.Any(p =>
-                p is null || p.MaximumLevel is < 1 or > 79 || !double.IsFinite(p.SurvivedMinutes) || p.SurvivedMinutes is < 3 or > 60 || !double.IsFinite(p.DeathMinutes)
-                || p.DeathMinutes is < 3 or > 60 || !double.IsFinite(p.PmcKills) || p.PmcKills is < 0 or > 20 || !double.IsFinite(p.ScavKills) || p.ScavKills is < 0 or > 20)
-            || !ProgressionPriors.Select(p => p.MaximumLevel).SequenceEqual(ProgressionPriors.Select(p => p.MaximumLevel).Distinct().Order())
-            || ProgressionPriors[^1].MaximumLevel != 79)
-            throw new InvalidDataException("Progression priors require increasing level bands ending at 79, 3-60 minute raids, and 0-20 kills per raid.");
+        if (
+            ProgressionPriors is null
+            || ProgressionPriors.Count is < 1 or > 79
+            || ProgressionPriors.Any(p =>
+                p is null
+                || p.MaximumLevel is < 1 or > 79
+                || !double.IsFinite(p.SurvivedMinutes)
+                || p.SurvivedMinutes is < 3 or > 60
+                || !double.IsFinite(p.DeathMinutes)
+                || p.DeathMinutes is < 3 or > 60
+                || !double.IsFinite(p.PmcKills)
+                || p.PmcKills is < 0 or > 20
+                || !double.IsFinite(p.ScavKills)
+                || p.ScavKills is < 0 or > 20
+            )
+            || !ProgressionPriors
+                .Select(p => p.MaximumLevel)
+                .SequenceEqual(ProgressionPriors.Select(p => p.MaximumLevel).Distinct().Order())
+            || ProgressionPriors[^1].MaximumLevel != 79
+        )
+            throw new InvalidDataException(
+                "Progression priors require increasing level bands ending at 79, 3-60 minute raids, and 0-20 kills per raid."
+            );
         var xp = RaidExperience;
-        if (xp is null || !double.IsFinite(xp.SurvivedBase) || xp.SurvivedBase is < 100 or > 100000 || !double.IsFinite(xp.SurvivedPerLevel)
-            || xp.SurvivedPerLevel is < 0 or > 10000 || !double.IsFinite(xp.SurvivedPerLevelSquared) || xp.SurvivedPerLevelSquared is < 0 or > 1000
-            || !double.IsFinite(xp.DeathShare) || xp.DeathShare is < 0 or > 1 || !double.IsFinite(OnlineTimeMinimum) || !double.IsFinite(OnlineTimeMaximum) || OnlineTimeMinimum < 1
-            || OnlineTimeMaximum < OnlineTimeMinimum || OnlineTimeMaximum > 5)
-            throw new InvalidDataException("Raid experience needs a 100-100000 base and a 0-1 death share; online time factors must be 1-5.");
-        if (Achievements is null || new[] { Achievements.Common, Achievements.Rare, Achievements.Legendary }.Any(v => !double.IsFinite(v) || v is < 0 or > 1))
+        if (
+            xp is null
+            || !double.IsFinite(xp.SurvivedBase)
+            || xp.SurvivedBase is < 100 or > 100000
+            || !double.IsFinite(xp.SurvivedPerLevel)
+            || xp.SurvivedPerLevel is < 0 or > 10000
+            || !double.IsFinite(xp.SurvivedPerLevelSquared)
+            || xp.SurvivedPerLevelSquared is < 0 or > 1000
+            || !double.IsFinite(xp.DeathShare)
+            || xp.DeathShare is < 0 or > 1
+            || !double.IsFinite(OnlineTimeMinimum)
+            || !double.IsFinite(OnlineTimeMaximum)
+            || OnlineTimeMinimum < 1
+            || OnlineTimeMaximum < OnlineTimeMinimum
+            || OnlineTimeMaximum > 5
+        )
+            throw new InvalidDataException(
+                "Raid experience needs a 100-100000 base and a 0-1 death share; online time factors must be 1-5."
+            );
+        if (
+            Achievements is null
+            || new[] { Achievements.Common, Achievements.Rare, Achievements.Legendary }.Any(v =>
+                !double.IsFinite(v) || v is < 0 or > 1
+            )
+        )
             throw new InvalidDataException("Achievement shares must be between 0 and 1.");
-        if (RackTierBoostMinimum is < 0 or > 6 || RackTierBoostMaximum < RackTierBoostMinimum || RackTierBoostMaximum > 6 || !double.IsFinite(NightGearChance)
-            || NightGearChance is < 0 or > 1 || !double.IsFinite(GearUpgradeChance) || GearUpgradeChance is < 0 or > 1 || !double.IsFinite(InsuranceReturnChance)
-            || InsuranceReturnChance is < 0 or > 1 || !double.IsFinite(RegearMinimumMinutes) || !double.IsFinite(RegearMaximumMinutes) || RegearMinimumMinutes < 0
-            || RegearMaximumMinutes < RegearMinimumMinutes || RegearMaximumMinutes > 20)
-            throw new InvalidDataException("Rack tier boost must be a 0-6 range; night gear, upgrade and insurance chances 0-1; regear 0-20 minutes.");
-        if (!double.IsFinite(MinimumPrestigeCycleHours) || MinimumPrestigeCycleHours is < 10 or > 10000 || !double.IsFinite(PostRaidDeathChance)
-            || !double.IsFinite(PostRaidRegearChance) || PostRaidDeathChance < 0 || PostRaidRegearChance < 0 || PostRaidDeathChance + PostRaidRegearChance > 1
-            || !double.IsFinite(RaidDeathChance) || !double.IsFinite(RaidRegearChance) || RaidDeathChance < 0 || RaidRegearChance < 0 || RaidDeathChance + RaidRegearChance > 1
-            || StoryMinimumDelaySeconds < 30 || StoryMaximumDelaySeconds < StoryMinimumDelaySeconds || StoryMaximumDelaySeconds > 86400
-            || StoryVisibilitySeconds is < 60 or > 86400)
+        if (
+            RackTierBoostMinimum is < 0 or > 6
+            || RackTierBoostMaximum < RackTierBoostMinimum
+            || RackTierBoostMaximum > 6
+            || !double.IsFinite(NightGearChance)
+            || NightGearChance is < 0 or > 1
+            || !double.IsFinite(GearUpgradeChance)
+            || GearUpgradeChance is < 0 or > 1
+            || !double.IsFinite(InsuranceReturnChance)
+            || InsuranceReturnChance is < 0 or > 1
+            || !double.IsFinite(RegearMinimumMinutes)
+            || !double.IsFinite(RegearMaximumMinutes)
+            || RegearMinimumMinutes < 0
+            || RegearMaximumMinutes < RegearMinimumMinutes
+            || RegearMaximumMinutes > 20
+        )
+            throw new InvalidDataException(
+                "Rack tier boost must be a 0-6 range; night gear, upgrade and insurance chances 0-1; regear 0-20 minutes."
+            );
+        if (
+            !double.IsFinite(MinimumPrestigeCycleHours)
+            || MinimumPrestigeCycleHours is < 10 or > 10000
+            || !double.IsFinite(PostRaidDeathChance)
+            || !double.IsFinite(PostRaidRegearChance)
+            || PostRaidDeathChance < 0
+            || PostRaidRegearChance < 0
+            || PostRaidDeathChance + PostRaidRegearChance > 1
+            || !double.IsFinite(RaidDeathChance)
+            || !double.IsFinite(RaidRegearChance)
+            || RaidDeathChance < 0
+            || RaidRegearChance < 0
+            || RaidDeathChance + RaidRegearChance > 1
+            || StoryMinimumDelaySeconds < 30
+            || StoryMaximumDelaySeconds < StoryMinimumDelaySeconds
+            || StoryMaximumDelaySeconds > 86400
+            || StoryVisibilitySeconds is < 60 or > 86400
+        )
             throw new InvalidDataException("Simulation policy is outside the supported ranges.");
     }
 }
@@ -240,13 +314,30 @@ public sealed class WorldSettings
 
     public void Validate()
     {
-        if (!double.IsFinite(TransitChance) || TransitChance is < 0 or > 1 || !double.IsFinite(LogOffChance) || LogOffChance is < 0 or > 1 || !double.IsFinite(WeeklyBossBoost)
-            || WeeklyBossBoost is < 1 or > 5 || !double.IsFinite(StreamerMapBoost) || StreamerMapBoost is < 1 or > 10 || !double.IsFinite(NameMapBoost)
-            || NameMapBoost is < 1 or > 10 || !double.IsFinite(QueueTimeMultiplier) || QueueTimeMultiplier is < .1 or > 10 || MaximumMatchingSeconds is < 0 or > 600
-            || MinimumMatchingSeconds is < 0 or > 600 || MaximumWaitSeconds is < 10 or > 1800)
-            throw new InvalidDataException("World chances must be 0-1, boosts 1-5 (streamer and name boosts 1-10), queue multiplier 0.1-10, matching 0-600 seconds and the longest wait 10-1800 seconds.");
-        if (!PopulationStore.Regions.Contains(Location)) throw new InvalidDataException("Location must be EU, US or Asia.");
-        if (Peak is null) throw new InvalidDataException("Peak hour policy is missing.");
+        if (
+            !double.IsFinite(TransitChance)
+            || TransitChance is < 0 or > 1
+            || !double.IsFinite(LogOffChance)
+            || LogOffChance is < 0 or > 1
+            || !double.IsFinite(WeeklyBossBoost)
+            || WeeklyBossBoost is < 1 or > 5
+            || !double.IsFinite(StreamerMapBoost)
+            || StreamerMapBoost is < 1 or > 10
+            || !double.IsFinite(NameMapBoost)
+            || NameMapBoost is < 1 or > 10
+            || !double.IsFinite(QueueTimeMultiplier)
+            || QueueTimeMultiplier is < .1 or > 10
+            || MaximumMatchingSeconds is < 0 or > 600
+            || MinimumMatchingSeconds is < 0 or > 600
+            || MaximumWaitSeconds is < 10 or > 1800
+        )
+            throw new InvalidDataException(
+                "World chances must be 0-1, boosts 1-5 (streamer and name boosts 1-10), queue multiplier 0.1-10, matching 0-600 seconds and the longest wait 10-1800 seconds."
+            );
+        if (!PopulationStore.Regions.Contains(Location))
+            throw new InvalidDataException("Location must be EU, US or Asia.");
+        if (Peak is null)
+            throw new InvalidDataException("Peak hour policy is missing.");
         Peak.Validate();
     }
 }
@@ -268,34 +359,52 @@ public sealed class PeakHourSettings
     [
         new()
         {
-            Name = "Evenings", Share = 40, Weekday = 1, Weekend = 1.25,
-            Hours = Curve((0, .5), (2, .1), (8, .05), (16, .5), (19, 2.2), (22, 2), (23, 1.2))
+            Name = "Evenings",
+            Share = 40,
+            Weekday = 1,
+            Weekend = 1.25,
+            Hours = Curve((0, .5), (2, .1), (8, .05), (16, .5), (19, 2.2), (22, 2), (23, 1.2)),
         },
         new()
         {
-            Name = "Night owl", Share = 15, Weekday = 1, Weekend = 1.1,
-            Hours = Curve((0, 2.2), (3, 1.8), (6, .2), (12, .1), (19, .6), (22, 1.6))
+            Name = "Night owl",
+            Share = 15,
+            Weekday = 1,
+            Weekend = 1.1,
+            Hours = Curve((0, 2.2), (3, 1.8), (6, .2), (12, .1), (19, .6), (22, 1.6)),
         },
         new()
         {
-            Name = "Afternoons", Share = 15, Weekday = 1, Weekend = 1.1,
-            Hours = Curve((0, .1), (9, .2), (13, 1.8), (17, 2), (20, .8), (23, .2))
+            Name = "Afternoons",
+            Share = 15,
+            Weekday = 1,
+            Weekend = 1.1,
+            Hours = Curve((0, .1), (9, .2), (13, 1.8), (17, 2), (20, .8), (23, .2)),
         },
         new()
         {
-            Name = "Weekends", Share = 15, Weekday = .35, Weekend = 2.6,
-            Hours = Curve((0, .8), (3, .2), (9, .4), (13, 1.5), (18, 2), (23, 1.2))
+            Name = "Weekends",
+            Share = 15,
+            Weekday = .35,
+            Weekend = 2.6,
+            Hours = Curve((0, .8), (3, .2), (9, .4), (13, 1.5), (18, 2), (23, 1.2)),
         },
         new()
         {
-            Name = "Mornings", Share = 5, Weekday = 1, Weekend = 1,
-            Hours = Curve((0, .05), (6, .6), (8, 2), (12, 1.6), (15, .4), (20, .1))
+            Name = "Mornings",
+            Share = 5,
+            Weekday = 1,
+            Weekend = 1,
+            Hours = Curve((0, .05), (6, .6), (8, 2), (12, 1.6), (15, .4), (20, .1)),
         },
         new()
         {
-            Name = "Anytime", Share = 10, Weekday = 1, Weekend = 1.1,
-            Hours = Curve((0, .8), (6, .5), (12, 1), (18, 1.3))
-        }
+            Name = "Anytime",
+            Share = 10,
+            Weekday = 1,
+            Weekend = 1.1,
+            Hours = Curve((0, .8), (6, .5), (12, 1), (18, 1.3)),
+        },
     ];
 
     // Weights per hour, interpolated between points and wrapping past midnight. The first point is hour 0.
@@ -305,7 +414,8 @@ public sealed class PeakHourSettings
         for (int h = 0; h < 24; h++)
         {
             int i = points.Length - 1;
-            while (points[i].Hour > h) i--;
+            while (points[i].Hour > h)
+                i--;
             var (h0, w0) = points[i];
             var (h1, w1) = i + 1 < points.Length ? points[i + 1] : (24, points[0].Weight);
             hours[h] = w0 + (w1 - w0) * (h - h0) / (h1 - h0);
@@ -316,13 +426,34 @@ public sealed class PeakHourSettings
 
     public void Validate()
     {
-        if (!double.IsFinite(Strength) || Strength is < 0 or > 4 || ShiftHours is < -12 or > 12 || !double.IsFinite(WeekendBoost) || WeekendBoost is < .25 or > 4)
+        if (
+            !double.IsFinite(Strength)
+            || Strength is < 0 or > 4
+            || ShiftHours is < -12 or > 12
+            || !double.IsFinite(WeekendBoost)
+            || WeekendBoost is < .25 or > 4
+        )
             throw new InvalidDataException("Peak strength must be 0-4, the shift -12 to 12 hours and the weekend boost 0.25-4.");
-        if (Schedules is null || Schedules.Count is < 1 or > 12
-            || Schedules.Any(s => s is null || string.IsNullOrWhiteSpace(s.Name) || s.Name.Length > 40 || s.Share is < 0 or > 1000
-                || !double.IsFinite(s.Weekday) || s.Weekday is < 0 or > 5 || !double.IsFinite(s.Weekend) || s.Weekend is < 0 or > 5
-                || (s.Weekday == 0 && s.Weekend == 0) || s.Hours is not { Length: 24 } || s.Hours.Any(h => !double.IsFinite(h) || h is < 0 or > 100)))
-            throw new InvalidDataException("Peak schedules need a name, a 0-1000 share, 0-5 weekday and weekend factors and 24 hourly weights from 0 to 100.");
+        if (
+            Schedules is null
+            || Schedules.Count is < 1 or > 12
+            || Schedules.Any(s =>
+                s is null
+                || string.IsNullOrWhiteSpace(s.Name)
+                || s.Name.Length > 40
+                || s.Share is < 0 or > 1000
+                || !double.IsFinite(s.Weekday)
+                || s.Weekday is < 0 or > 5
+                || !double.IsFinite(s.Weekend)
+                || s.Weekend is < 0 or > 5
+                || (s.Weekday == 0 && s.Weekend == 0)
+                || s.Hours is not { Length: 24 }
+                || s.Hours.Any(h => !double.IsFinite(h) || h is < 0 or > 100)
+            )
+        )
+            throw new InvalidDataException(
+                "Peak schedules need a name, a 0-1000 share, 0-5 weekday and weekend factors and 24 hourly weights from 0 to 100."
+            );
         if (Schedules.Sum(s => s.Share) <= 0 || Schedules.All(s => s.Hours.Sum() <= 0))
             throw new InvalidDataException("At least one peak schedule needs a share and some daily hours.");
     }
@@ -381,10 +512,30 @@ public sealed class CheaterSettings
         new() { Tpl = "60a7ad2a2198820d95707a2e", Weight = 20 }, // Tagilla UBEY
         new() { Tpl = "60a7ad3a0c5cb24b0134664a", Weight = 10 }, // Tagilla Gorilla
         new() { Tpl = "678f84bb9e85556ca60f0362", Weight = 15 }, // Tagilla ZABEY
-        new() { Tpl = "5aa7e276e5b5b000171d0647", Weight = 20, FaceShield = "5aa7e373e5b5b000137b76f0" }, // Altyn
-        new() { Tpl = "5f60c74e3b85f6263c145586", Weight = 15, FaceShield = "5f60c85b58eff926626a60f7" }, // Rys-T
-        new() { Tpl = "5c0e874186f7745dc7616606", Weight = 15, FaceShield = "5c0e842486f77443a74d2976" }, // Maska (Killa)
-        new() { Tpl = "5c091a4e0db834001d5addc8", Weight = 5, FaceShield = "5c0919b50db834001b7ce3b9" } // Maska OD
+        new()
+        {
+            Tpl = "5aa7e276e5b5b000171d0647",
+            Weight = 20,
+            FaceShield = "5aa7e373e5b5b000137b76f0",
+        }, // Altyn
+        new()
+        {
+            Tpl = "5f60c74e3b85f6263c145586",
+            Weight = 15,
+            FaceShield = "5f60c85b58eff926626a60f7",
+        }, // Rys-T
+        new()
+        {
+            Tpl = "5c0e874186f7745dc7616606",
+            Weight = 15,
+            FaceShield = "5c0e842486f77443a74d2976",
+        }, // Maska (Killa)
+        new()
+        {
+            Tpl = "5c091a4e0db834001d5addc8",
+            Weight = 5,
+            FaceShield = "5c0919b50db834001b7ce3b9",
+        }, // Maska OD
     ];
 
     // Melee nobody normally carries. The game has no Tagilla sledgehammer or axe for players, so these stand in.
@@ -393,7 +544,7 @@ public sealed class CheaterSettings
         "63495c500c297e20065a08b1", // Old hand scythe
         "6087e570b998180e9f76dc24", // Dead Blow Hammer
         "679ba90d269ddfea47012159", // Chained Labrys
-        "5bc9c1e2d4351e00367fbcf0" // Antique axe
+        "5bc9c1e2d4351e00367fbcf0", // Antique axe
     ];
 
     // In-raid cheating. Needs BigBrain on the client.
@@ -421,18 +572,64 @@ public sealed class CheaterSettings
 
     public void Validate()
     {
-        if (!double.IsFinite(Share) || Share is < 0 or > .2 || !double.IsFinite(Survival) || Survival is < 0 or > 1 || !double.IsFinite(KillMultiplier)
-            || KillMultiplier is < 1 or > 20 || TierBoost is < 0 or > 6 || !double.IsFinite(HelmetChance) || HelmetChance is < 0 or > 1 || !double.IsFinite(BanChance)
-            || BanChance is < 0 or > 1 || !double.IsFinite(BanMinimumHours) || BanMinimumHours is < 0 or > 720 || !double.IsFinite(BanMaximumHours)
-            || BanMaximumHours < BanMinimumHours || BanMaximumHours > 720 || RewardRubles is < 0 or > 50_000_000 || Helmets is null || Helmets.Count > 100
-            || Helmets.Any(h => h is null || h.Tpl is null || h.Tpl.Length != 24 || h.Weight is < 0 or > 1000 || h.FaceShield is null || h.FaceShield.Length is not (0 or 24))
-            || !double.IsFinite(ClosetShare) || ClosetShare is < 0 or > 1 || !double.IsFinite(UndercoverShare) || UndercoverShare is < 0 or > 1 || ClosetShare + UndercoverShare > 1 || !double.IsFinite(NakedShare) || NakedShare is < 0 or > 1 || !double.IsFinite(Sa58Chance)
-            || Sa58Chance is < 0 or > 1 || Melee is null || Melee.Count > 100 || Melee.Any(m => m is null || m.Length != 24) || DebugCheatersPerRaid is < 0 or > 30)
-            throw new InvalidDataException("Cheaters need a 0-0.2 share, 0-1 chances, 1-20 kill multiplier, 0-6 tier boost, 0-720 ban hours and 24-character helmet ids.");
-        if (!double.IsFinite(ComebackChance) || ComebackChance is < 0 or > 1 || !double.IsFinite(BoughtAccountChance) || BoughtAccountChance is < 0 or > 1
-            || !double.IsFinite(BanWaveHours) || BanWaveHours is < 0 or > 720 || !double.IsFinite(BanWaveShare) || BanWaveShare is < 0 or > 1)
+        if (
+            !double.IsFinite(Share)
+            || Share is < 0 or > .2
+            || !double.IsFinite(Survival)
+            || Survival is < 0 or > 1
+            || !double.IsFinite(KillMultiplier)
+            || KillMultiplier is < 1 or > 20
+            || TierBoost is < 0 or > 6
+            || !double.IsFinite(HelmetChance)
+            || HelmetChance is < 0 or > 1
+            || !double.IsFinite(BanChance)
+            || BanChance is < 0 or > 1
+            || !double.IsFinite(BanMinimumHours)
+            || BanMinimumHours is < 0 or > 720
+            || !double.IsFinite(BanMaximumHours)
+            || BanMaximumHours < BanMinimumHours
+            || BanMaximumHours > 720
+            || RewardRubles is < 0 or > 50_000_000
+            || Helmets is null
+            || Helmets.Count > 100
+            || Helmets.Any(h =>
+                h is null
+                || h.Tpl is null
+                || h.Tpl.Length != 24
+                || h.Weight is < 0 or > 1000
+                || h.FaceShield is null
+                || h.FaceShield.Length is not (0 or 24)
+            )
+            || !double.IsFinite(ClosetShare)
+            || ClosetShare is < 0 or > 1
+            || !double.IsFinite(UndercoverShare)
+            || UndercoverShare is < 0 or > 1
+            || ClosetShare + UndercoverShare > 1
+            || !double.IsFinite(NakedShare)
+            || NakedShare is < 0 or > 1
+            || !double.IsFinite(Sa58Chance)
+            || Sa58Chance is < 0 or > 1
+            || Melee is null
+            || Melee.Count > 100
+            || Melee.Any(m => m is null || m.Length != 24)
+            || DebugCheatersPerRaid is < 0 or > 30
+        )
+            throw new InvalidDataException(
+                "Cheaters need a 0-0.2 share, 0-1 chances, 1-20 kill multiplier, 0-6 tier boost, 0-720 ban hours and 24-character helmet ids."
+            );
+        if (
+            !double.IsFinite(ComebackChance)
+            || ComebackChance is < 0 or > 1
+            || !double.IsFinite(BoughtAccountChance)
+            || BoughtAccountChance is < 0 or > 1
+            || !double.IsFinite(BanWaveHours)
+            || BanWaveHours is < 0 or > 720
+            || !double.IsFinite(BanWaveShare)
+            || BanWaveShare is < 0 or > 1
+        )
             throw new InvalidDataException("Comeback and ban wave chances must be 0 to 1 and ban waves 0 to 720 hours apart.");
-        if (Play is null) throw new InvalidDataException("Cheater play settings are missing.");
+        if (Play is null)
+            throw new InvalidDataException("Cheater play settings are missing.");
         Play.Validate();
     }
 }
@@ -532,12 +729,39 @@ public sealed class CheaterPlaySettings
 
     public void Validate()
     {
-        if (Types is null) throw new InvalidDataException("Cheater types are missing.");
+        if (Types is null)
+            throw new InvalidDataException("Cheater types are missing.");
         Types.Validate();
-        double[] chances = [Aimbot, Esp, Godmode, Speedhack, Spinbot, BunnyHop, FightTeleport, Fly, Vacuum, Stalker, VoiceSpam, TargetsYou, Rivalry, AimAccuracy, BanPerMinute];
-        if (chances.Any(c => !double.IsFinite(c) || c is < 0 or > 1) || !double.IsFinite(SpeedMultiplier) || SpeedMultiplier is < 1 or > 6
-            || !double.IsFinite(BlatantBanBoost) || BlatantBanBoost is < 0 or > 3 || !double.IsFinite(ReactionTime) || ReactionTime is < .5 or > 3)
-            throw new InvalidDataException("Cheater play chances must be 0 to 1, the speed multiplier 1 to 6, the blatant ban boost 0 to 3 and reaction time 0.5 to 3.");
+        double[] chances =
+        [
+            Aimbot,
+            Esp,
+            Godmode,
+            Speedhack,
+            Spinbot,
+            BunnyHop,
+            FightTeleport,
+            Fly,
+            Vacuum,
+            Stalker,
+            VoiceSpam,
+            TargetsYou,
+            Rivalry,
+            AimAccuracy,
+            BanPerMinute,
+        ];
+        if (
+            chances.Any(c => !double.IsFinite(c) || c is < 0 or > 1)
+            || !double.IsFinite(SpeedMultiplier)
+            || SpeedMultiplier is < 1 or > 6
+            || !double.IsFinite(BlatantBanBoost)
+            || BlatantBanBoost is < 0 or > 3
+            || !double.IsFinite(ReactionTime)
+            || ReactionTime is < .5 or > 3
+        )
+            throw new InvalidDataException(
+                "Cheater play chances must be 0 to 1, the speed multiplier 1 to 6, the blatant ban boost 0 to 3 and reaction time 0.5 to 3."
+            );
     }
 }
 
@@ -557,9 +781,18 @@ public sealed class FriendGiftSettings
 
     public void Validate()
     {
-        if (!double.IsFinite(Chance) || Chance is < 0 or > 1 || MaximumLevel is < 1 or > 80 || MaximumRubles is < 0 or > 1_000_000_000 || DeathStreak is < 1 or > 100
-            || !double.IsFinite(CooldownHours) || CooldownHours is < 0 or > 720)
-            throw new InvalidDataException("Friend gifts need a 0-1 chance, level 1-80, 0-1e9 roubles, a 1-100 death streak and a 0-720 hour cooldown.");
+        if (
+            !double.IsFinite(Chance)
+            || Chance is < 0 or > 1
+            || MaximumLevel is < 1 or > 80
+            || MaximumRubles is < 0 or > 1_000_000_000
+            || DeathStreak is < 1 or > 100
+            || !double.IsFinite(CooldownHours)
+            || CooldownHours is < 0 or > 720
+        )
+            throw new InvalidDataException(
+                "Friend gifts need a 0-1 chance, level 1-80, 0-1e9 roubles, a 1-100 death streak and a 0-720 hour cooldown."
+            );
     }
 }
 
@@ -575,7 +808,13 @@ public sealed class BotMessageSettings
 
     public void Validate()
     {
-        if (!double.IsFinite(Chance) || Chance is < 0 or > 1 || MinimumDelaySeconds is < 0 or > 3600 || MaximumDelaySeconds < MinimumDelaySeconds || MaximumDelaySeconds > 3600)
+        if (
+            !double.IsFinite(Chance)
+            || Chance is < 0 or > 1
+            || MinimumDelaySeconds is < 0 or > 3600
+            || MaximumDelaySeconds < MinimumDelaySeconds
+            || MaximumDelaySeconds > 3600
+        )
             throw new InvalidDataException("Bot messages need a 0-1 chance and a 0-3600 second delay range.");
     }
 }
@@ -594,7 +833,13 @@ public sealed class NotableNameSettings
     {
         if (ExtraNames is null || ExtraNames.Count > 500 || ExtraNames.Any(n => string.IsNullOrWhiteSpace(n) || n.Length > 32))
             throw new InvalidDataException("Streamer names need 1-32 characters each, 500 at most.");
-        if (!double.IsFinite(SkillBonus) || SkillBonus is < 0 or > 1 || TierBoostMinimum is < 0 or > 6 || TierBoostMaximum < TierBoostMinimum || TierBoostMaximum > 6)
+        if (
+            !double.IsFinite(SkillBonus)
+            || SkillBonus is < 0 or > 1
+            || TierBoostMinimum is < 0 or > 6
+            || TierBoostMaximum < TierBoostMinimum
+            || TierBoostMaximum > 6
+        )
             throw new InvalidDataException("Notable names need a 0-1 skill bonus and a 0-6 tier boost range.");
     }
 }
@@ -619,10 +864,25 @@ public sealed class HideoutProgressionSettings
     {
         if (CompleteFromLevel is < 1 or > 79 || CompleteByLevel < CompleteFromLevel || CompleteByLevel > 79)
             throw new InvalidDataException("Hideout completion levels must be 1-79, the start at most the end.");
-        if (!double.IsFinite(ConstructionSpeed) || ConstructionSpeed is < .25 or > 4 || !double.IsFinite(MaterialCostMultiplier) || MaterialCostMultiplier is < .25 or > 4
-            || !double.IsFinite(BuiltChanceMultiplier) || BuiltChanceMultiplier is < .25 or > 4 || !double.IsFinite(NeglectedShare) || NeglectedShare is < 0 or > .5)
+        if (
+            !double.IsFinite(ConstructionSpeed)
+            || ConstructionSpeed is < .25 or > 4
+            || !double.IsFinite(MaterialCostMultiplier)
+            || MaterialCostMultiplier is < .25 or > 4
+            || !double.IsFinite(BuiltChanceMultiplier)
+            || BuiltChanceMultiplier is < .25 or > 4
+            || !double.IsFinite(NeglectedShare)
+            || NeglectedShare is < 0 or > .5
+        )
             throw new InvalidDataException("Hideout speed/cost/built chance must be 0.25-4 and neglected share 0-0.5.");
     }
 }
 
-public sealed record PrestigeRecord(int Level, string DefinitionId, long Utc, double LifetimeHours, int PreviousExperience, int CarriedItems);
+public sealed record PrestigeRecord(
+    int Level,
+    string DefinitionId,
+    long Utc,
+    double LifetimeHours,
+    int PreviousExperience,
+    int CarriedItems
+);

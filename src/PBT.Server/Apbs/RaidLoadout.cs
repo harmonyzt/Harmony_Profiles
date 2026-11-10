@@ -14,24 +14,38 @@ public sealed partial class PopulationStore
 
     private void InstallRaidLoadout(Harmony owner)
     {
-        var method = AccessTools.Method(typeof(BotInventoryGenerator), nameof(BotInventoryGenerator.GenerateInventory),
-            [typeof(MongoId), typeof(MongoId), typeof(BotType), typeof(BotGenerationDetails)]);
+        var method = AccessTools.Method(
+            typeof(BotInventoryGenerator),
+            nameof(BotInventoryGenerator.GenerateInventory),
+            [typeof(MongoId), typeof(MongoId), typeof(BotType), typeof(BotGenerationDetails)]
+        );
         if (method?.ReturnType != typeof(BotBaseInventory))
         {
             throw new MissingMethodException("SPT inventory generation contract changed.");
         }
 
         // Last, so APBS's prefix has already built its own inventory that this replaces.
-        owner.Patch(method, postfix: new HarmonyMethod(typeof(PopulationStore), nameof(RaidInventory))
-        {
-            priority = Priority.Last
-        });
+        owner.Patch(
+            method,
+            postfix: new HarmonyMethod(typeof(PopulationStore), nameof(RaidInventory)) { priority = Priority.Last }
+        );
     }
 
-    private static void RaidInventory(ref BotBaseInventory __result, MongoId botId, MongoId sessionId, BotType botJsonTemplate, BotGenerationDetails botGenerationDetails)
+    private static void RaidInventory(
+        ref BotBaseInventory __result,
+        MongoId botId,
+        MongoId sessionId,
+        BotType botJsonTemplate,
+        BotGenerationDetails botGenerationDetails
+    )
     {
         var store = Active;
-        if (store?.Ready != true || __result?.Items is null || __result.Equipment is null || ApbsIntegration.Current is not { LevelConfirmed: true, Career: { } career })
+        if (
+            store?.Ready != true
+            || __result?.Items is null
+            || __result.Equipment is null
+            || ApbsIntegration.Current is not { LevelConfirmed: true, Career: { } career }
+        )
         {
             return;
         }
@@ -51,7 +65,13 @@ public sealed partial class PopulationStore
     {
         lock (gate)
         {
-            if (!(policy.RetainProfileGearInRaid || IsCheater(c) && policy.Cheaters.AlwaysPbtGear) || c.Retired || c.NeedsRegear || !c.VisibleLoadout || !c.Side.Equals(side, StringComparison.OrdinalIgnoreCase))
+            if (
+                !(policy.RetainProfileGearInRaid || IsCheater(c) && policy.Cheaters.AlwaysPbtGear)
+                || c.Retired
+                || c.NeedsRegear
+                || !c.VisibleLoadout
+                || !c.Side.Equals(side, StringComparison.OrdinalIgnoreCase)
+            )
             {
                 return null;
             }
@@ -65,12 +85,20 @@ public sealed partial class PopulationStore
 
             var kit = equipment.DeepClone().AsObject();
             // Kits from before the career turned cheater get the cheater look at spawn. The encounter then saves it to the profile.
-            if (WearsCheaterKit(c) && !LooksLikeCheater(kit)) kit = CheaterKit(c, kit);
+            if (WearsCheaterKit(c) && !LooksLikeCheater(kit))
+                kit = CheaterKit(c, kit);
             return (kit, c.EquipmentIsSimulated);
         }
     }
 
-    private void WearProfileLoadout(Career c, BotBaseInventory inventory, MongoId botId, MongoId session, BotType template, BotGenerationDetails details)
+    private void WearProfileLoadout(
+        Career c,
+        BotBaseInventory inventory,
+        MongoId botId,
+        MongoId session,
+        BotType template,
+        BotGenerationDetails details
+    )
     {
         if (gearFactory is null || ProfileLoadout(c, details.Side ?? "") is not { } loadout)
         {
@@ -83,10 +111,7 @@ public sealed partial class PopulationStore
         Restock(stored);
         string root = inventory.Equipment!.Value.ToString();
         string storedRoot = stored["Id"]!.ToString();
-        var ids = new Dictionary<string, string>
-        {
-            [storedRoot] = root
-        };
+        var ids = new Dictionary<string, string> { [storedRoot] = root };
 
         var replacement = new JsonArray();
 
@@ -102,13 +127,24 @@ public sealed partial class PopulationStore
         }
 
         // The old kit's dogtag names the previous spawn; SPT adds a fresh one after inventory generation.
-        var dogtags = new HashSet<string>(stored["Items"]!.AsArray().OfType<JsonObject>().Where(i => i["parentId"]?.ToString() == storedRoot && i["slotId"]?.ToString() == "Dogtag")
-            .Select(i => i["_id"]!.ToString()));
+        var dogtags = new HashSet<string>(
+            stored["Items"]!
+                .AsArray()
+                .OfType<JsonObject>()
+                .Where(i => i["parentId"]?.ToString() == storedRoot && i["slotId"]?.ToString() == "Dogtag")
+                .Select(i => i["_id"]!.ToString())
+        );
 
         foreach (var item in stored["Items"]!.AsArray().OfType<JsonObject>())
         {
             string id = item["_id"]!.ToString();
-            if (id == storedRoot || dogtags.Contains(id) || item["parentId"]?.ToString() is not { } parent || dogtags.Contains(parent) || !ids.ContainsKey(parent))
+            if (
+                id == storedRoot
+                || dogtags.Contains(id)
+                || item["parentId"]?.ToString() is not { } parent
+                || dogtags.Contains(parent)
+                || !ids.ContainsKey(parent)
+            )
             {
                 continue;
             }
@@ -119,12 +155,11 @@ public sealed partial class PopulationStore
             replacement.Add(copy);
         }
 
-        var items = json.Deserialize<List<Item>>(replacement.ToJsonString()) ?? throw new InvalidDataException("Cannot read the stored profile loadout.");
+        var items =
+            json.Deserialize<List<Item>>(replacement.ToJsonString())
+            ?? throw new InvalidDataException("Cannot read the stored profile loadout.");
         var original = inventory.Items!.ToList();
-        var equipped = new HashSet<string>
-        {
-            root
-        };
+        var equipped = new HashSet<string> { root };
         bool changed;
         do
         {
@@ -160,7 +195,9 @@ public sealed partial class PopulationStore
             var seen = new HashSet<MongoId>();
             if (inventory.Items.Any(i => !seen.Add(i.Id)))
             {
-                throw new InvalidDataException($"Profile loadout for {c.Name} produced duplicate item ids; kept the generated kit.");
+                throw new InvalidDataException(
+                    $"Profile loadout for {c.Name} produced duplicate item ids; kept the generated kit."
+                );
             }
         }
         catch
@@ -203,7 +240,8 @@ public sealed partial class PopulationStore
                 continue;
             }
 
-            int x = node["x"]!.GetValue<int>(), y = node["y"]!.GetValue<int>();
+            int x = node["x"]!.GetValue<int>(),
+                y = node["y"]!.GetValue<int>();
             bool rotated = node["r"]?.ToString() is "Vertical" or "1";
             var size = itemHelper.GetItemSize(inventory.Items!, child.Id);
             if (size is null)
@@ -211,7 +249,8 @@ public sealed partial class PopulationStore
                 continue;
             }
 
-            int width = rotated ? size.Height : size.Width, height = rotated ? size.Width : size.Height;
+            int width = rotated ? size.Height : size.Width,
+                height = rotated ? size.Width : size.Height;
             var map = details.ContainerGridDetails[index].GridMap;
             for (int dy = 0; dy < height; dy++)
             for (int dx = 0; dx < width; dx++)
@@ -226,8 +265,12 @@ public sealed partial class PopulationStore
     private static readonly MongoId CylinderClass = new("627a137bf21bc425b06ab944");
 
     private TemplateItem? BoxMagazine(string? tpl) =>
-        tpl is not null && IsId(tpl) && templates.Items.TryGetValue(new MongoId(tpl), out var t) && itemHelper.IsOfBaseclass(t.Id, MagazineClass)
-        && !itemHelper.IsOfBaseclass(t.Id, CylinderClass) && t.Properties?.Cartridges?.FirstOrDefault()?.MaxCount > 0
+        tpl is not null
+        && IsId(tpl)
+        && templates.Items.TryGetValue(new MongoId(tpl), out var t)
+        && itemHelper.IsOfBaseclass(t.Id, MagazineClass)
+        && !itemHelper.IsOfBaseclass(t.Id, CylinderClass)
+        && t.Properties?.Cartridges?.FirstOrDefault()?.MaxCount > 0
             ? t
             : null;
 
@@ -241,11 +284,12 @@ public sealed partial class PopulationStore
             {
                 continue;
             }
-            
+
             string magId = mag["_id"]!.ToString();
             int capacity = (int)template.Properties!.Cartridges!.First().MaxCount!.Value;
             var rounds = all.Where(i => i["parentId"]?.ToString() == magId && i["slotId"]?.ToString() == "cartridges").ToList();
-            string? ammo = rounds.Select(r => r["_tpl"]?.ToString()).FirstOrDefault(t => t is not null) ?? AmmoFor(mag, all, template);
+            string? ammo =
+                rounds.Select(r => r["_tpl"]?.ToString()).FirstOrDefault(t => t is not null) ?? AmmoFor(mag, all, template);
 
             if (ammo is null || !templates.Items.TryGetValue(new MongoId(ammo), out var ammoTemplate))
             {
@@ -256,7 +300,7 @@ public sealed partial class PopulationStore
             {
                 items.Remove(r);
             }
-            
+
             int stack = Math.Max(1, ammoTemplate.Properties?.StackMaxSize ?? capacity);
             int stacks = (capacity + stack - 1) / stack;
             for (int index = 0, left = capacity; index < stacks; index++)
@@ -269,17 +313,14 @@ public sealed partial class PopulationStore
                     ["_tpl"] = ammo,
                     ["parentId"] = magId,
                     ["slotId"] = "cartridges",
-                    ["upd"] = new JsonObject
-                    {
-                        ["StackObjectsCount"] = count
-                    }
+                    ["upd"] = new JsonObject { ["StackObjectsCount"] = count },
                 };
                 // SPT leaves a single stack without a location.
                 if (stacks > 1)
                 {
                     node["location"] = index;
                 }
-                
+
                 items.Add(node);
             }
         }
@@ -293,22 +334,28 @@ public sealed partial class PopulationStore
         {
             return null;
         }
-        
-        bool Fits(string? tpl) => tpl is not null && IsId(tpl) && filter.Contains(new MongoId(tpl)) && templates.Items.ContainsKey(new MongoId(tpl));
-        
+
+        bool Fits(string? tpl) =>
+            tpl is not null && IsId(tpl) && filter.Contains(new MongoId(tpl)) && templates.Items.ContainsKey(new MongoId(tpl));
+
         var owned = all.Select(i => i["_tpl"]?.ToString()).FirstOrDefault(Fits);
         if (owned is not null)
         {
             return owned;
         }
-        
+
         var weapon = all.FirstOrDefault(i => i["_id"]?.ToString() == mag["parentId"]?.ToString());
-        if (weapon?["_tpl"]?.ToString() is { } wtpl && IsId(wtpl) && templates.Items.TryGetValue(new MongoId(wtpl), out var w) && w.Properties?.DefAmmo is { } def
-            && Fits(def.ToString()))
+        if (
+            weapon?["_tpl"]?.ToString() is { } wtpl
+            && IsId(wtpl)
+            && templates.Items.TryGetValue(new MongoId(wtpl), out var w)
+            && w.Properties?.DefAmmo is { } def
+            && Fits(def.ToString())
+        )
         {
             return def.ToString();
         }
-        
+
         return filter.Select(f => f.ToString()).FirstOrDefault(Fits);
     }
 }
