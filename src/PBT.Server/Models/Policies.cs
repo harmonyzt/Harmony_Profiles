@@ -678,9 +678,92 @@ public sealed class CheaterTypeShares
     }
 }
 
+// One personality's own weight, cheat chances and aim, used in PerType mode.
+public sealed class CheaterPersonality
+{
+    public double Weight { get; set; }
+    public double Aimbot { get; set; }
+    public double Esp { get; set; }
+    public double Godmode { get; set; }
+    public double Speedhack { get; set; }
+    public double Spinbot { get; set; }
+    public double BunnyHop { get; set; }
+    public double FightTeleport { get; set; }
+    public double Fly { get; set; }
+    public double Vacuum { get; set; }
+    public double Stalker { get; set; }
+    public double VoiceSpam { get; set; }
+    public double AimAccuracy { get; set; } = .7;
+    public double ReactionTime { get; set; } = 1;
+    public double SpeedMultiplier { get; set; } = 2.2;
+
+    public CheaterPersonality Clone() => (CheaterPersonality)MemberwiseClone();
+
+    public void Validate(string name)
+    {
+        double[] chances = [Aimbot, Esp, Godmode, Speedhack, Spinbot, BunnyHop, FightTeleport, Fly, Vacuum, Stalker, VoiceSpam, AimAccuracy];
+        if (
+            !double.IsFinite(Weight)
+            || Weight is < 0 or > 100
+            || chances.Any(c => !double.IsFinite(c) || c is < 0 or > 1)
+            || !double.IsFinite(ReactionTime)
+            || ReactionTime is < .5 or > 3
+            || !double.IsFinite(SpeedMultiplier)
+            || SpeedMultiplier is < 1 or > 6
+        )
+            throw new InvalidDataException(
+                $"{name} cheaters need a 0-100 weight, 0-1 chances, reaction time 0.5 to 3 and a speed multiplier 1 to 6."
+            );
+    }
+}
+
+public sealed class CheaterPersonalities
+{
+    public CheaterPersonality Closet { get; set; } = CheaterRules.Seed(CheaterRules.Closet, null);
+    public CheaterPersonality Looter { get; set; } = CheaterRules.Seed(CheaterRules.Looter, null);
+    public CheaterPersonality Hunter { get; set; } = CheaterRules.Seed(CheaterRules.Hunter, null);
+    public CheaterPersonality Rage { get; set; } = CheaterRules.Seed(CheaterRules.Rage, null);
+    public CheaterPersonality Troll { get; set; } = CheaterRules.Seed(CheaterRules.Troll, null);
+
+    public CheaterPersonality Get(string type) =>
+        type switch
+        {
+            CheaterRules.Looter => Looter,
+            CheaterRules.Hunter => Hunter,
+            CheaterRules.Rage => Rage,
+            CheaterRules.Troll => Troll,
+            _ => Closet,
+        };
+
+    public CheaterPersonalities Clone() =>
+        new()
+        {
+            Closet = Closet.Clone(),
+            Looter = Looter.Clone(),
+            Hunter = Hunter.Clone(),
+            Rage = Rage.Clone(),
+            Troll = Troll.Clone(),
+        };
+
+    public void Validate()
+    {
+        if (Closet is null || Looter is null || Hunter is null || Rage is null || Troll is null)
+            throw new InvalidDataException("A cheater personality is missing.");
+        foreach (var type in CheaterRules.Types)
+            Get(type).Validate(type);
+        if (CheaterRules.Types.All(t => Get(t).Weight <= 0))
+            throw new InvalidDataException("At least one cheater personality needs a weight above 0.");
+    }
+}
+
 // Chances (0 to 1) that a cheater bot has each cheat its type allows.
 public sealed class CheaterPlaySettings
 {
+    // Shared: one chance per cheat, each type only rolls the cheats it is allowed (the original system).
+    // PerType: every personality has its own weight, chances and aim, and nothing is locked.
+    public string Mode { get; set; } = CheaterRules.Shared;
+    public CheaterPersonalities Personalities { get; set; } = new();
+
     public CheaterTypeShares Types { get; set; } = new();
 
     // Every bullet goes to its target's head. Closet cheaters aim mostly at the body and miss now and then.
@@ -740,6 +823,7 @@ public sealed class CheaterPlaySettings
     {
         var copy = (CheaterPlaySettings)MemberwiseClone();
         copy.Types = Types.Clone();
+        copy.Personalities = Personalities.Clone();
         return copy;
     }
 
@@ -747,7 +831,12 @@ public sealed class CheaterPlaySettings
     {
         if (Types is null)
             throw new InvalidDataException("Cheater types are missing.");
+        if (Mode is not (CheaterRules.Shared or CheaterRules.PerType))
+            throw new InvalidDataException("Cheater mode must be Shared or PerType.");
+        if (Personalities is null)
+            throw new InvalidDataException("Cheater personalities are missing.");
         Types.Validate();
+        Personalities.Validate();
         double[] chances =
         [
             Aimbot,

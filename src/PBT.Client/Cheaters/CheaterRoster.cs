@@ -4,6 +4,7 @@ using EFT;
 using EFT.Ballistics;
 using EFT.Communications;
 using EFT.HealthSystem;
+using EFT.InventoryLogic;
 using HarmonyLib;
 using Newtonsoft.Json.Linq;
 using SPT.Common.Http;
@@ -69,40 +70,11 @@ internal readonly record struct HuntProfile(
     float GiveUp
 );
 
+internal sealed record Rolled(CheaterType Type, Cheat Cheats, float Accuracy, float Reaction, float Speed);
+
 // Which bots in this raid are cheaters, their type and the cheats they rolled. The movement itself lives in CheaterBrain, which needs BigBrain.
 internal static class CheaterRoster
 {
-    private static readonly (Cheat Cheat, string Key)[] Chances =
-    [
-        (Cheat.Aimbot, "Aimbot"),
-        (Cheat.Esp, "Esp"),
-        (Cheat.Godmode, "Godmode"),
-        (Cheat.Speedhack, "Speedhack"),
-        (Cheat.Spinbot, "Spinbot"),
-        (Cheat.BunnyHop, "BunnyHop"),
-        (Cheat.FightTeleport, "FightTeleport"),
-        (Cheat.Fly, "Fly"),
-        (Cheat.Vacuum, "Vacuum"),
-        (Cheat.Stalker, "Stalker"),
-        (Cheat.VoiceSpam, "VoiceSpam"),
-    ];
-
-    // Per type: cheats it always has, and the ones it may roll.
-    private static readonly Dictionary<CheaterType, (Cheat Always, Cheat May)> Kits = new()
-    {
-        [CheaterType.Closet] = (Cheat.None, Cheat.Aimbot | Cheat.Esp),
-        [CheaterType.Looter] = (Cheat.None, Cheat.Vacuum | Cheat.Esp | Cheat.Aimbot | Cheat.Speedhack),
-        [CheaterType.Hunter] = (
-            Cheat.Esp | Cheat.Aimbot,
-            Cheat.Speedhack | Cheat.BunnyHop | Cheat.FightTeleport | Cheat.Godmode | Cheat.VoiceSpam
-        ),
-        [CheaterType.Rage] = (Cheat.Aimbot, Cheat.All & ~(Cheat.Vacuum | Cheat.Stalker)),
-        [CheaterType.Troll] = (
-            Cheat.Stalker | Cheat.VoiceSpam,
-            Cheat.Godmode | Cheat.FightTeleport | Cheat.Speedhack | Cheat.Spinbot | Cheat.Aimbot
-        ),
-    };
-
     // Closet cheaters aim about as fast as a good player and miss plenty. Rage cheaters snap hard but still have to turn and react.
     private static readonly Dictionary<CheaterType, AimProfile> Profiles = new()
     {
@@ -128,7 +100,14 @@ internal static class CheaterRoster
     private static ConfigEntry<CheaterType>? forcedType;
     private static ConfigEntry<int>? spawnedCheaters;
     private static readonly HashSet<int> accounts = new();
-    private static readonly Dictionary<int, (CheaterType Type, Cheat Cheats)> rolled = new();
+    // Type, cheats and aim tuning per account. The server rolls real cheaters; only debug picks are rolled here.
+    private static readonly Dictionary<int, Rolled> rolled = new();
+    private static readonly Dictionary<int, Rolled> fromServer = new();
+    private static JObject table = new();
+
+    // Accounts already reported, with the last state sent, and the bot so a death can be noticed.
+    private static readonly Dictionary<int, (Player? Player, string State)> reported = new();
+    private static string raidId = "";
     private static readonly Dictionary<int, float> nextLine = new();
     private static readonly Dictionary<int, float> nextEsp = new();
 
@@ -137,6 +116,7 @@ internal static class CheaterRoster
     private static readonly Dictionary<Player, float> lastHit = new();
     internal static float RaidStart;
     private static readonly HashSet<Player> speeders = new();
+    private static readonly HashSet<Player> spinners = new();
     private static readonly HashSet<Player> driven = new();
     private static readonly Dictionary<Player, Player> aims = new();
     private static readonly List<Player> alive = new();
@@ -157,8 +137,9 @@ internal static class CheaterRoster
     internal static float Rivalry => play.Value<float?>("Rivalry") ?? .5f;
 
     // 1 at the default accuracy of 0.7.
-    private static float Accuracy => Mathf.Clamp01(play.Value<float?>("AimAccuracy") ?? .7f) / .7f;
-    internal static float ReactionScale => Mathf.Clamp(play.Value<float?>("ReactionTime") ?? 1f, .5f, 3f);
+    private static float Accuracy(Player player) => Mathf.Clamp01(Roll(player).Accuracy) / .7f;
+
+    internal static float ReactionScale(Player player) => Mathf.Clamp(Roll(player).Reaction, .5f, 3f);
 
     internal static HuntProfile HuntOf(Player player) =>
         Hunts.TryGetValue(TypeOf(player), out var hunt) ? hunt : Hunts[CheaterType.Closet];
@@ -166,7 +147,7 @@ internal static class CheaterRoster
     internal static AimProfile AimOf(Player player) =>
         Profiles.TryGetValue(TypeOf(player), out var aim) ? aim : Profiles[CheaterType.Closet];
 
-    private static float SpeedMultiplier => Mathf.Clamp(play.Value<float?>("SpeedMultiplier") ?? 2.2f, 1, 6);
+    private static float SpeedMultiplier(Player player) => Mathf.Clamp(Roll(player).Speed, 1, 6);
 
     internal static void Install(Harmony harmony, ConfigFile config)
     {
@@ -219,18 +200,38 @@ internal static class CheaterRoster
                 prefix: new HarmonyMethod(typeof(CheaterRoster), nameof(Speedhack)),
                 postfix: new HarmonyMethod(typeof(CheaterRoster), nameof(SpeedhackDone))
             );
+
+        var steer = AccessTools.Method(typeof(BotSteering), nameof(BotSteering.ManualFixedUpdate));
+        if (steer is null)
+            Plugin.Report("Cheater spinbot movement fix unavailable.");
+        else
+            harmony.Patch(steer, postfix: new HarmonyMethod(typeof(CheaterRoster), nameof(SpinMove)));
     }
 
-    internal static void RaidStarted()
+    // BotOwner runs the mover before steering, so a spinner's walk input is relative to where it faced a moment ago
+    // and every spin step or flick sends it off its path. Redone after the turn, against the facing it really has.
+    private static void SpinMove(BotSteering __instance)
     {
+        if (spinners.Count == 0 || __instance._player is not { } player || !spinners.Contains(player))
+            return;
+        if (player.AIData?.BotOwner?.Mover is { IsMoving: true } mover)
+            player.Move(mover.TurnMove());
+    }
+
+    internal static void RaidStarted(string raid)
+    {
+        raidId = raid;
         accounts.Clear();
         rolled.Clear();
+        fromServer.Clear();
+        reported.Clear();
         nextLine.Clear();
         nextEsp.Clear();
         heat.Clear();
         lastHit.Clear();
         RaidStart = Time.time;
         speeders.Clear();
+        spinners.Clear();
         driven.Clear();
         aims.Clear();
         CheaterMind.Clear();
@@ -250,44 +251,55 @@ internal static class CheaterRoster
 
     internal static bool IsCheater(Player? player) => player is not null && accounts.Contains(Account(player));
 
-    private static (CheaterType Type, Cheat Cheats) Roll(Player player)
+    private static Rolled Roll(Player player)
     {
         int account = Account(player);
         if (rolled.TryGetValue(account, out var known))
             return known;
 
-        var type = forcedType?.Value is { } f and not CheaterType.Random ? f : RollType(account);
-        var (always, may) = Kits[type];
-        var cheats = always;
-        int salt = 10;
-        foreach (var (cheat, key) in Chances)
-            if ((may & cheat) != 0 && Hash(account, salt++) < (play.Value<float?>(key) ?? 0))
-                cheats |= cheat;
-        // A closet cheater that rolled nothing still runs one of the two.
-        if (type == CheaterType.Closet && cheats == Cheat.None)
-            cheats = Hash(account, 30) < .5f ? Cheat.Aimbot : Cheat.Esp;
-        rolled[account] = (type, cheats);
-        Log($"{player.Profile.Nickname} is a {type} cheater with {cheats}.");
-        return (type, cheats);
+        var forcedTo = forcedType?.Value ?? CheaterType.Random;
+        bool local = !fromServer.TryGetValue(account, out var result) || forcedTo != CheaterType.Random && forcedTo != result.Type;
+        if (local)
+            result = RollHere(account, forcedTo == CheaterType.Random ? RollType(account) : forcedTo);
+        rolled[account] = result!;
+        Log($"{player.Profile.Nickname} is a {result!.Type} cheater with {result.Cheats}{(local ? " (rolled on the client)" : "")}.");
+        return result;
     }
+
+    // Debug picks and forced types only. Same rule as the server: the type's chance for each cheat.
+    private static Rolled RollHere(int account, CheaterType type)
+    {
+        var p = table[type.ToString()] as JObject;
+        var cheats = Cheat.None;
+        int salt = 10;
+        foreach (Cheat cheat in Enum.GetValues(typeof(Cheat)))
+        {
+            if (cheat is Cheat.None or Cheat.All)
+                continue;
+            if (Hash(account, salt++) < (p?.Value<float?>(cheat.ToString()) ?? 0))
+                cheats |= cheat;
+        }
+
+        return new Rolled(
+            type,
+            cheats,
+            p?.Value<float?>("AimAccuracy") ?? .7f,
+            p?.Value<float?>("ReactionTime") ?? 1f,
+            p?.Value<float?>("SpeedMultiplier") ?? 2.2f
+        );
+    }
+
+    private static float Weight(CheaterType type) => Math.Max(0, (table[type.ToString()] as JObject)?.Value<float?>("Weight") ?? 0);
 
     private static CheaterType RollType(int account)
     {
-        var types = play["Types"] as JObject;
-        (CheaterType Type, float Share)[] shares =
-        [
-            (CheaterType.Closet, types?.Value<float?>("Closet") ?? .4f),
-            (CheaterType.Looter, types?.Value<float?>("Looter") ?? .25f),
-            (CheaterType.Hunter, types?.Value<float?>("Hunter") ?? .2f),
-            (CheaterType.Rage, types?.Value<float?>("Rage") ?? .1f),
-            (CheaterType.Troll, types?.Value<float?>("Troll") ?? .05f),
-        ];
-        float total = shares.Sum(s => Math.Max(0, s.Share));
+        CheaterType[] types = [CheaterType.Closet, CheaterType.Looter, CheaterType.Hunter, CheaterType.Rage, CheaterType.Troll];
+        float total = types.Sum(Weight);
         if (total <= 0)
             return CheaterType.Closet;
         float roll = Hash(account, 1) * total;
-        foreach (var (type, share) in shares)
-            if ((roll -= Math.Max(0, share)) < 0)
+        foreach (var type in types)
+            if ((roll -= Weight(type)) < 0)
                 return type;
         return CheaterType.Closet;
     }
@@ -343,7 +355,7 @@ internal static class CheaterRoster
 
     // Bends a shot onto the target only if the gun already points roughly at it, the type's hit roll comes up and the line is clear.
     // So an aimbot still has to turn first, misses now and then, and never shoots through walls.
-    private static void Aimbot(Player.FirearmController __instance, Vector3 shotPosition, ref Vector3 shotDirection)
+    private static void Aimbot(Player.FirearmController __instance, ref Vector3 shotPosition, ref Vector3 shotDirection)
     {
         if (
             !behaviour
@@ -360,23 +372,32 @@ internal static class CheaterRoster
 
         var aim = AimOf(shooter);
         var point = (UnityEngine.Random.value < aim.Head ? target.PlayerBones.Head : target.PlayerBones.Ribcage).position;
-        var want = (point - shotPosition).normalized;
-        // A spinbot's body faces anywhere, so it snaps from any angle.
-        if (Vector3.Angle(shotDirection, want) > (Has(shooter, Cheat.Spinbot) ? 180 : aim.Snap))
+        // A spinbot's barrel points anywhere, often into the floor, so its shots leave from the head (silent aim).
+        bool spinner = Has(shooter, Cheat.Spinbot);
+        var from = spinner ? shooter.PlayerBones.Head.position : shotPosition;
+        var want = (point - from).normalized;
+        if (!spinner && Vector3.Angle(shotDirection, want) > aim.Snap)
             return;
-        if (UnityEngine.Random.value >= Mathf.Clamp01(aim.Hit * Accuracy))
+        if (Physics.Linecast(from, point, LayersMaskController.HighPolyWithTerrainMask))
             return;
-        if (Physics.Linecast(shotPosition, point, LayersMaskController.HighPolyWithTerrainMask))
+        if (spinner)
+            shotPosition = from + want * .3f;
+        if (UnityEngine.Random.value >= Mathf.Clamp01(aim.Hit * Accuracy(shooter)))
+        {
+            // A spinner's miss still flies past the target, not wherever the spinning barrel points.
+            if (spinner)
+                shotDirection = Quaternion.Euler(UnityEngine.Random.Range(-3f, 3f), UnityEngine.Random.Range(-3f, 3f), 0) * want;
             return;
+        }
         shotDirection = want;
     }
 
     private static void Speedhack(MovementContext __instance, ref Vector3 motion, out float __state)
     {
         __state = float.NaN;
-        if (speeders.Count == 0 || !speeders.Contains(contextPlayer(__instance)))
+        if (speeders.Count == 0 || contextPlayer(__instance) is not { } player || !speeders.Contains(player))
             return;
-        float m = SpeedMultiplier;
+        float m = SpeedMultiplier(player);
         motion = new Vector3(motion.x * m, motion.y, motion.z * m);
         // The controller's own speed limit would clamp the boost away.
         __state = __instance.CharacterController.SpeedLimit;
@@ -401,6 +422,7 @@ internal static class CheaterRoster
         }
 
         speeders.Clear();
+        spinners.Clear();
         if (!behaviour)
             return;
         alive.Clear();
@@ -421,8 +443,16 @@ internal static class CheaterRoster
             }
 
             if (IsCheater(player))
+            {
                 alive.Add(player);
+                if (!reported.ContainsKey(Account(player)))
+                    See(player, "Spawned");
+            }
         }
+
+        foreach (var pair in reported.ToList())
+            if (pair.Value.State == "Spawned" && pair.Value.Player?.HealthController?.IsAlive != true)
+                See(pair.Value.Player, "Died", pair.Key);
 
         bool banRoll = now >= nextBanRoll;
         if (banRoll)
@@ -439,6 +469,8 @@ internal static class CheaterRoster
                 if (banRoll && player.Velocity.sqrMagnitude > 1)
                     Suspect(player, .08f);
             }
+            if (BrainInstalled && Has(player, Cheat.Spinbot))
+                spinners.Add(player);
 
             if (Has(player, Cheat.Esp) && !driven.Contains(player))
                 Esp(player, now);
@@ -509,6 +541,7 @@ internal static class CheaterRoster
         if (chance <= 0 || UnityEngine.Random.value >= chance || player.ActiveHealthController is not { } health)
             return;
         Log($"{player.Profile.Nickname} got banned mid-raid at {suspicion:0.0} suspicion.");
+        See(player, "Banned");
         aims.Remove(player);
         health.Kill(EDamageType.Undefined);
         if (play.Value<bool?>("BanNotice") ?? true)
@@ -546,50 +579,115 @@ internal static class CheaterRoster
         }
     }
 
-    // Every few minutes pulls a handful of the most valuable loose items within 200 m straight into its bag, without moving.
-    // Once the bag is "full" it extracts. Needs no BigBrain, so it runs for any cheater with the cheat.
+    private const float PullRange = 150;
+
+    // Every half minute or so pulls the most valuable loose items within 150 m straight into its bag, without moving.
+    // They are real items, so they drop with its body. With nothing in range it heads for the best loot further off
+    // (the brain walks it there), and once nothing fits or it has its fill it extracts. Without BigBrain it only pulls.
     private static void Vacuum(Player player)
     {
         var mind = CheaterMind.Of(player);
-        if (mind.Left || Time.time < mind.NextPull)
+        if (mind.Left || mind.Pulling || Time.time < mind.NextPull)
             return;
-        mind.NextPull = Time.time + UnityEngine.Random.Range(90f, 240f);
-        if (mind.Looted >= mind.Capacity)
+        mind.NextPull = Time.time + UnityEngine.Random.Range(20f, 45f);
+        if (mind.Looted >= mind.Capacity || mind.BagFull)
         {
             mind.Left = true;
             Log($"{player.Profile.Nickname} vacuumed {mind.Looted} items and extracted.");
+            See(player, "Extracted");
             player.AIData?.BotOwner?.LeaveData?.RemoveFromMap();
             return;
         }
 
-        var world = Singleton<GameWorld>.Instance;
-        var loot = world.LootItems;
-        var picks = new List<(EFT.Interactive.LootItem Item, int Price)>();
+        var loot = Singleton<GameWorld>.Instance.LootItems;
+        var near = new List<(EFT.Interactive.LootItem Item, int Price)>();
+        EFT.Interactive.LootItem? far = null;
+        int farPrice = 0;
         for (int i = 0; i < loot.Count; i++)
         {
             var item = loot.GetByIndex(i);
-            if (item?.Item is null || item.Item.QuestItem || (item.transform.position - player.Position).sqrMagnitude > 200 * 200)
+            if (item?.Item is null || item.Item.QuestItem)
                 continue;
-            picks.Add((item, item.Item.Template.CreditsPrice * Math.Max(1, item.Item.StackObjectsCount)));
+            int price = item.Item.Template.CreditsPrice * Math.Max(1, item.Item.StackObjectsCount);
+            if (price <= 0)
+                continue;
+            if ((item.transform.position - player.Position).sqrMagnitude <= PullRange * PullRange)
+                near.Add((item, price));
+            else if (price > farPrice)
+            {
+                farPrice = price;
+                far = item;
+            }
         }
 
-        int take = Math.Min(UnityEngine.Random.Range(2, 6), mind.Capacity - mind.Looted);
-        foreach (var (item, price) in picks.OrderByDescending(p => p.Price).Take(take))
+        if (near.Count == 0)
         {
-            Log(
-                $"{player.Profile.Nickname} vacuumed {item.Item.TemplateId} ({price:N0} RUB) from {Vector3.Distance(item.transform.position, player.Position):0} m."
-            );
-            world.DestroyLoot(item);
-            mind.Looted++;
-            Suspect(player, 1);
+            // Nothing worth taking anywhere is as good as a full bag.
+            if (far is null)
+                mind.BagFull = true;
+            else if (mind.LootSpot is null)
+            {
+                mind.LootSpot = far.transform.position;
+                Log($"{player.Profile.Nickname} heads for {far.Item.TemplateId} ({farPrice:N0} RUB) {Vector3.Distance(far.transform.position, player.Position):0} m away.");
+            }
+            return;
         }
 
-        // Nothing left nearby: that counts as a full bag.
-        if (picks.Count == 0)
-            mind.Looted = mind.Capacity;
+        mind.LootSpot = null;
+        int take = Math.Min(UnityEngine.Random.Range(2, 6), mind.Capacity - mind.Looted);
+        _ = Pull(player, mind, near.OrderByDescending(p => p.Price).Take(15).ToList(), take);
     }
 
-    // "Scav ahead" or "Hold fire" nonstop, lines piling over each other like a voice-line macro.
+    // Takes the best items that fit. Big ones that do not fit are skipped for smaller ones.
+    private static async Task Pull(Player player, CheaterMind mind, List<(EFT.Interactive.LootItem Item, int Price)> picks, int take)
+    {
+        mind.Pulling = true;
+        int got = 0;
+        try
+        {
+            var controller = player.InventoryController;
+            foreach (var (loose, price) in picks)
+            {
+                if (got >= take || player.HealthController?.IsAlive != true)
+                    break;
+                // Someone else may have taken it while the last move ran.
+                if (loose == null || loose.Item is not { } item)
+                    continue;
+                var address = controller.FindGridToPickUp(item);
+                if (
+                    address is null
+                    || string.Equals(address.GetRootItem()?.Parent?.Container?.ID, "securedcontainer", StringComparison.OrdinalIgnoreCase)
+                )
+                    continue;
+                float distance = Vector3.Distance(loose.transform.position, player.Position);
+                var move = EFT.InventoryLogic.ItemManipulator.Move(item, address, controller, true);
+                if (move.Failed || (await controller.TryRunNetworkTransaction(move, null)).Failed)
+                    continue;
+                got++;
+                mind.Looted++;
+                Suspect(player, 1);
+                Log($"{player.Profile.Nickname} vacuumed {item.TemplateId} ({price:N0} RUB) from {distance:0} m.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"Vacuum failed for {player.Profile.Nickname}: {ex.Message}");
+        }
+        finally
+        {
+            mind.Pulling = false;
+        }
+
+        if (got > 0)
+            See(player, "Spawned");
+        else
+        {
+            mind.BagFull = true;
+            mind.NextPull = Time.time + UnityEngine.Random.Range(5f, 10f);
+        }
+    }
+
+    // "Scav ahead" or "Hold fire" on a macro: each line cut off a split second in by the next, like a key held down.
     private static void Spam(Player player, float now)
     {
         int account = Account(player);
@@ -603,8 +701,44 @@ internal static class CheaterRoster
         }
 
         var phrase = Hash(account, 4) < .5f ? EPhraseTrigger.Scav : EPhraseTrigger.HoldFire;
-        player.Speaker.Play(phrase, player.HealthStatus | ETagStatus.Combat, true, 1000);
-        nextLine[account] = now + UnityEngine.Random.Range(.06f, .14f);
+        // Play() skips while the last line is still running and goes through the group blockers, so it only ever
+        // got whole lines. Shut + PlayDirectRandom restarts the speech source at once.
+        player.Speaker.Shut();
+        player.Speaker.PlayDirectRandom(phrase);
+        nextLine[account] = now + UnityEngine.Random.Range(.1f, .22f);
+    }
+
+    // Tells the server what happened to a cheater, so the editor shows who is in the raid and what became of them.
+    internal static void See(Player? player, string state, int account = 0)
+    {
+        if (account == 0)
+            account = Account(player);
+        if (account == 0 || reported.TryGetValue(account, out var last) && last.State is "Died" or "Banned" or "Extracted")
+            return;
+        reported[account] = (player, state);
+        int looted = player is null ? 0 : CheaterMind.Of(player).Looted;
+        _ = Post(account, state, looted);
+    }
+
+    private static async Task Post(int account, string state, int looted)
+    {
+        try
+        {
+            await RequestHandler.PostJsonAsync(
+                "/pbt/raid/cheater-seen",
+                new JObject
+                {
+                    ["RaidId"] = raidId,
+                    ["AccountId"] = account,
+                    ["State"] = state,
+                    ["Looted"] = looted,
+                }.ToString(Newtonsoft.Json.Formatting.None)
+            );
+        }
+        catch (Exception ex)
+        {
+            Log("Cheater report failed: " + ex.Message);
+        }
     }
 
     private static async Task Refresh()
@@ -612,19 +746,54 @@ internal static class CheaterRoster
         fetching = true;
         try
         {
-            var response = JObject.Parse(await RequestHandler.GetJsonAsync("/pbt/raid/cheaters"));
-            if (response.Value<int>("ProtocolVersion") != 1)
+            var response = JObject.Parse(
+                await RequestHandler.PostJsonAsync(
+                    "/pbt/raid/cheaters",
+                    new JObject { ["RaidId"] = raidId }.ToString(Newtonsoft.Json.Formatting.None)
+                )
+            );
+            if (response.Value<int>("ProtocolVersion") != 2)
                 return;
             behaviour = response.Value<bool>("Behaviour");
+            bool changed = false;
             if (response["Play"] is JObject chances && !JToken.DeepEquals(chances, play))
             {
                 play = chances;
-                rolled.Clear();
+                changed = true;
             }
 
-            foreach (var id in response["Cheaters"] ?? new JArray())
-                if (accounts.Add(id.Value<int>()))
-                    Log($"Account {id} is a cheater in this raid.");
+            if (response["Table"] is JObject types && !JToken.DeepEquals(types, table))
+            {
+                table = types;
+                changed = true;
+            }
+
+            foreach (var entry in (response["Cheaters"] as JArray ?? new JArray()).OfType<JObject>())
+            {
+                int id = entry.Value<int>("AccountId");
+                var cheats = Cheat.None;
+                foreach (var name in entry["Cheats"] as JArray ?? new JArray())
+                    if (Enum.TryParse(name.Value<string>(), out Cheat c))
+                        cheats |= c;
+                var server = new Rolled(
+                    Enum.TryParse(entry.Value<string>("Type"), out CheaterType t) ? t : CheaterType.Closet,
+                    cheats,
+                    entry.Value<float?>("AimAccuracy") ?? .7f,
+                    entry.Value<float?>("ReactionTime") ?? 1f,
+                    entry.Value<float?>("SpeedMultiplier") ?? 2.2f
+                );
+                if (!fromServer.TryGetValue(id, out var old) || old != server)
+                {
+                    fromServer[id] = server;
+                    rolled.Remove(id);
+                }
+
+                if (accounts.Add(id))
+                    Log($"Account {id} is a {server.Type} cheater in this raid.");
+            }
+
+            if (changed)
+                rolled.Clear();
         }
         catch (Exception ex)
         {

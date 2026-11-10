@@ -1503,6 +1503,87 @@ else if (page == "Notable")
 }
 else if (page == "Cheaters")
 {
+    var overview = cheaterOverview;
+    var effective = CheaterRules.EffectiveAll(simulation.Cheaters.Play);
+    double weightTotal = Math.Max(1e-9, CheaterRules.Types.Sum(t => Math.Max(0, effective[t].Weight)));
+    <div class="fb-stats fb-stats-6">
+        <article class="fb-card fb-stat">
+            <span class="fb-stat-label">Cheater accounts@(Tip("Accounts that cheat right now. Banned ones are not counted."))</span>
+            <strong>@(overview?.Active ?? 0)</strong>
+        </article>
+        <article class="fb-card fb-stat">
+            <span class="fb-stat-label">Blatant@(Tip("Absurd stats and, with cheater loadouts on, a cheater kit."))</span>
+            <strong>@(overview?.Blatant ?? 0)</strong>
+        </article>
+        <article class="fb-card fb-stat">
+            <span class="fb-stat-label">Closet@(Tip("Good but believable stats, at most one tell in the kit."))</span>
+            <strong>@(overview?.Closet ?? 0)</strong>
+        </article>
+        <article class="fb-card fb-stat">
+            <span class="fb-stat-label">Undercover@(Tip("A fully ordinary profile. Only how they play gives them away."))</span>
+            <strong>@(overview?.Undercover ?? 0)</strong>
+        </article>
+        <article class="fb-card fb-stat">
+            <span class="fb-stat-label">In the last raid@(Tip("Cheater accounts the server put in your last raid."))</span>
+            <strong>@(overview?.Raid.Count ?? 0)</strong>
+        </article>
+        <article class="fb-card fb-stat">
+            <span class="fb-stat-label">Spawned@(Tip("Of those, how many the game actually spawned. PMCs are generated ahead and many never spawn."))</span>
+            <strong>@(overview?.Raid.Count(s => s.SpawnedUtc > 0) ?? 0)</strong>
+        </article>
+    </div>
+    <section class="fb-card fb-flush">
+        <div class="fb-card-head fb-padded">
+            <div>
+                <h2>Cheaters in your raid</h2>
+                <p>@(overview is null || overview.RaidStartedUtc == 0
+                       ? "Nothing yet. Start a raid with the client mod and the cheaters the server put in it show up here, live."
+                       : $"{(overview.Map.Length > 0 ? overview.Map + ", " : "")}started {Ago(overview.RaidStartedUtc)}. Personality and cheats are rolled by the server, so this is exactly what each bot runs.")</p>
+            </div>
+        </div>
+        @if (overview?.Raid.Count > 0)
+        {
+            <div class="fb-table-scroll">
+                <table class="fb-table">
+                    <thead>
+                    <tr>
+                        <th>Player</th><th>Status</th><th>Profile</th><th>Personality</th><th>Cheats</th><th>Looted</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in overview.Raid)
+                    {
+                        <tr @key="row.AccountId">
+                            <td>
+                                <button type="button" class="fb-name-link" @onclick="() => OpenPlayer(row.CareerId)">@row.Name</button>
+                                <span class="fb-muted">@row.Side, level @row.Level</span>
+                            </td>
+                            <td>
+                                <span class="fb-badge @(row.State switch { "Spawned" => "fb-badge-green", "Banned" or "Died" => "fb-badge-red", "Extracted" => "fb-badge-yellow", _ => "" })"
+                                      title="@(row.SpawnedUtc > 0 ? "Spawned " + Ago(row.SpawnedUtc) : "Generated for the raid, not spawned (yet)")">
+                                    @(row.State == "Generated" ? "Not spawned" : row.State)
+                                </span>
+                            </td>
+                            <td>@(row.Debug ? "Debug pick" : row.Style)</td>
+                            <td><strong>@row.Type</strong></td>
+                            <td class="fb-cheat-list">
+                                @if (row.Cheats.Count == 0)
+                                {
+                                    <span class="fb-muted">None</span>
+                                }
+                                @foreach (var cheat in row.Cheats)
+                                {
+                                    <span class="fb-badge">@CheaterRules.CheatLabels.GetValueOrDefault(cheat, cheat)</span>
+                                }
+                            </td>
+                            <td>@(row.Cheats.Contains("Vacuum") ? row.Looted.ToString() : "")</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
     <section class="fb-card">
         <h2>Cheater accounts</h2>
         <p class="fb-muted">A small share of accounts cheat. Their names look like anyone else's; their kit, their stats and
@@ -1606,7 +1687,7 @@ else if (page == "Cheaters")
                 <input type="checkbox" role="switch" @bind="simulation.Cheaters.Behaviour"/>
                 <span class="fb-switch-track"></span>
                 Cheat in raid@(Tip(
-                    "Each cheater is a type (closet, looter, hunter, rage or troll) and rolls the cheats its type allows. "
+                    "Each cheater has a personality (closet, looter, hunter, rage or troll) and the cheats it rolled. "
                     + "Patrol stays with whatever moves your bots (Questing Bots, Looting Bots, ORBIT or the game's own). Once "
                     + "a cheater is in a fight, or its ESP finds someone, it fights with its cheats: rage cheaters push "
                     + "straight in, hunters flank, closet cheaters take cover and hold an angle with their crosshair on you "
@@ -1617,83 +1698,138 @@ else if (page == "Cheaters")
         @Warn("Needs BigBrain on the client. Without it cheaters still wear their kit but play like normal bots.")
         @if (simulation.Cheaters.Behaviour)
         {
-            <p class="fb-muted">How much do you want to suffer? Pick a starting point, then tune each cheat.</p>
+            var play = simulation.Cheaters.Play;
+            <h3>How cheats are picked</h3>
+            <div class="fb-segmented" role="radiogroup">
+                <button type="button" role="radio" aria-checked="@(play.Mode == CheaterRules.Shared)"
+                        class="@(play.Mode == CheaterRules.Shared ? "fb-on" : "")" @onclick="() => play.Mode = CheaterRules.Shared">
+                    Shared chances
+                </button>
+                <button type="button" role="radio" aria-checked="@(play.Mode == CheaterRules.PerType)"
+                        class="@(play.Mode == CheaterRules.PerType ? "fb-on" : "")" @onclick="() => play.Mode = CheaterRules.PerType">
+                    Per personality
+                </button>
+            </div>
+            <p class="fb-muted">@(play.Mode == CheaterRules.Shared
+                ? "One chance per cheat for everyone. Each personality only rolls the cheats it is allowed, and some it always has. The table shows what that works out to."
+                : "Every personality has its own weight, chances and aim. Nothing is locked: set a cheat to 0 to take it away or 1 to always give it.")</p>
             <div class="fb-actions">
+                <span class="fb-muted">Starting points:</span>
                 <button type="button" class="fb-button fb-button-light" @onclick='() => CheaterPreset("mild")'>Mild</button>
                 <button type="button" class="fb-button fb-button-light" @onclick='() => CheaterPreset("normal")'>Normal</button>
                 <button type="button" class="fb-button fb-button-light" @onclick='() => CheaterPreset("brutal")'>Brutal</button>
+                @if (play.Mode == CheaterRules.PerType)
+                {
+                    <button type="button" class="fb-button fb-button-light" @onclick="CopySharedIntoPersonalities">Copy shared chances in</button>
+                }
             </div>
         }
     </section>
     @if (simulation.Cheaters.Behaviour)
     {
         var play = simulation.Cheaters.Play;
-        <section class="fb-card">
-            <h2>What cheaters are after</h2>
-            <p class="fb-muted">Each cheater is one type. Shares are relative, so they need not add up to 1. A type decides
-                which cheats below it can roll at all.</p>
-            <div class="fb-grid">
-                <label class="fb-field">
-                    <span class="fb-label">Closet@(Tip(
-                        "Aimbot or ESP, otherwise plays like anyone else. In a fight it works angles: crouched behind cover "
-                        + "with its crosshair following you through the wall, short peeks and leans, and a new angle after a "
-                        + "few peeks or a hit. With ESP it waits until you look away. Aims mostly at the body and misses now "
-                        + "and then."))</span>
-                    <input type="number" min="0" max="1" step="0.05" @bind="play.Types.Closet"/>
-                </label>
-                <label class="fb-field">
-                    <span class="fb-label">Looter@(Tip(
-                        "In for money or quests. Loots and quests on its normal AI (Looting Bots or Questing Bots if you run "
-                        + "them), keeps away from PMCs and you, running to cover when one gets within 70 m, and only fights "
-                        + "players when cornered or shot. Fights scavs like anyone. Can have loot vacuum, ESP, aimbot or "
-                        + "speedhack."))</span>
-                    <input type="number" min="0" max="1" step="0.05" @bind="play.Types.Looter"/>
-                </label>
-                <label class="fb-field">
-                    <span class="fb-label">Hunter@(Tip(
-                        "In for kills. Always ESP and aimbot. Hunts a handful of players a raid: circles round behind you, "
-                        + "then works an angle and opens up when you look away or are busy with someone else. Can add "
-                        + "speedhack, bunny hop, fight teleports and godmode."))</span>
-                    <input type="number" min="0" max="1" step="0.05" @bind="play.Types.Hunter"/>
-                </label>
-                <label class="fb-field">
-                    <span class="fb-label">Rage@(Tip(
-                        "Everything on. Always aimbot, and can roll any cheat: spinbot, flying, teleports, godmode, voice "
-                        + "spam. Walks straight at you and strafes side to side while it sprays. Never waits for a better "
-                        + "moment."))</span>
-                    <input type="number" min="0" max="1" step="0.05" @bind="play.Types.Rage"/>
-                </label>
-                <label class="fb-field">
-                    <span class="fb-label">Troll@(Tip(
-                        "Leaves you alone for the first few minutes. Then it visits: pops up off to your side, teabags, "
-                        + "jumps and spams voice lines, and vanishes the moment you aim at it. After a few visits, or once you "
-                        + "hit it, it sets a trap on an angle near you."))</span>
-                    <input type="number" min="0" max="1" step="0.05" @bind="play.Types.Troll"/>
-                </label>
+        bool perType = play.Mode == CheaterRules.PerType;
+        <section class="fb-card fb-flush">
+            <div class="fb-card-head fb-padded">
+                <div>
+                    <h2>Personalities</h2>
+                    <p>@(perType
+                           ? "Weights are relative, so they need not add up to anything. Chances are 0 to 1."
+                           : "Weights are editable here; the chances come from the shared cards below. Always means the personality always has it, a dash that it never can.")</p>
+                </div>
+            </div>
+            <div class="fb-table-scroll">
+                <table class="fb-table fb-matrix">
+                    <thead>
+                    <tr>
+                        <th></th>
+                        @foreach (var type in CheaterRules.Types)
+                        {
+                            <th>@type@(Tip(PersonalityTip(type)))</th>
+                        }
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr class="fb-matrix-head">
+                        <td>Weight</td>
+                        @foreach (var type in CheaterRules.Types)
+                        {
+                            var t = type;
+                            <td>
+                                <input type="number" min="0" max="@(perType ? 100 : 1)" step="0.05"
+                                       value="@Invariant(effective[t].Weight)" @onchange="e => SetWeight(t, e.Value)"/>
+                                <span class="fb-muted">@((Math.Max(0, effective[t].Weight) / weightTotal).ToString("P0"))</span>
+                            </td>
+                        }
+                    </tr>
+                    @foreach (var cheat in CheaterRules.Cheats)
+                    {
+                        var c = cheat;
+                        <tr>
+                            <td>@CheaterRules.CheatLabels[c]</td>
+                            @foreach (var type in CheaterRules.Types)
+                            {
+                                var t = type;
+                                <td>
+                                    @if (perType)
+                                    {
+                                        <input type="number" min="0" max="1" step="0.05"
+                                               value="@Invariant(CheaterRules.Chance(play.Personalities.Get(t), c))"
+                                               @onchange="e => SetChance(t, c, e.Value)"/>
+                                    }
+                                    else
+                                    {
+                                        @switch (CheaterRules.Allowed(t, c))
+                                        {
+                                            case CheaterRules.Access.Always:
+                                                <span class="fb-badge fb-badge-green">Always</span>
+                                                break;
+                                            case CheaterRules.Access.May:
+                                                <span>@CheaterRules.SharedChance(play, c).ToString("P0")</span>
+                                                break;
+                                            default:
+                                                <span class="fb-muted">-</span>
+                                                break;
+                                        }
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                    @foreach (var (key, label) in new[] { ("AimAccuracy", "Aim accuracy"), ("ReactionTime", "Reaction time"), ("SpeedMultiplier", "Speedhack multiplier") })
+                    {
+                        var k = key;
+                        <tr class="@(k == "AimAccuracy" ? "fb-matrix-head" : "")">
+                            <td>@label</td>
+                            @foreach (var type in CheaterRules.Types)
+                            {
+                                var t = type;
+                                var p = effective[t];
+                                double v = k switch { "AimAccuracy" => p.AimAccuracy, "ReactionTime" => p.ReactionTime, _ => p.SpeedMultiplier };
+                                <td>
+                                    @if (perType)
+                                    {
+                                        <input type="number" step="0.05"
+                                               min="@(k == "AimAccuracy" ? 0 : k == "ReactionTime" ? 0.5 : 1)"
+                                               max="@(k == "AimAccuracy" ? 1 : k == "ReactionTime" ? 3 : 6)"
+                                               value="@Invariant(v)" @onchange="e => SetTuning(t, k, e.Value)"/>
+                                    }
+                                    else
+                                    {
+                                        <span>@v.ToString("0.##")</span>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                    </tbody>
+                </table>
             </div>
         </section>
         <section class="fb-card">
-            <h2>Combat</h2>
+            <h2>Targets</h2>
+            <p class="fb-muted">Apply to every personality, in both modes.</p>
             <div class="fb-grid">
-                <label class="fb-field">
-                    <span class="fb-label">Aimbot@(Tip(
-                        "Chance (0 to 1) a cheater that may use it has aimbot: every bullet that has a clear line goes to "
-                        + "its target. Closet cheaters aim mostly at the body and miss now and then."))</span>
-                    <input type="number" min="0" max="1" step="0.05" @bind="play.Aimbot"/>
-                </label>
-                <label class="fb-field">
-                    <span class="fb-label">ESP@(Tip(
-                        "Chance (0 to 1) a cheater that may use it knows where everyone nearby is, through walls. It walks "
-                        + "straight to you but still needs a clear line to shoot. Without ESP a cheater only knows what it saw "
-                        + "and heard, and searches your last position like any bot."))</span>
-                    <input type="number" min="0" max="1" step="0.05" @bind="play.Esp"/>
-                </label>
-                <label class="fb-field">
-                    <span class="fb-label">Godmode@(Tip(
-                        "Chance (0 to 1) a cheater takes no damage at all. Only a ban kills it. 0 if you want every cheater "
-                        + "killable."))</span>
-                    <input type="number" min="0" max="1" step="0.05" @bind="play.Godmode"/>
-                </label>
                 <label class="fb-field">
                     <span class="fb-label">Goes after you@(Tip(
                         "Share (0 to 1) of fights where a cheater picks you over a bot nearby. Lower it and cheaters mostly "
@@ -1706,72 +1842,83 @@ else if (page == "Cheaters")
                         + "fights back. Two rage cheaters meeting is a show."))</span>
                     <input type="number" min="0" max="1" step="0.05" @bind="play.Rivalry"/>
                 </label>
+            </div>
+        </section>
+        @if (!perType)
+        {
+        <section class="fb-card">
+            <h2>Shared chances</h2>
+            <p class="fb-muted">Chance (0 to 1) that a cheater whose personality may use a cheat has it. Personalities that
+                always have it, or never can, ignore these.</p>
+            <div class="fb-grid">
+                <label class="fb-field">
+                    <span class="fb-label">Aimbot@(Tip(
+                        "Every bullet that has a clear line goes to its target. Closet cheaters aim mostly at the body and miss "
+                        + "now and then."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.Aimbot"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">ESP@(Tip(
+                        "Knows where everyone nearby is, through walls. It walks straight to you but still needs a clear line "
+                        + "to shoot."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.Esp"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Godmode@(Tip("Takes no damage at all. Only a ban kills it."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.Godmode"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Speedhack@(Tip("Moves faster than anyone can run."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.Speedhack"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Spinbot@(Tip("Spins like a top while it walks at its target."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.Spinbot"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Bunny hop@(Tip(
+                        "Bunny hops, and now and then clears a low wall with a jump far higher than anyone can."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.BunnyHop"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Teleports in fights@(Tip(
+                        "Now and then teleports behind its target mid-fight. It shouts a moment before and needs a moment "
+                        + "after landing before it can shoot."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.FightTeleport"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Flying@(Tip("Hovers in the air over its target."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.Fly"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Loot vacuum@(Tip(
+                        "Looters always have it. Every half minute the best loose items within 150 m fly into its bag "
+                        + "(they drop with its body). With nothing in range it walks to the best loot further off, and once "
+                        + "nothing fits it extracts."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.Vacuum"/>
+                </label>
+                <label class="fb-field">
+                    <span class="fb-label">Voice spam@(Tip("Spams Scav ahead or Hold fire nonstop. Only heard within 80 m."))</span>
+                    <input type="number" min="0" max="1" step="0.05" @bind="play.VoiceSpam"/>
+                </label>
                 <label class="fb-field">
                     <span class="fb-label">Aim accuracy@(Tip(
                         "Scales how often an aimbot shot lands (0 to 1). At 0.7 a closet cheater lands about half its aimbot "
-                        + "shots, mostly to the body, and a rage cheater most of them, mostly to the head. Either way the gun "
-                        + "has to point roughly at you first, so a cheater still has to turn."))</span>
+                        + "shots, mostly to the body, and a rage cheater most of them, mostly to the head."))</span>
                     <input type="number" min="0" max="1" step="0.05" @bind="play.AimAccuracy"/>
                 </label>
                 <label class="fb-field">
                     <span class="fb-label">Reaction time@(Tip(
-                        "Scales how long a cheater takes to shoot once it sees you (0.5 to 3, higher is slower). At 1 a "
-                        + "closet cheater takes 0.35 to 0.6 s and a rage cheater 0.15 to 0.3 s, a bit less when it held the "
-                        + "angle pre-aimed."))</span>
+                        "Scales how long a cheater takes to shoot once it sees you (0.5 to 3, higher is slower)."))</span>
                     <input type="number" min="0.5" max="3" step="0.1" @bind="play.ReactionTime"/>
-                </label>
-            </div>
-        </section>
-        <section class="fb-card">
-            <h2>Movement</h2>
-            <div class="fb-grid">
-                <label class="fb-field">
-                    <span class="fb-label">Speedhack@(Tip("Chance (0 to 1) a cheater moves faster than anyone can run."))</span>
-                    <input type="number" min="0" max="1" step="0.05" @bind="play.Speedhack"/>
                 </label>
                 <label class="fb-field">
                     <span class="fb-label">Speedhack multiplier@(Tip("How much faster (1 to 6) a speedhacker moves."))</span>
                     <input type="number" min="1" max="6" step="0.1" @bind="play.SpeedMultiplier"/>
                 </label>
-                <label class="fb-field">
-                    <span class="fb-label">Spinbot@(Tip(
-                        "Chance (0 to 1) a cheater spins like a top while it walks at its target."))</span>
-                    <input type="number" min="0" max="1" step="0.05" @bind="play.Spinbot"/>
-                </label>
-                <label class="fb-field">
-                    <span class="fb-label">Bunny hop@(Tip(
-                        "Chance (0 to 1) a cheater bunny hops, and behind close cover jumps far higher than anyone can to "
-                        + "shoot over it."))</span>
-                    <input type="number" min="0" max="1" step="0.05" @bind="play.BunnyHop"/>
-                </label>
-                <label class="fb-field">
-                    <span class="fb-label">Teleports in fights@(Tip(
-                        "Chance (0 to 1) a cheater now and then teleports behind its target mid-fight. It shouts a moment "
-                        + "before and needs a moment after landing before it can shoot, so you can turn on it."))</span>
-                    <input type="number" min="0" max="1" step="0.05" @bind="play.FightTeleport"/>
-                </label>
-                <label class="fb-field">
-                    <span class="fb-label">Flying@(Tip("Chance (0 to 1) a cheater hovers in the air over its target."))</span>
-                    <input type="number" min="0" max="1" step="0.05" @bind="play.Fly"/>
-                </label>
             </div>
         </section>
-        <section class="fb-card">
-            <h2>Map and griefing</h2>
-            <div class="fb-grid">
-                <label class="fb-field">
-                    <span class="fb-label">Loot vacuum@(Tip(
-                        "Chance (0 to 1) a looter has a loot vacuum: every few minutes the best loose items within 200 m "
-                        + "vanish into its bag, and once the bag is full it extracts."))</span>
-                    <input type="number" min="0" max="1" step="0.05" @bind="play.Vacuum"/>
-                </label>
-                <label class="fb-field">
-                    <span class="fb-label">Voice spam@(Tip(
-                        "Chance (0 to 1) a cheater spams Scav ahead or Hold fire nonstop. Only heard within 80 m."))</span>
-                    <input type="number" min="0" max="1" step="0.05" @bind="play.VoiceSpam"/>
-                </label>
-            </div>
-        </section>
+        }
         <section class="fb-card">
             <h2>In-raid anticheat</h2>
             <p class="fb-muted">Every cheater builds up suspicion as it plays: each teleport, flight, impossible jump, spin
@@ -2671,7 +2818,17 @@ else
         };
 
     // Starting points for how rough cheaters are. Normal is the shipped default.
-    private void CheaterPreset(string level) => simulation.Cheaters.Play = level switch
+    private void CheaterPreset(string level)
+    {
+        var mode = simulation.Cheaters.Play.Mode;
+        var next = CheaterPresetValues(level);
+        next.Mode = mode;
+        foreach (var type in CheaterRules.Types)
+            SetPersonality(next.Personalities, type, CheaterRules.Seed(type, next));
+        simulation.Cheaters.Play = next;
+    }
+
+    private static CheaterPlaySettings CheaterPresetValues(string level) => level switch
     {
         "mild" => new CheaterPlaySettings
         {
@@ -2686,6 +2843,106 @@ else
             VoiceSpam = .6, TargetsYou = .7, BanPerMinute = .005, AimAccuracy = .9, ReactionTime = .75
         },
         _ => new CheaterPlaySettings()
+    };
+
+    private CheaterOverview? cheaterOverview;
+
+    private void LoadCheaters()
+    {
+        try
+        {
+            cheaterOverview = Store.GetCheaterOverview();
+        }
+        catch
+        {
+        }
+    }
+
+    private static void SetPersonality(CheaterPersonalities all, string type, CheaterPersonality p)
+    {
+        switch (type)
+        {
+            case CheaterRules.Looter: all.Looter = p; break;
+            case CheaterRules.Hunter: all.Hunter = p; break;
+            case CheaterRules.Rage: all.Rage = p; break;
+            case CheaterRules.Troll: all.Troll = p; break;
+            default: all.Closet = p; break;
+        }
+    }
+
+    private void CopySharedIntoPersonalities()
+    {
+        var play = simulation!.Cheaters.Play;
+        foreach (var type in CheaterRules.Types)
+            SetPersonality(play.Personalities, type, CheaterRules.Seed(type, play));
+    }
+
+    private static string Invariant(double value) => value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static double? ParseInput(object? value) =>
+        double.TryParse(value?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double d)
+        && double.IsFinite(d)
+            ? d
+            : null;
+
+    private void SetWeight(string type, object? value)
+    {
+        if (ParseInput(value) is not { } v)
+            return;
+        var play = simulation!.Cheaters.Play;
+        if (play.Mode == CheaterRules.PerType)
+        {
+            play.Personalities.Get(type).Weight = Math.Clamp(v, 0, 100);
+            return;
+        }
+
+        v = Math.Clamp(v, 0, 1);
+        switch (type)
+        {
+            case CheaterRules.Looter: play.Types.Looter = v; break;
+            case CheaterRules.Hunter: play.Types.Hunter = v; break;
+            case CheaterRules.Rage: play.Types.Rage = v; break;
+            case CheaterRules.Troll: play.Types.Troll = v; break;
+            default: play.Types.Closet = v; break;
+        }
+    }
+
+    private void SetChance(string type, string cheat, object? value)
+    {
+        if (ParseInput(value) is { } v)
+            CheaterRules.SetChance(simulation!.Cheaters.Play.Personalities.Get(type), cheat, Math.Clamp(v, 0, 1));
+    }
+
+    private void SetTuning(string type, string key, object? value)
+    {
+        if (ParseInput(value) is not { } v)
+            return;
+        var p = simulation!.Cheaters.Play.Personalities.Get(type);
+        switch (key)
+        {
+            case "AimAccuracy": p.AimAccuracy = Math.Clamp(v, 0, 1); break;
+            case "ReactionTime": p.ReactionTime = Math.Clamp(v, .5, 3); break;
+            default: p.SpeedMultiplier = Math.Clamp(v, 1, 6); break;
+        }
+    }
+
+    private static string PersonalityTip(string type) => type switch
+    {
+        CheaterRules.Looter =>
+            "In for money. Vacuums the best loose loot within 150 m into its bag, walks to richer spots when nothing is in "
+            + "range and extracts once nothing fits. Keeps away from PMCs and you within 40 m and only fights when cornered "
+            + "or shot.",
+        CheaterRules.Hunter =>
+            "In for kills. Hunts a handful of players a raid: circles round behind you, then works an angle and opens up "
+            + "when you look away or are busy with someone else.",
+        CheaterRules.Rage =>
+            "Everything on. Walks straight at you and strafes side to side while it sprays. Never waits for a better moment.",
+        CheaterRules.Troll =>
+            "Leaves you alone for the first few minutes. Then it visits: pops up off to your side, teabags, jumps and spams "
+            + "voice lines, and vanishes the moment you aim at it. After a few visits, or once you hit it, it sets a trap.",
+        _ =>
+            "Plays like anyone else until a fight. Then it works angles: crouched behind cover with its crosshair following "
+            + "you through the wall, short peeks and leans. Aims mostly at the body and misses now and then.",
     };
 
     private static RenderFragment Warn(string text) =>
@@ -2829,6 +3086,7 @@ else
         if (next is "Overview" or "Players") LoadWorld();
         if (next == "Watching") LoadWatched();
         if (next == "Presets") LoadPresets();
+        if (next == "Cheaters") LoadCheaters();
         menuOpen = false;
         if (simulationPages.Contains(next)) simulationOpen = true;
     }
@@ -2899,6 +3157,7 @@ else
         else if (page == "Player") LoadProfile();
         else if (page == "Watching") LoadWatched();
         else if (page == "Dashboard") UpdateStatus();
+        else if (page == "Cheaters") LoadCheaters();
         else return;
         bool sliding = page == "Overview" && !slideHeld && !slideHover;
         if (sliding && ++ticks % 2 == 0 && world?.Maps.Count > 1)

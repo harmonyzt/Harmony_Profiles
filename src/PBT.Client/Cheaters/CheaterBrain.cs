@@ -22,6 +22,7 @@ internal enum CheaterPhase
     Evade,
     Stalk,
     Fight,
+    Loot,
 }
 
 // How a cheater fights. Push walks or teleports straight in, Flank swings round the side first, Hold takes an angle and pre-aims through the wall.
@@ -37,7 +38,12 @@ internal sealed class CheaterMind
 {
     public int Looted,
         Capacity = UnityEngine.Random.Range(8, 21);
-    public float NextPull = Time.time + UnityEngine.Random.Range(30f, 90f);
+    public float NextPull = Time.time + UnityEngine.Random.Range(15f, 40f);
+    public bool Pulling,
+        BagFull;
+
+    // Where a looter walks when nothing worth vacuuming is in range.
+    public Vector3? LootSpot;
 
     // A looter's reason to run: the PMC (or you) it is keeping away from.
     public Player? Threat;
@@ -226,7 +232,8 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
     private AntiPitch antiPitch;
     private float spinRate,
         nextYaw,
-        nextPitch;
+        nextPitch,
+        nextSuperJump;
     private bool jitterLeft,
         pitchUp;
     private Vector3? angle,
@@ -258,11 +265,20 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
             {
                 float d = Vector3.Distance(threat.Position, bot.Position);
                 bool shot = owner.Memory?.GoalEnemy is { } hit && Time.time - hit.LastGetHitTime < 6;
-                if (!shot && d > 20)
+                if (!shot && d > 15)
                     return true;
                 mind.Threat = null;
                 mind.Track(threat, threat.Position);
                 return true;
+            }
+
+            // Nothing in vacuum range: walk to where the loot is, unless its own AI is in a fight.
+            if (mind.LootSpot is { } spot && InFight(owner, bot, mind) is null)
+            {
+                if ((spot - bot.Position).sqrMagnitude > 12 * 12)
+                    return true;
+                mind.LootSpot = null;
+                mind.NextPull = 0;
             }
         }
 
@@ -299,11 +315,12 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         && Me is { } me
         && me.HealthController?.IsAlive == true;
 
-    // The nearest PMC or human it knows about within 70 m (95 m once it is already keeping away). Scavs are not worth running from.
+    // The nearest PMC or human it knows about within 40 m (60 m once it is already keeping away). Scavs are not worth running from.
+    // It used to be 70 m, which on busy maps kept it running from cover to cover all raid and never looting.
     private static Player? Threat(BotOwner owner, Player bot, CheaterMind mind)
     {
         bool esp = CheaterRoster.Has(bot, Cheat.Esp);
-        float range = mind.Threat is not null ? 95 : 70;
+        float range = mind.Threat is not null ? 60 : 40;
         Player? best = null;
         float nearest = range * range;
         foreach (var p in World.AllAlivePlayersList)
@@ -458,6 +475,7 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         Enter(
             mind.Threat is not null ? CheaterPhase.Evade
             : Stalking(Bot, mind) ? CheaterPhase.Stalk
+            : Looting(mind) ? CheaterPhase.Loot
             : CheaterPhase.Fight
         );
     }
@@ -494,13 +512,21 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
     {
         if (Mind.Left || !Singleton<GameWorld>.Instantiated)
             return;
-        // The layer decides once a second whether a looter runs or fights.
-        if (Mind.Threat is not null != (phase == CheaterPhase.Evade))
-            Enter(Mind.Threat is not null ? CheaterPhase.Evade : CheaterPhase.Fight);
+        // The layer decides once a second whether a looter runs, walks to loot or fights.
+        var want =
+            Mind.Threat is not null ? CheaterPhase.Evade
+            : Looting(Mind) ? CheaterPhase.Loot
+            : phase is CheaterPhase.Evade or CheaterPhase.Loot ? CheaterPhase.Fight
+            : phase;
+        if (want != phase)
+            Enter(want);
         switch (phase)
         {
             case CheaterPhase.Evade:
                 Evade();
+                break;
+            case CheaterPhase.Loot:
+                WalkToLoot();
                 break;
             case CheaterPhase.Stalk:
                 Stalk();
@@ -509,6 +535,29 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
                 Fight();
                 break;
         }
+    }
+
+    // A looter with no target of its own and somewhere richer to be.
+    private static bool Looting(CheaterMind mind) => mind.LootSpot is not null && mind.Target is null;
+
+    private void WalkToLoot()
+    {
+        if (Mind.LootSpot is not { } spot)
+            return;
+        Trigger(false);
+        CheaterRoster.Aim(Bot, null);
+        BotOwner.SetPose(1f);
+        BotOwner.SetTargetMoveSpeed(1f);
+        if (destination != spot || Time.time >= nextPath)
+        {
+            destination = spot;
+            nextPath = Time.time + 5;
+            // The loot can sit off the navmesh (on a shelf), so walk to the nearest point that is on it.
+            BotOwner.GoToPoint(Near(spot) ?? spot, false);
+        }
+
+        BotOwner.Mover?.Sprint(!Has(Cheat.Spinbot));
+        BotOwner.Steering?.LookToMovingDirection();
     }
 
     // Runs to cover away from the threat, then crouches there watching it. Speedhackers get away faster.
@@ -1190,7 +1239,7 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
     private float Reaction()
     {
         var aim = CheaterRoster.AimOf(Bot);
-        float seconds = UnityEngine.Random.Range(aim.ReactMin, aim.ReactMax) * CheaterRoster.ReactionScale;
+        float seconds = UnityEngine.Random.Range(aim.ReactMin, aim.ReactMax) * CheaterRoster.ReactionScale(Bot);
         return tactic == Tactic.Hold && settled ? seconds * .65f : seconds;
     }
 
@@ -1202,23 +1251,38 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         return Vector3.Angle(Bot.LookDirection, toward) <= Mathf.Max(CheaterRoster.AimOf(Bot).Snap, 6);
     }
 
-    // Bunny hops. Behind close cover with headroom it jumps far higher than anyone can, so it never pops into a ceiling.
+    // Bunny hops. Now and then it clears a low wall right in front with a jump far higher than anyone can.
+    // Only over a real wall with room above and ground behind, and rarely: every superjump used to stall the path.
     private void Hop(Player prey, bool clear, float distance)
     {
         if (Time.time < nextJump || distance > 90 || tactic == Tactic.Hold && settled)
             return;
         nextJump = Time.time + UnityEngine.Random.Range(1.1f, 2f);
         Bot.MovementContext?.TryJump();
+        if (clear || distance > 25 || Time.time < nextSuperJump)
+            return;
+
+        var mask = LayersMaskController.HighPolyWithTerrainMask;
+        var dir = prey.Position - Bot.Position;
+        dir.y = 0;
+        if (dir.sqrMagnitude < .01f)
+            return;
+        dir.Normalize();
+        var from = Bot.Position;
         if (
-            !clear
-            && distance < 25
-            && !Physics.Raycast(Bot.Position + Vector3.up * 1.8f, Vector3.up, 1.6f, LayersMaskController.HighPolyWithTerrainMask)
+            !Physics.Raycast(from + Vector3.up * 1f, dir, out var wall, 2.5f, mask)
+            || Physics.Raycast(from + Vector3.up * 3.2f, dir, wall.distance + 1.5f, mask)
+            || Physics.Raycast(from + Vector3.up * 1.8f, Vector3.up, 1.6f, mask)
+            || Near(from + dir * (wall.distance + 1.2f)) is not { } landing
+            || Mathf.Abs(landing.y - from.y) > 2f
         )
-        {
-            Bot.Teleport(Bot.Position + Vector3.up * UnityEngine.Random.Range(2f, 3f));
-            CheaterRoster.Suspect(Bot, 2);
-            CheaterRoster.Log($"{Bot.Profile.Nickname} jumped over cover at {prey.Profile.Nickname}.");
-        }
+            return;
+
+        nextSuperJump = Time.time + UnityEngine.Random.Range(8f, 15f);
+        Bot.Teleport(landing + Vector3.up * UnityEngine.Random.Range(1.5f, 2.2f));
+        nextPath = 0;
+        CheaterRoster.Suspect(Bot, 2);
+        CheaterRoster.Log($"{Bot.Profile.Nickname} jumped over cover at {prey.Profile.Nickname}.");
     }
 
     // Repaths only when the goal moved, since every new path makes the bot slow down and start again. Never sprints: a spinning body drops it.

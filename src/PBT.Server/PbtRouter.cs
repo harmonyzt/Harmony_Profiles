@@ -91,31 +91,53 @@ public sealed class PbtRouter(JsonUtil json, PopulationStore store)
                     );
                 }
             ),
-            new RouteAction(
+            new RouteAction<CheaterRosterRequest>(
                 "/pbt/raid/cheaters",
                 (url, request, session, output, token) =>
                 {
-                    (bool Behaviour, List<int> Cheaters, CheaterPlaySettings Play) raid = (false, [], new CheaterPlaySettings());
+                    (bool Behaviour, List<RaidCheater> Cheaters, CheaterPlaySettings Play, Dictionary<string, CheaterPersonality> Table) raid = (
+                        false,
+                        [],
+                        new CheaterPlaySettings(),
+                        []
+                    );
                     try
                     {
-                        raid = store.RaidCheaters(session);
+                        raid = store.RaidCheaters(session, request?.RaidId ?? "");
                     }
                     catch (Exception ex)
                     {
                         store.Report(ex);
                     }
 
-                    return new ValueTask<object>(
+                    return new ValueTask<string>(
                         json.Serialize(
                             new
                             {
-                                ProtocolVersion = 1,
+                                ProtocolVersion = 2,
                                 raid.Behaviour,
                                 raid.Cheaters,
                                 raid.Play,
+                                raid.Table,
                             }
                         )!
                     );
+                }
+            ),
+            new RouteAction<CheaterSeenRequest>(
+                "/pbt/raid/cheater-seen",
+                (url, request, session, output, token) =>
+                {
+                    try
+                    {
+                        store.CheaterSeen(request);
+                    }
+                    catch (Exception ex)
+                    {
+                        store.Report(ex);
+                    }
+
+                    return new ValueTask<string>(json.Serialize(new { ProtocolVersion = 1 })!);
                 }
             ),
             new RouteAction<CheaterBanRequest>(

@@ -196,7 +196,7 @@ public sealed class Plugin : BaseUnityPlugin
             Report("Raid profile count failed: " + ex.Message);
         }
 
-        CheaterRoster.RaidStarted();
+        CheaterRoster.RaidStarted(raidId);
         try
         {
             RaidActivity.Start(__instance, raidId);

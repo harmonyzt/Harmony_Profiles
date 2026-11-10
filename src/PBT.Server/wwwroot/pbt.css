@@ -2305,3 +2305,64 @@
         justify-content: space-between
     }
 }
+
+/* Cheaters page */
+.pbt-editor .fb-badge:not([class*="fb-badge-"]) {
+    background: var(--fb-surface-2);
+    color: var(--fb-text)
+}
+
+.pbt-editor .fb-cheat-list {
+    white-space: normal;
+    min-width: 220px
+}
+
+.pbt-editor .fb-cheat-list .fb-badge {
+    margin: 2px 4px 2px 0
+}
+
+.pbt-editor .fb-segmented {
+    display: inline-flex;
+    border: 1px solid var(--fb-border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 4px 0 8px
+}
+
+.pbt-editor .fb-segmented button {
+    border: 0;
+    background: var(--fb-surface);
+    color: var(--fb-muted);
+    font: inherit;
+    font-weight: 600;
+    padding: 8px 16px;
+    cursor: pointer
+}
+
+.pbt-editor .fb-segmented button + button {
+    border-left: 1px solid var(--fb-border)
+}
+
+.pbt-editor .fb-segmented button.fb-on {
+    background: var(--fb-primary-soft);
+    color: var(--fb-primary)
+}
+
+.pbt-editor .fb-matrix td:first-child {
+    color: var(--fb-muted);
+    font-weight: 600
+}
+
+.pbt-editor .fb-matrix td input {
+    min-width: 0;
+    width: 76px
+}
+
+.pbt-editor .fb-matrix-head td {
+    border-top: 2px solid var(--fb-border)
+}
+
+.pbt-editor .fb-matrix-head td .fb-muted {
+    margin-left: 6px;
+    font-size: 12px
+}
