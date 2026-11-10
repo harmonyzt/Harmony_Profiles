@@ -120,6 +120,9 @@ public sealed class Career
     public JsonObject Customization { get; set; } = new();
     public bool VisibleLoadout { get; set; }
     public bool Cheater { get; set; }
+
+    // The current kit already had its cheater roll, even if that roll left it looking ordinary.
+    public bool CheaterKitRolled { get; set; }
     public long SessionEndUtc { get; set; }
     public long LastOfflineUtc { get; set; }
     public int DeathStreak { get; set; }

@@ -341,6 +341,10 @@ public sealed partial class PopulationStore
         {
             equipment = CheaterKit(career, equipment);
         }
+        else if (cheaterLook && extraTiers == 0)
+        {
+            career.CheaterKitRolled = false;
+        }
 
         return equipment;
     }

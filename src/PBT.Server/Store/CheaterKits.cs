@@ -89,15 +89,16 @@ public sealed partial class PopulationStore
         return (head ? 1 : 0) + (naked ? 2 : 0) + (melee ? 1 : 0) + (sa58 ? 1 : 0);
     }
 
-    // Kits saved before the profile styles existed carry the full look. Undercover and closet accounts regear into theirs.
+    // Kits saved before the profile styles existed carry the full look. Undercover and closet accounts regear into theirs,
+    // blatant ones from before the per-tell rolls get one fresh roll.
     private void RestyleCheaterKits()
     {
         if (!policy.Cheaters.Enabled || !policy.Cheaters.CheaterGear)
             return;
-        foreach (var c in population.Careers.Values.Where(c => !c.Retired && IsCheater(c) && !Blatant(c) && !c.GearPending))
+        foreach (var c in population.Careers.Values.Where(c => !c.Retired && IsCheater(c) && !c.GearPending))
         {
             int tells = CheaterTells(Assets(c).Equipment);
-            if (Closet(c) ? tells > 1 : tells > 0)
+            if (Blatant(c) ? !c.CheaterKitRolled && tells > 0 : Closet(c) ? tells > 1 : tells > 0)
                 c.GearPending = true;
         }
     }
@@ -113,20 +114,23 @@ public sealed partial class PopulationStore
     {
         var s = policy.Cheaters;
         var kit = equipment.DeepClone().AsObject();
+        c.CheaterKitRolled = true;
         bool closet = Closet(c);
-        bool naked = !closet && Random.Shared.NextDouble() < s.NakedShare;
         try
         {
-            if (naked)
+            if (closet)
+            {
+                if (Random.Shared.NextDouble() < s.ClosetTellChance)
+                    ClosetTell(kit);
+            }
+            else if (Random.Shared.NextDouble() < s.NakedShare)
                 NakedKit(kit);
-            else if (closet)
-                ClosetTell(kit);
             else
             {
                 if (Random.Shared.NextDouble() < s.HelmetChance)
                     ApplyCheaterHelmet(kit);
-                if (s.Melee.Count > 0)
-                    ReplaceSlot(kit, "Scabbard", CreateShowcaseCollectible(s.Melee[Random.Shared.Next(s.Melee.Count)]));
+                if (Random.Shared.NextDouble() < s.MeleeChance)
+                    CheaterMelee(kit);
                 if (Random.Shared.NextDouble() < s.Sa58Chance && BareSa58() is { } gun)
                 {
                     RemoveSlots(kit, "SecondPrimaryWeapon");
@@ -144,6 +148,13 @@ public sealed partial class PopulationStore
         return ValidEquipment(kit) && HasVisibleLoadout(kit) ? kit : equipment;
     }
 
+    private void CheaterMelee(JsonObject kit)
+    {
+        var melee = policy.Cheaters.Melee;
+        if (melee.Count > 0)
+            ReplaceSlot(kit, "Scabbard", CreateShowcaseCollectible(melee[Random.Shared.Next(melee.Count)]));
+    }
+
     // A closet cheater slips once: the head pick, odd melee or the drum gun, never more than one.
     private void ClosetTell(JsonObject kit)
     {
@@ -152,7 +163,7 @@ public sealed partial class PopulationStore
         if (roll < .4)
             ApplyCheaterHelmet(kit);
         else if (roll < .75 && s.Melee.Count > 0)
-            ReplaceSlot(kit, "Scabbard", CreateShowcaseCollectible(s.Melee[Random.Shared.Next(s.Melee.Count)]));
+            CheaterMelee(kit);
         else if (BareSa58() is { } gun)
         {
             RemoveSlots(kit, "SecondPrimaryWeapon");

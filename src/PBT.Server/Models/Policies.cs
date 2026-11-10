@@ -495,14 +495,21 @@ public sealed class CheaterSettings
     // Off: cheaters wear whatever kit PBT and APBS gave them, like everyone else.
     public bool CheaterGear { get; set; } = true;
 
-    // Share of cheater kits that are no gear at all: a stock AKM, Kedr, PKM or 100-round M4 and a raid backpack.
-    public double NakedShare { get; set; } = .3;
+    // Share of blatant cheater kits that are no gear at all: a stock AKM, Kedr, PKM or 100-round M4 and a raid backpack.
+    public double NakedShare { get; set; } = .2;
 
-    // Chance the rest wear their head pick; it always comes with the face shield down.
-    public double HelmetChance { get; set; } = 1;
+    // Blatant kits roll each tell on their own, so some carry several and some none (just the boosted gear).
+    // Chance they wear their head pick; it always comes with the face shield down.
+    public double HelmetChance { get; set; } = .5;
 
-    // Chance the rest carry a bare SA-58: no sights, a suppressor and the 50-round drum.
-    public double Sa58Chance { get; set; } = .6;
+    // Chance blatant kits carry melee nobody normally uses.
+    public double MeleeChance { get; set; } = .4;
+
+    // Chance blatant kits carry a bare SA-58: no sights, a suppressor and the 50-round drum.
+    public double Sa58Chance { get; set; } = .3;
+
+    // Chance a closet cheater's kit slips one tell. The rest wear an ordinary kit.
+    public double ClosetTellChance { get; set; } = .5;
 
     // Cheaters always wear PBT gear in raid, even with the APBS takeover off.
     public bool AlwaysPbtGear { get; set; } = true;
@@ -609,6 +616,10 @@ public sealed class CheaterSettings
             || NakedShare is < 0 or > 1
             || !double.IsFinite(Sa58Chance)
             || Sa58Chance is < 0 or > 1
+            || !double.IsFinite(MeleeChance)
+            || MeleeChance is < 0 or > 1
+            || !double.IsFinite(ClosetTellChance)
+            || ClosetTellChance is < 0 or > 1
             || Melee is null
             || Melee.Count > 100
             || Melee.Any(m => m is null || m.Length != 24)

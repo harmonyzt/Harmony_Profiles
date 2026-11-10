@@ -1552,9 +1552,9 @@ else if (page == "Cheaters")
                 <input type="checkbox" role="switch" @bind="simulation.Cheaters.CheaterGear"/>
                 <span class="fb-switch-track"></span>
                 Cheater loadouts@(Tip(
-                    "Welding masks or helmets with the face shield down and nothing else on the head, melee nobody carries, "
-                    + "a bare SA-58 with a suppressor and 50-round drum, or no gear at all with a stock gun and a raid "
-                    + "backpack. Off: cheaters wear whatever PBT gave them."))
+                    "Blatant cheaters roll their kit: welding masks or helmets with the face shield down, melee nobody "
+                    + "carries, a bare SA-58 with a suppressor and 50-round drum, any mix of those or none, or no gear at all "
+                    + "with a stock gun and a raid backpack. Off: cheaters wear whatever PBT gave them."))
             </label>
         </div>
         @if (simulation.Cheaters.CheaterGear)
@@ -1564,14 +1564,31 @@ else if (page == "Cheaters")
         <div class="fb-grid">
             <label class="fb-field">
                 <span class="fb-label">No gear share@(Tip(
-                    "Share (0 to 1) of cheater kits that are no gear at all: a stock AKM, Kedr, PKM or 100-round M4 and a "
-                    + "raid backpack."))</span>
+                    "Share (0 to 1) of blatant cheater kits that are no gear at all: a stock AKM, Kedr, PKM or 100-round "
+                    + "M4 and a raid backpack."))</span>
                 <input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.NakedShare"/>
             </label>
             <label class="fb-field">
+                <span class="fb-label">Head pick chance@(Tip(
+                    "Chance (0 to 1) the other blatant kits wear a welding mask or a helmet with the face shield down. "
+                    + "Each tell rolls on its own, so a kit can have several or none."))</span>
+                <input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.HelmetChance"/>
+            </label>
+            <label class="fb-field">
+                <span class="fb-label">Odd melee chance@(Tip(
+                    "Chance (0 to 1) the other blatant kits carry melee nobody normally uses."))</span>
+                <input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.MeleeChance"/>
+            </label>
+            <label class="fb-field">
                 <span class="fb-label">Bare SA-58 chance@(Tip(
-                    "Chance (0 to 1) the other kits carry an SA-58 with no sights, a suppressor and the 50-round drum."))</span>
+                    "Chance (0 to 1) the other blatant kits carry an SA-58 with no sights, a suppressor and the 50-round "
+                    + "drum."))</span>
                 <input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.Sa58Chance"/>
+            </label>
+            <label class="fb-field">
+                <span class="fb-label">Closet slip chance@(Tip(
+                    "Chance (0 to 1) a closet cheater's kit has one tell. The rest wear an ordinary kit."))</span>
+                <input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.ClosetTellChance"/>
             </label>
         </div>
     </section>

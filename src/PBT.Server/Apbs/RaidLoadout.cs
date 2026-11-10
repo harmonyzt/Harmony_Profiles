@@ -85,7 +85,7 @@ public sealed partial class PopulationStore
 
             var kit = equipment.DeepClone().AsObject();
             // Kits from before the career turned cheater get the cheater look at spawn. The encounter then saves it to the profile.
-            if (WearsCheaterKit(c) && !LooksLikeCheater(kit))
+            if (WearsCheaterKit(c) && !c.CheaterKitRolled && !LooksLikeCheater(kit))
                 kit = CheaterKit(c, kit);
             return (kit, c.EquipmentIsSimulated);
         }
