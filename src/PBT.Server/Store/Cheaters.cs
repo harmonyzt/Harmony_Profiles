@@ -42,7 +42,6 @@ public sealed partial class PopulationStore
         if (!s.Enabled)
             return;
         ResolveCheaterReports(now);
-        BanWave(now);
         var active = population.Careers.Values.Where(c => !c.Retired).ToList();
         int target = s.Share <= 0 ? 0 : Math.Max(1, (int)Math.Round(active.Count * s.Share));
         int have = active.Count(IsCheater);
@@ -261,49 +260,6 @@ public sealed partial class PopulationStore
         }
     }
 
-    private void BanWave(long now)
-    {
-        var s = policy.Cheaters;
-        if (s.BanWaveHours <= 0)
-            return;
-        if (population.NextBanWaveUtc == 0 || now < population.NextBanWaveUtc)
-        {
-            if (population.NextBanWaveUtc == 0)
-                ScheduleBanWave(now);
-            return;
-        }
-
-        ScheduleBanWave(now);
-        // Blatant accounts trip the anticheat far more often than closet or undercover ones. Anyone in a raid right now is left to the in-raid anticheat.
-        var hit = population
-            .Careers.Values.Where(c =>
-                !c.Retired
-                && IsCheater(c)
-                && !IsObservedActive(c, now)
-                && Random.Shared.NextDouble()
-                    < Math.Min(
-                        1,
-                        s.BanWaveShare
-                            * (
-                                Blatant(c) ? 1.5
-                                : Closet(c) ? .6
-                                : .3
-                            )
-                    )
-            )
-            .ToList();
-        foreach (var c in hit)
-            Ban(c, "Ban wave", now);
-        if (hit.Count > 0)
-            Log("ban", $"Ban wave: {hit.Count} {(hit.Count == 1 ? "cheater" : "cheaters")} banned");
-    }
-
-    private void ScheduleBanWave(long now)
-    {
-        population.NextBanWaveUtc = now + (long)(policy.Cheaters.BanWaveHours * 3600 * (.7 + Random.Shared.NextDouble() * .6));
-        dirty = true;
-    }
-
     // Swaps in a new list, since SPT reads the old one on its own threads.
     private static void RemoveFirstName(BotType? type, Career c)
     {
@@ -328,113 +284,6 @@ public sealed partial class PopulationStore
             RemoveFirstName(type, c);
         Log("ban", $"{c.Name} was banned for cheating");
         dirty = true;
-        if (Random.Shared.NextDouble() < policy.Cheaters.ComebackChance)
-        {
-            try
-            {
-                Comeback(c, now);
-            }
-            catch (Exception ex)
-            {
-                Report(ex);
-            }
-        }
-    }
-
-    // A fresh level 1 account, or a bought one that already has the levels and the history.
-    private void Comeback(Career old, long now)
-    {
-        if (!bots.Types.TryGetValue(old.Side.ToLowerInvariant(), out var type) || type?.FirstNames is null)
-            return;
-        bool bought = Random.Shared.NextDouble() < policy.Cheaters.BoughtAccountChance;
-        var c = NewCareer(old.Side, EvaderName(old), type, bought ? Random.Shared.Next(25, 56) : 1);
-        if (!bought)
-            c.RegisteredUtc = now;
-        c.Cheater = true;
-        c.GearPending = true;
-        c.PreviousAccount = old.Id;
-        c.AccountBought = bought;
-        old.ReturnedAs = c.Id;
-        population.Careers.Add(c.Id, c);
-        byName.Add(NameKey(c.Side, c.Name), c);
-        bySourceName.Add(NameKey(c.Side, c.SourceName), c);
-        byBaseName.TryAdd(NameKey(c.Side, BaseName(c.SourceName)), c);
-        byAccount.Add(c.AccountId, c);
-        // A new list, since SPT reads the old one on its own threads.
-        type.FirstNames = [.. type.FirstNames, c.SourceName];
-        EnsureDevelopment(c);
-        Develop(c);
-        Log(
-            "ban",
-            $"{old.Name} is back as {c.Name} on a {(bought ? $"bought level {Level(c.Experience)}" : "fresh level 1")} account"
-        );
-    }
-
-    private static readonly string[] EvaderTags = ["TTV", "YT", "x", "xX", "Pro", "Real", "Not", "Alt", "Smurf", "Chad"];
-
-    // Usually a twist on the banned name, sometimes a keyboard mash.
-    private string EvaderName(Career old)
-    {
-        string stem = new string(BaseName(old.SourceName).Where(char.IsLetterOrDigit).ToArray());
-        if (stem.Length == 0)
-            stem = "Player";
-        stem = char.ToUpperInvariant(stem[0]) + stem[1..].ToLowerInvariant();
-        for (int attempt = 0; attempt < 40; attempt++)
-        {
-            string tag = EvaderTags[Random.Shared.Next(EvaderTags.Length)];
-            string name = Random.Shared.Next(attempt < 30 ? 6 : 1) switch
-            {
-                0 => Mash(),
-                1 => stem + Random.Shared.Next(2, 1000),
-                2 => Leet(stem),
-                3 => tag + "_" + stem,
-                4 => stem + "_" + tag,
-                _ => tag == "x" ? "x" + stem + "x" : tag + stem,
-            };
-            if (name.Length > 15)
-                name = name[..15];
-            if (
-                name.Length < 3
-                || bySourceName.ContainsKey(NameKey(old.Side, name))
-                || byName.ContainsKey(NameKey(old.Side, name))
-                || occupiedNicknames.Contains(NameKey("", name))
-                || Pool(old).Contains(name, StringComparer.OrdinalIgnoreCase)
-            )
-                continue;
-            return name;
-        }
-
-        return Mash() + Random.Shared.Next(10, 100);
-
-        List<string> Pool(Career c) =>
-            bots.Types.TryGetValue(c.Side.ToLowerInvariant(), out var t) && t?.FirstNames is { } n ? n : [];
-    }
-
-    private static string Leet(string name) =>
-        new(
-            name.Select(ch =>
-                    char.ToLowerInvariant(ch) switch
-                    {
-                        'a' => '4',
-                        'e' => '3',
-                        'i' => '1',
-                        'o' => '0',
-                        's' => '5',
-                        _ => ch,
-                    }
-                )
-                .ToArray()
-        );
-
-    private static string Mash()
-    {
-        const string keys = "qwertyuiopasdfghjklzxcvbnm";
-        int start = Random.Shared.Next(keys.Length - 8);
-        var name = new char[Random.Shared.Next(6, 11)];
-        // Rolls along the keyboard rows the way a mashed name does.
-        for (int i = 0; i < name.Length; i++)
-            name[i] = keys[Math.Clamp(start + i + Random.Shared.Next(-2, 3), 0, keys.Length - 1)];
-        return new string(name);
     }
 
     // Killed by them: what you still lack from that raid, plus the full roubles. Survived or only met them: a smaller thank-you.

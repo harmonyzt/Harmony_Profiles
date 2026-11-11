@@ -90,26 +90,9 @@ public sealed partial class PopulationStore
                 ScheduleOf(c).Name,
                 Mood(c),
                 c.BannedUtc,
-                c.BanReason,
-                population.Careers.TryGetValue(c.ReturnedAs, out var next) ? new PlayerLink(next.Id, next.Name) : null,
-                c.AccountBought,
-                BanHistory(c)
+                c.BanReason
             );
         }
-    }
-
-    // Every account this cheater was banned on before, newest first.
-    private List<BanRecord> BanHistory(Career c)
-    {
-        var history = new List<BanRecord>();
-        var seen = new HashSet<string> { c.Id };
-        for (
-            string id = c.PreviousAccount;
-            id.Length > 0 && seen.Add(id) && population.Careers.TryGetValue(id, out var old);
-            id = old.PreviousAccount
-        )
-            history.Add(new BanRecord(old.Id, old.Name, old.BannedUtc, old.BanReason, Level(old.Experience)));
-        return history;
     }
 
     public List<BanRow> RecentBans(int count)
@@ -127,8 +110,7 @@ public sealed partial class PopulationStore
                     c.Name,
                     c.Side,
                     c.BannedUtc,
-                    c.BanReason,
-                    population.Careers.TryGetValue(c.ReturnedAs, out var next) ? new PlayerLink(next.Id, next.Name) : null
+                    c.BanReason
                 ))
                 .ToList();
         }

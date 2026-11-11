@@ -436,15 +436,6 @@ public sealed partial class PopulationStore(
             {
                 if (!bots.Types.TryGetValue(side.ToLowerInvariant(), out var type) || type is null)
                     throw new InvalidDataException($"Missing {side} name pool");
-                foreach (
-                    var evader in population.Careers.Values.Where(c =>
-                        c.PreviousAccount.Length > 0
-                        && c.BannedUtc == 0
-                        && c.Side.Equals(side, StringComparison.OrdinalIgnoreCase)
-                    )
-                )
-                    if (!type.FirstNames.Contains(evader.SourceName))
-                        type.FirstNames.Add(evader.SourceName);
                 return (
                     Side: side,
                     Type: type,

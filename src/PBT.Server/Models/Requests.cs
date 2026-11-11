@@ -121,10 +121,7 @@ public sealed record EditorCareerRow(
 
 public sealed record PlayerLink(string Id, string Name);
 
-// One banned account in a cheater's history.
-public sealed record BanRecord(string Id, string Name, long BannedUtc, string Reason, int Level);
-
-public sealed record BanRow(string Id, string Name, string Side, long BannedUtc, string Reason, PlayerLink? ReturnedAs);
+public sealed record BanRow(string Id, string Name, string Side, long BannedUtc, string Reason);
 
 public sealed record PlayerProfile(
     string Id,
@@ -166,8 +163,5 @@ public sealed record PlayerProfile(
     string Schedule,
     string Mood,
     long BannedUtc,
-    string BanReason,
-    PlayerLink? ReturnedAs,
-    bool AccountBought,
-    List<BanRecord> PreviousAccounts
+    string BanReason
 );

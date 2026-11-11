@@ -2366,3 +2366,56 @@
     margin-left: 6px;
     font-size: 12px
 }
+
+.pbt-editor .fb-actions-center {
+    align-items: center;
+    flex-wrap: wrap
+}
+
+/* The matrix fits the card, so its hints are not clipped by a scroll box. */
+.pbt-editor .fb-matrix-wrap {
+    overflow: visible
+}
+
+.pbt-editor .fb-matrix {
+    min-width: 0
+}
+
+.pbt-editor .fb-matrix th,
+.pbt-editor .fb-matrix td {
+    padding: 10px 12px
+}
+
+.pbt-editor .fb-matrix th {
+    position: relative;
+    z-index: 2;
+    white-space: normal
+}
+
+.pbt-editor .fb-matrix th:hover,
+.pbt-editor .fb-matrix th:focus-within {
+    z-index: 30
+}
+
+.pbt-editor .fb-matrix th .fb-tip {
+    margin-left: 8px;
+    vertical-align: middle
+}
+
+/* Header hints open downward, and the last columns open leftward so they stay inside the card. */
+.pbt-editor .fb-matrix th .fb-tip-text {
+    bottom: auto;
+    top: calc(100% + 8px);
+    text-transform: none
+}
+
+.pbt-editor .fb-matrix th:nth-last-child(-n+2) .fb-tip-text {
+    left: auto;
+    right: -12px
+}
+
+@media(max-width:760px) {
+    .pbt-editor .fb-matrix-wrap {
+        overflow-x: auto
+    }
+}

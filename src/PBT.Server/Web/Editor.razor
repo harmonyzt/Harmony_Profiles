@@ -625,10 +625,6 @@ else if (page == "Player")
                             {
                                 <span class="fb-tag fb-tag-red">Banned</span>
                             }
-                            else if (p.PreviousAccounts.Count > 0)
-                            {
-                                <span class="fb-tag fb-tag-red" title="Came back after a ban">Ban evader</span>
-                            }
                         </span>
                         <p class="fb-person-state">
                             <span class="fb-state fb-state-@p.State.ToLowerInvariant()">
@@ -680,39 +676,11 @@ else if (page == "Player")
                     <span class="fb-stat-foot">Registered @(p.RegisteredUtc > 0 ? DateTimeOffset.FromUnixTimeSeconds(p.RegisteredUtc).ToString("d MMM yyyy") : "unknown")</span>
                 </article>
             </div>
-            @if (p.BannedUtc > 0 || p.PreviousAccounts.Count > 0)
+            @if (p.BannedUtc > 0)
             {
                 <section class="fb-card fb-ban-card">
-                    @if (p.BannedUtc > 0)
-                    {
-                        <h2>Banned for cheating</h2>
-                        <p>@(p.BanReason.Length > 0 ? p.BanReason : "Banned"), @Ago(p.BannedUtc). This account is gone for good.</p>
-                        @if (p.ReturnedAs is { } next)
-                        {
-                            <p>Back on a new account as <button type="button" class="fb-name-link" @onclick="() => OpenPlayer(next.Id)">@next.Name</button>.</p>
-                        }
-                    }
-                    else
-                    {
-                        <h2>Ban evader</h2>
-                        <p>@(p.AccountBought ? "Bought this account after a ban, so the levels and history are not theirs." : "Started this account from level 1 after a ban.")</p>
-                    }
-                    @if (p.PreviousAccounts.Count > 0)
-                    {
-                        <h3>Banned accounts before this one</h3>
-                        <ul class="fb-plain-list">
-                            @foreach (var old in p.PreviousAccounts)
-                            {
-                                <li>
-                                    <button
-                                        type="button"
-                                        class="fb-name-link"
-                                        @onclick="() => OpenPlayer(old.Id)">@old.Name</button>
-                                    <span class="fb-muted">level @old.Level, @(old.Reason.Length > 0 ? old.Reason.ToLowerInvariant() : "banned") @Ago(old.BannedUtc)</span>
-                                </li>
-                            }
-                        </ul>
-                    }
+                    <h2>Banned for cheating</h2>
+                    <p>@(p.BanReason.Length > 0 ? p.BanReason : "Banned"), @Ago(p.BannedUtc). This account is gone for good.</p>
                 </section>
             }
             <section class="fb-card">
@@ -1506,7 +1474,7 @@ else if (page == "Cheaters")
     var overview = cheaterOverview;
     var effective = CheaterRules.EffectiveAll(simulation.Cheaters.Play);
     double weightTotal = Math.Max(1e-9, CheaterRules.Types.Sum(t => Math.Max(0, effective[t].Weight)));
-    <div class="fb-stats fb-stats-6">
+    <div class="fb-stats">
         <article class="fb-card fb-stat">
             <span class="fb-stat-label">Cheater accounts@(Tip("Accounts that cheat right now. Banned ones are not counted."))</span>
             <strong>@(overview?.Active ?? 0)</strong>
@@ -1518,18 +1486,6 @@ else if (page == "Cheaters")
         <article class="fb-card fb-stat">
             <span class="fb-stat-label">Closet@(Tip("Good but believable stats, at most one tell in the kit."))</span>
             <strong>@(overview?.Closet ?? 0)</strong>
-        </article>
-        <article class="fb-card fb-stat">
-            <span class="fb-stat-label">Undercover@(Tip("A fully ordinary profile. Only how they play gives them away."))</span>
-            <strong>@(overview?.Undercover ?? 0)</strong>
-        </article>
-        <article class="fb-card fb-stat">
-            <span class="fb-stat-label">In the last raid@(Tip("Cheater accounts the server put in your last raid."))</span>
-            <strong>@(overview?.Raid.Count ?? 0)</strong>
-        </article>
-        <article class="fb-card fb-stat">
-            <span class="fb-stat-label">Spawned@(Tip("Of those, how many the game actually spawned. PMCs are generated ahead and many never spawn."))</span>
-            <strong>@(overview?.Raid.Count(s => s.SpawnedUtc > 0) ?? 0)</strong>
         </article>
     </div>
     <section class="fb-card fb-flush">
@@ -1713,7 +1669,7 @@ else if (page == "Cheaters")
             <p class="fb-muted">@(play.Mode == CheaterRules.Shared
                 ? "One chance per cheat for everyone. Each personality only rolls the cheats it is allowed, and some it always has. The table shows what that works out to."
                 : "Every personality has its own weight, chances and aim. Nothing is locked: set a cheat to 0 to take it away or 1 to always give it.")</p>
-            <div class="fb-actions">
+            <div class="fb-actions fb-actions-center">
                 <span class="fb-muted">Starting points:</span>
                 <button type="button" class="fb-button fb-button-light" @onclick='() => CheaterPreset("mild")'>Mild</button>
                 <button type="button" class="fb-button fb-button-light" @onclick='() => CheaterPreset("normal")'>Normal</button>
@@ -1738,7 +1694,7 @@ else if (page == "Cheaters")
                            : "Weights are editable here; the chances come from the shared cards below. Always means the personality always has it, a dash that it never can.")</p>
                 </div>
             </div>
-            <div class="fb-table-scroll">
+            <div class="fb-table-scroll fb-matrix-wrap">
                 <table class="fb-table fb-matrix">
                     <thead>
                     <tr>
@@ -1947,35 +1903,8 @@ else if (page == "Cheaters")
         </section>
     }
     <section class="fb-card">
-        <h2>Bans and new accounts</h2>
-        <p class="fb-muted">A banned cheater is gone for good, but the person behind it often is not. They come back on a new
-            account: a fresh level 1, or a bought account that already has the levels. Banned profiles stay
-            viewable in All players under Banned.</p>
-        <div class="fb-grid">
-            <label class="fb-field">
-                <span class="fb-label">Ban wave every, hours@(Tip(
-                    "Out of raid, the anticheat bans a batch of cheaters every this many hours, give or take 30%. 0 turns "
-                    + "ban waves off; reports and in-raid bans still work."))</span>
-                <input type="number" min="0" max="720" step="1" @bind="simulation.Cheaters.BanWaveHours"/>
-            </label>
-            <label class="fb-field">
-                <span class="fb-label">Ban wave share@(Tip(
-                    "Share (0 to 1) of cheaters a wave takes. Blatant accounts are three times as likely to go as closet "
-                    + "ones."))</span>
-                <input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.BanWaveShare"/>
-            </label>
-            <label class="fb-field">
-                <span class="fb-label">Comes back@(Tip(
-                    "Chance (0 to 1) a banned cheater makes a new account. The name is usually a twist on the old one."))</span>
-                <input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.ComebackChance"/>
-            </label>
-            <label class="fb-field">
-                <span class="fb-label">Buys an account@(Tip(
-                    "Chance (0 to 1) the new account is a bought one, level 25 to 55 with a history, instead of a fresh "
-                    + "level 1."))</span>
-                <input type="number" min="0" max="1" step="0.05" @bind="simulation.Cheaters.BoughtAccountChance"/>
-            </label>
-        </div>
+        <h2>Bans</h2>
+        <p class="fb-muted">A banned cheater is gone for good. Banned profiles stay viewable in All players under Banned.</p>
         @{ var bans = Store.RecentBans(8); }
         @if (bans.Count > 0)
         {
@@ -1987,10 +1916,6 @@ else if (page == "Cheaters")
                         <span class="fb-muted">@Ago(ban.BannedUtc)</span>
                         <button type="button" class="fb-name-link" @onclick="() => OpenPlayer(ban.Id)">@ban.Name</button>
                         <span class="fb-muted">@ban.Reason</span>
-                        @if (ban.ReturnedAs is { } next)
-                        {
-                            <span>, back as <button type="button" class="fb-name-link" @onclick="() => OpenPlayer(next.Id)">@next.Name</button></span>
-                        }
                     </li>
                 }
             </ul>

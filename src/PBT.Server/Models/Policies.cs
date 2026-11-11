@@ -572,14 +572,6 @@ public sealed class CheaterSettings
     // Share of the roubles paid when the banned cheater did not kill you: you survived, or only met them.
     public double WitnessRewardShare { get; set; } = .2;
 
-    // Chance a banned cheater comes back on a new account, and that the account is a bought high level one instead of a fresh level 1.
-    public double ComebackChance { get; set; } = .75;
-    public double BoughtAccountChance { get; set; } = .35;
-
-    // Out of raid ban waves: every so many hours (0 is off) about this share of cheaters goes, blatant ones first.
-    public double BanWaveHours { get; set; } = 12;
-    public double BanWaveShare { get; set; } = .2;
-
     public void Validate()
     {
         if (
@@ -633,17 +625,6 @@ public sealed class CheaterSettings
             throw new InvalidDataException(
                 "Cheaters need a 0-0.2 share, 0-1 chances, 1-20 kill multiplier, 0-6 tier boost, 0-720 ban hours and 24-character helmet ids."
             );
-        if (
-            !double.IsFinite(ComebackChance)
-            || ComebackChance is < 0 or > 1
-            || !double.IsFinite(BoughtAccountChance)
-            || BoughtAccountChance is < 0 or > 1
-            || !double.IsFinite(BanWaveHours)
-            || BanWaveHours is < 0 or > 720
-            || !double.IsFinite(BanWaveShare)
-            || BanWaveShare is < 0 or > 1
-        )
-            throw new InvalidDataException("Comeback and ban wave chances must be 0 to 1 and ban waves 0 to 720 hours apart.");
         if (Play is null)
             throw new InvalidDataException("Cheater play settings are missing.");
         Play.Validate();
