@@ -2419,3 +2419,35 @@
         overflow-x: auto
     }
 }
+
+/* Fixed layout lets every column shrink instead of pushing the last one out of the card. */
+.pbt-editor .fb-matrix {
+    width: 100%;
+    table-layout: fixed
+}
+
+.pbt-editor .fb-matrix th,
+.pbt-editor .fb-matrix td {
+    padding: 8px 8px;
+    overflow-wrap: anywhere
+}
+
+.pbt-editor .fb-matrix td input {
+    width: 100%;
+    max-width: 72px
+}
+
+.pbt-editor .fb-matrix-head td .fb-muted {
+    display: block;
+    margin: 2px 0 0
+}
+
+.pbt-editor .fb-stats-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr))
+}
+
+.pbt-editor .fb-matrix td:first-child,
+.pbt-editor .fb-matrix th:first-child {
+    width: 17%;
+    white-space: normal
+}

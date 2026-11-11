@@ -1474,7 +1474,7 @@ else if (page == "Cheaters")
     var overview = cheaterOverview;
     var effective = CheaterRules.EffectiveAll(simulation.Cheaters.Play);
     double weightTotal = Math.Max(1e-9, CheaterRules.Types.Sum(t => Math.Max(0, effective[t].Weight)));
-    <div class="fb-stats">
+    <div class="fb-stats fb-stats-3">
         <article class="fb-card fb-stat">
             <span class="fb-stat-label">Cheater accounts@(Tip("Accounts that cheat right now. Banned ones are not counted."))</span>
             <strong>@(overview?.Active ?? 0)</strong>
