@@ -5,9 +5,12 @@ using HarmonyLib;
 namespace PBT.Client.Cheaters;
 
 // Other AI mods fight the cheater brain for the same bot (SAIN steers and aims every frame, layer mods grab it whenever
-// the cheater layer hands back), which makes cheaters twitch and freeze. Cheaters run only our layer or vanilla AI.
+// the cheater layer hands back), which makes cheaters twitch and freeze. Cheaters run only our layer, ORBIT's (it
+// roams them between cheater moments, see OrbitCompat) or vanilla AI.
 internal static class BrainExclusions
 {
+    private const string OrbitLayer = "Orbit.Brain.OrbitBrainLayer";
+
     private static Harmony? harmony;
     private static bool patched;
 
@@ -45,7 +48,12 @@ internal static class BrainExclusions
             }
             foreach (var type in types)
             {
-                if (type.IsAbstract || type == typeof(CheaterLayer) || !typeof(CustomLayer).IsAssignableFrom(type))
+                if (
+                    type.IsAbstract
+                    || type == typeof(CheaterLayer)
+                    || type.FullName == OrbitLayer
+                    || !typeof(CustomLayer).IsAssignableFrom(type)
+                )
                     continue;
                 var active = AccessTools.DeclaredMethod(type, nameof(CustomLayer.IsActive));
                 if (active is null)

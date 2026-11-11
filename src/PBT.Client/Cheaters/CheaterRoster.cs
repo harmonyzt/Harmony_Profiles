@@ -183,6 +183,7 @@ internal static class CheaterRoster
         );
 
         BrainExclusions.Install(harmony);
+        OrbitCompat.Install(harmony);
 
         var damage = AccessTools.Method(typeof(Player), nameof(Player.ApplyDamageInfo));
         if (damage is null)
@@ -303,8 +304,6 @@ internal static class CheaterRoster
     {
         if (!behaviour)
             return;
-        if (BrainInstalled)
-            OrbitCompat.Exclude(player);
         if (!reported.ContainsKey(Account(player)))
             See(player, "Spawned");
     }
@@ -565,12 +564,8 @@ internal static class CheaterRoster
 
         speeders.Clear();
         spinners.Clear();
-        if (!Behaviour)
-        {
-            OrbitCompat.ReleaseAll();
-            if (!behaviour)
-                return;
-        }
+        if (!Behaviour && !behaviour)
+            return;
         alive.Clear();
         foreach (var player in Singleton<GameWorld>.Instance.AllAlivePlayersList)
         {
