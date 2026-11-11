@@ -182,6 +182,8 @@ internal static class CheaterRoster
             )
         );
 
+        BrainExclusions.Install(harmony);
+
         var damage = AccessTools.Method(typeof(Player), nameof(Player.ApplyDamageInfo));
         if (damage is null)
             Plugin.Report("Cheater godmode unavailable.");
@@ -240,6 +242,8 @@ internal static class CheaterRoster
         airborne.Clear();
         CheaterMind.Clear();
         OrbitCompat.RaidStarted();
+        if (BrainInstalled)
+            BrainExclusions.RaidStarted();
         if (spawner is not null)
             spawner.OnBotCreated -= BotCreated;
         spawner = null;
