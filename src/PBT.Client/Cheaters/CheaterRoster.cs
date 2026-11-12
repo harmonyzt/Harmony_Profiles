@@ -483,6 +483,9 @@ internal static class CheaterRoster
         lastHit[__instance] = Time.time;
         if (!Has(__instance, Cheat.Godmode))
             return true;
+        // Two godmode cheaters could never finish each other, so godmode does not hold against another cheater.
+        if (damageInfo.Player?.iPlayer is Player attacker && attacker != __instance && IsCheater(attacker))
+            return true;
         Suspect(__instance, .3f);
         return false;
     }
@@ -564,9 +567,12 @@ internal static class CheaterRoster
 
         speeders.Clear();
         spinners.Clear();
-        if (!Behaviour && !behaviour)
-            return;
         alive.Clear();
+        if (!Behaviour && !behaviour)
+        {
+            OrbitCompat.KeepAwake(alive);
+            return;
+        }
         foreach (var player in Singleton<GameWorld>.Instance.AllAlivePlayersList)
         {
             if (player is not { IsAI: true })
@@ -579,6 +585,7 @@ internal static class CheaterRoster
                 KeepGrounded(player);
             }
         }
+        OrbitCompat.KeepAwake(alive);
 
         foreach (var pair in reported.ToList())
             if (pair.Value.State == "Spawned" && pair.Value.Player?.HealthController?.IsAlive != true)
@@ -596,13 +603,16 @@ internal static class CheaterRoster
                 Truce(player);
                 Vacuum(player);
             }
-            if (BrainInstalled && Has(player, Cheat.Speedhack))
+            // Only while the cheater brain drives. ORBIT or vanilla AI on a sped-up or spinning body overshoots its path,
+            // reads that as stuck and vaults, jumps and turns back over and over.
+            bool drivenHere = BrainInstalled && driven.Contains(player);
+            if (drivenHere && Has(player, Cheat.Speedhack))
             {
                 speeders.Add(player);
                 if (banRoll && player.Velocity.sqrMagnitude > 1)
                     Suspect(player, .08f);
             }
-            if (BrainInstalled && Has(player, Cheat.Spinbot))
+            if (drivenHere && Has(player, Cheat.Spinbot))
                 spinners.Add(player);
 
             if (Has(player, Cheat.Esp) && !driven.Contains(player))

@@ -216,7 +216,8 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         settleUntil;
     private bool visiting,
         crouched,
-        peeking;
+        peeking,
+        duel;
     private int strafeSide = 1,
         peeks,
         peekLimit = 2;
@@ -808,11 +809,14 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
 
         if (mind.Target is not { } prey)
         {
-            // Nothing to do. The layer hands the bot back to its normal AI at its next check.
+            // Nothing to do. The layer hands the bot back soon, not after it stood frozen for up to a second.
             Trigger(false);
             CheaterRoster.Aim(Bot, null);
+            mind.NextCheck = Math.Min(mind.NextCheck, Time.time + .2f);
             return;
         }
+
+        duel = CheaterRoster.IsCheater(prey);
 
         if (prey != engaged)
         {
@@ -835,7 +839,8 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
                 patience = UnityEngine.Random.Range(2f, 4f);
             }
         }
-        else
+        // A blink of cover (a hop, a strafe past a post) does not restart its reaction.
+        else if (Time.time - mind.LastSeenTime > 1)
             mind.FirstSeen = 0;
 
         // ESP knows where the target is now. Without it the bot goes where it last saw it, like any bot.
@@ -929,6 +934,14 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
     {
         if (clear && distance < 30)
         {
+            // Two cheaters strafing round each other never line up a shot, so a duel is fought standing.
+            if (duel)
+            {
+                if (BotOwner.Mover?.IsMoving == true)
+                    BotOwner.Mover.Stop();
+                return;
+            }
+
             if (Time.time >= nextStrafe)
             {
                 nextStrafe = Time.time + UnityEngine.Random.Range(.5f, .9f);
@@ -1251,7 +1264,8 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
     // Only over a real wall with room above and ground behind, and rarely: every superjump used to stall the path.
     private void Hop(Player prey, bool clear, float distance)
     {
-        if (Time.time < nextJump || distance > 90 || tactic == Tactic.Hold && settled)
+        // Hopping in place (at a last known spot, mid-peek) looked like the bot spazzing out.
+        if (Time.time < nextJump || distance > 90 || tactic == Tactic.Hold && settled || BotOwner.Mover?.IsMoving != true)
             return;
         nextJump = Time.time + UnityEngine.Random.Range(1.1f, 2f);
         Bot.MovementContext?.TryJump();

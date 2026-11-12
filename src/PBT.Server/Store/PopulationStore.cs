@@ -43,6 +43,7 @@ public sealed partial class PopulationStore(
     PresetHelper presetHelper,
     BotInventoryGenerator inventoryGenerator,
     BotInventoryContainerService inventoryContainers,
+    SPTarkov.Server.Core.Helpers.Bot.BotGeneratorHelper botGenerator,
     LocaleService locales,
     LocationTable locations,
     ICloner cloner,

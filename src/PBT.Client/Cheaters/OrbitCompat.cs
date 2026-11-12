@@ -5,17 +5,77 @@ using HarmonyLib;
 namespace PBT.Client.Cheaters;
 
 // ORBIT (soft dependency) drives cheaters between cheater moments, which keeps them looting and roaming, but it
-// must never put them to sleep. Its API only offers full exclusion, so its sleep gates are patched instead.
-// Written against ORBIT 3.1.1; if a gate is renamed it is logged and that path is left alone.
+// must never put them to sleep. ORBIT's SetBotSleepAllowed does that (and keeps the squad awake); builds without
+// it get their sleep gates patched instead.
 internal static class OrbitCompat
 {
+    private const string Source = "PBT";
+
     private static Harmony? harmony;
-    private static bool patched;
+    private static bool resolved,
+        patched;
+    private static Func<BotOwner, bool, string, bool>? setSleepAllowed;
+    private static readonly HashSet<Player> awake = new();
+    private static readonly List<Player> scratch = new();
 
     internal static void Install(Harmony h) => harmony = h;
 
     // Deferred to the first raid so ORBIT is loaded whatever the plugin order.
     internal static void RaidStarted()
+    {
+        awake.Clear();
+        if (resolved)
+            return;
+        resolved = true;
+        if (AccessTools.TypeByName("Orbit.Api.OrbitBotControl") is not { } api)
+            return;
+        var method = AccessTools.Method(api, "SetBotSleepAllowed", [typeof(BotOwner), typeof(bool), typeof(string)]);
+        if (method is not null)
+        {
+            setSleepAllowed = (Func<BotOwner, bool, string, bool>)
+                Delegate.CreateDelegate(typeof(Func<BotOwner, bool, string, bool>), method);
+            CheaterRoster.Log("ORBIT sleep API found, cheaters stay awake through it.");
+            return;
+        }
+        PatchGates();
+    }
+
+    // Called every tick with the live cheaters. ORBIT only accepts the request once its manager is up, so a refusal is retried next tick.
+    internal static void KeepAwake(List<Player> cheaters)
+    {
+        if (setSleepAllowed is null)
+            return;
+        foreach (var player in cheaters)
+        {
+            if (awake.Contains(player) || player.AIData?.BotOwner is not { } bot)
+                continue;
+            try
+            {
+                if (setSleepAllowed(bot, false, Source))
+                    awake.Add(player);
+            }
+            catch (Exception e)
+            {
+                Plugin.Report($"ORBIT SetBotSleepAllowed failed: {e.Message}");
+                setSleepAllowed = null;
+                return;
+            }
+        }
+
+        // No longer a cheater (or behaviour switched off): ORBIT may sleep it again. Dead bots ORBIT forgets by itself.
+        scratch.Clear();
+        foreach (var player in awake)
+            if (!cheaters.Contains(player))
+                scratch.Add(player);
+        foreach (var player in scratch)
+        {
+            awake.Remove(player);
+            if (player != null && player.HealthController?.IsAlive == true && player.AIData?.BotOwner is { } bot)
+                setSleepAllowed(bot, true, Source);
+        }
+    }
+
+    private static void PatchGates()
     {
         if (patched || harmony is null)
             return;
@@ -34,7 +94,7 @@ internal static class OrbitCompat
         ok += Gate(dormancy, "IsNativeGhostEligible", nameof(BotCannot));
         ok += Gate(ghosts, "CanSleep", nameof(BotCannot));
         ok += Gate(ghosts, "Add", nameof(BotSkip), typeof(BotOwner));
-        CheaterRoster.Log($"ORBIT found, {ok}/8 sleep gates keep cheaters awake.");
+        CheaterRoster.Log($"ORBIT without the sleep API, {ok}/8 sleep gates keep cheaters awake.");
     }
 
     private static int Gate(Type type, string name, string prefix, params Type[] args)

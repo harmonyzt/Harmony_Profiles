@@ -159,6 +159,7 @@ public sealed partial class PopulationStore
             json.Deserialize<List<Item>>(replacement.ToJsonString())
             ?? throw new InvalidDataException("Cannot read the stored profile loadout.");
         var original = inventory.Items!.ToList();
+        var reserves = Reserves(original, root);
         var equipped = new HashSet<string> { root };
         bool changed;
         do
@@ -183,6 +184,8 @@ public sealed partial class PopulationStore
             {
                 TrackContainer(botId, inventory, root, slot);
             }
+
+            Resupply(botId, inventory, root, reserves);
 
             if (needsLoot)
             {
@@ -259,6 +262,119 @@ public sealed partial class PopulationStore
                     map[y + dy, x + dx] = 1;
                 }
         }
+    }
+
+    private static readonly MongoId AmmoClass = new("5485a8684bdc2da71d8b4567");
+    private static readonly string[] Weapons = ["FirstPrimaryWeapon", "SecondPrimaryWeapon", "Holster"];
+
+    private string? Caliber(MongoId tpl) =>
+        itemHelper.IsOfBaseclass(tpl, AmmoClass) && templates.Items.TryGetValue(tpl, out var t) ? t.Properties?.Caliber : null;
+
+    // APBS keeps a bot's spare rounds in its secure container, by caliber. The stored kit replaces that container.
+    private Dictionary<string, (MongoId Tpl, int Count)> Reserves(List<Item> items, string root)
+    {
+        var reserves = new Dictionary<string, (MongoId Tpl, int Count)>();
+        if (items.FirstOrDefault(i => i.ParentId == root && i.SlotId == "SecuredContainer") is not { } container)
+        {
+            return reserves;
+        }
+
+        string id = container.Id.ToString();
+        foreach (var item in items.Where(i => i.ParentId == id))
+        {
+            if (Caliber(item.Template) is not { } caliber)
+            {
+                continue;
+            }
+
+            int count = (int)(item.Upd?.StackObjectsCount ?? 1);
+            if (!reserves.TryGetValue(caliber, out var r))
+            {
+                reserves[caliber] = (item.Template, count);
+            }
+            else if (r.Tpl == item.Template)
+            {
+                reserves[caliber] = (r.Tpl, r.Count + count);
+            }
+        }
+
+        return reserves;
+    }
+
+    // Gives each gun of the stored kit spare rounds of the caliber it is loaded with, unless the kit already carries some.
+    // APBS's own reserves for that caliber come back first; otherwise the loaded round, four stacks of it.
+    private void Resupply(MongoId botId, BotBaseInventory inventory, string root, Dictionary<string, (MongoId Tpl, int Count)> reserves)
+    {
+        var items = inventory.Items!;
+        var children = items.Where(i => i.ParentId is not null).ToLookup(i => i.ParentId!);
+        var container = items.FirstOrDefault(i => i.ParentId == root && i.SlotId == "SecuredContainer");
+        var carried = new HashSet<string>();
+        if (container is not null)
+        {
+            foreach (var item in children[container.Id.ToString()])
+            {
+                if (Caliber(item.Template) is { } c)
+                {
+                    carried.Add(c);
+                }
+            }
+        }
+
+        var slots = container is not null
+            ? new HashSet<EquipmentSlots> { EquipmentSlots.SecuredContainer }
+            : new HashSet<EquipmentSlots> { EquipmentSlots.TacticalVest, EquipmentSlots.Pockets, EquipmentSlots.Backpack };
+
+        foreach (var weapon in items.Where(i => i.ParentId == root && Weapons.Contains(i.SlotId)).ToList())
+        {
+            if (Loaded(children, weapon) is not { } loaded || Caliber(loaded) is not { } caliber || !carried.Add(caliber))
+            {
+                continue;
+            }
+
+            if (!templates.Items.TryGetValue(loaded, out var round))
+            {
+                continue;
+            }
+
+            int stack = Math.Max(1, round.Properties?.StackMaxSize ?? 1);
+            var (tpl, left) = reserves.TryGetValue(caliber, out var r) ? r : (loaded, stack * 4);
+            if (tpl != loaded && templates.Items.TryGetValue(tpl, out var other))
+            {
+                stack = Math.Max(1, other.Properties?.StackMaxSize ?? 1);
+            }
+
+            while (left > 0)
+            {
+                int count = Math.Min(stack, left);
+                left -= count;
+                var id = new MongoId();
+                var ammo = new Item { Id = id, Template = tpl, Upd = new Upd { StackObjectsCount = count } };
+                if (botGenerator.AddItemWithChildrenToEquipmentSlot(botId, slots, id, tpl, [ammo], inventory) != ItemAddedResult.SUCCESS)
+                {
+                    break;
+                }
+            }
+        }
+    }
+
+    private MongoId? Loaded(ILookup<string, Item> children, Item weapon)
+    {
+        var open = new Stack<Item>(children[weapon.Id.ToString()]);
+        while (open.Count > 0)
+        {
+            var item = open.Pop();
+            if (itemHelper.IsOfBaseclass(item.Template, AmmoClass))
+            {
+                return item.Template;
+            }
+
+            foreach (var child in children[item.Id.ToString()])
+            {
+                open.Push(child);
+            }
+        }
+
+        return null;
     }
 
     private static readonly MongoId MagazineClass = new("5448bc234bdc2d3c308b4569");
