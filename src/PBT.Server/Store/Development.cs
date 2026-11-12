@@ -400,17 +400,16 @@ public sealed partial class PopulationStore
         }
     }
 
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, double> stableCache = new();
-
-    // Cached, the hash added up on the world tick. Timestamped keys keep coming, so it is capped.
+    // No cache: ConcurrentDictionary.Count takes every lock (7 us at 200k keys) and big worlds thrashed it.
     private static double Stable(string key)
     {
-        if (stableCache.TryGetValue(key, out double value))
-            return value;
-        if (stableCache.Count > 200_000)
-            stableCache.Clear();
-        value = BitConverter.ToUInt32(SHA256.HashData(Encoding.UTF8.GetBytes(key)), 0) / (double)uint.MaxValue;
-        stableCache.TryAdd(key, value);
-        return value;
+        int max = Encoding.UTF8.GetMaxByteCount(key.Length);
+        byte[]? rented = max > 256 ? System.Buffers.ArrayPool<byte>.Shared.Rent(max) : null;
+        Span<byte> bytes = rented is null ? stackalloc byte[256] : rented;
+        Span<byte> hash = stackalloc byte[32];
+        SHA256.HashData(bytes[..Encoding.UTF8.GetBytes(key, bytes)], hash);
+        if (rented is not null)
+            System.Buffers.ArrayPool<byte>.Shared.Return(rented);
+        return BitConverter.ToUInt32(hash) / (double)uint.MaxValue;
     }
 }
