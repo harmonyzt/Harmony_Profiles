@@ -100,6 +100,7 @@ internal static class CheaterRoster
     private static ConfigEntry<CheaterType>? forcedType;
     private static ConfigEntry<int>? spawnedCheaters;
     private static readonly HashSet<int> accounts = new();
+
     // Type, cheats and aim tuning per account. The server rolls real cheaters; only debug picks are rolled here.
     private static readonly Dictionary<int, Rolled> rolled = new();
     private static readonly Dictionary<int, Rolled> fromServer = new();
@@ -114,6 +115,7 @@ internal static class CheaterRoster
     // Suspicion per account. Blatant play builds it up and the in-raid anticheat bans on it.
     private static readonly Dictionary<int, float> heat = new();
     private static readonly Dictionary<Player, float> lastHit = new();
+    private static readonly Dictionary<Player, Player> attackers = new();
     internal static float RaidStart;
     private static readonly HashSet<Player> speeders = new();
     private static readonly HashSet<Player> spinners = new();
@@ -235,12 +237,16 @@ internal static class CheaterRoster
         nextEsp.Clear();
         heat.Clear();
         lastHit.Clear();
+        attackers.Clear();
+        angered.Clear();
+        extracted.Clear();
         RaidStart = Time.time;
         speeders.Clear();
         spinners.Clear();
         driven.Clear();
         aims.Clear();
         airborne.Clear();
+        containers = null;
         CheaterMind.Clear();
         OrbitCompat.RaidStarted();
         if (BrainInstalled)
@@ -308,13 +314,36 @@ internal static class CheaterRoster
             See(player, "Spawned");
     }
 
-    // A vacuum bot never fights you: it drops you as an enemy so its own AI leaves you be too.
+    // A vacuum bot leaves you be (and drops you as an enemy so its own AI does too) until you shoot it. Then it fights back for the rest of the raid.
     internal static bool Spares(Player bot, Player? p) =>
-        p is not null && p.IsYourPlayer && IsCheater(bot) && Has(bot, Cheat.Vacuum);
+        p is not null && p.IsYourPlayer && IsCheater(bot) && Has(bot, Cheat.Vacuum) && !angered.Contains(bot);
+
+    private static readonly HashSet<Player> angered = new();
+    private static readonly HashSet<Player> extracted = new();
+
+    private static void Anger(Player bot, Player me)
+    {
+        if (!angered.Add(bot))
+            return;
+        Log($"{bot.Profile.Nickname} was shot by you and drops the truce.");
+        try
+        {
+            if (bot.AIData?.BotOwner?.BotsGroup is { } group && !group.IsEnemy(me))
+                group.AddEnemy(me, EBotEnemyCause.addPlayer);
+        }
+        catch (Exception ex)
+        {
+            Log($"Truce end failed for {bot.Profile.Nickname}: {ex.Message}");
+        }
+    }
 
     private static void Truce(Player bot)
     {
-        if (Singleton<GameWorld>.Instance.MainPlayer is not { } me || bot.AIData?.BotOwner?.BotsGroup is not { } group)
+        if (
+            angered.Contains(bot)
+            || Singleton<GameWorld>.Instance.MainPlayer is not { } me
+            || bot.AIData?.BotOwner?.BotsGroup is not { } group
+        )
             return;
         try
         {
@@ -347,7 +376,9 @@ internal static class CheaterRoster
             return;
         airborne.Remove(bot);
         var from = bot.Position + Vector3.up * .5f;
-        var probe = Physics.Raycast(from, Vector3.down, out var hit, 60f, LayersMaskController.HighPolyWithTerrainMask) ? hit.point : from;
+        var probe = Physics.Raycast(from, Vector3.down, out var hit, 60f, LayersMaskController.HighPolyWithTerrainMask)
+            ? hit.point
+            : from;
         if (!UnityEngine.AI.NavMesh.SamplePosition(probe, out var nav, 6f, UnityEngine.AI.NavMesh.AllAreas))
             return;
         mover.Teleport(nav.position);
@@ -372,12 +403,15 @@ internal static class CheaterRoster
             return known;
 
         var forcedTo = forcedType?.Value ?? CheaterType.Random;
-        bool local = !fromServer.TryGetValue(account, out var result) || forcedTo != CheaterType.Random && forcedTo != result.Type;
+        bool local =
+            !fromServer.TryGetValue(account, out var result) || forcedTo != CheaterType.Random && forcedTo != result.Type;
         if (local)
             result = RollHere(account, forcedTo == CheaterType.Random ? RollType(account) : forcedTo);
         result = Vacuumer(account, result!);
         rolled[account] = result;
-        Log($"{player.Profile.Nickname} is a {result!.Type} cheater with {result.Cheats}{(local ? " (rolled on the client)" : "")}.");
+        Log(
+            $"{player.Profile.Nickname} is a {result!.Type} cheater with {result.Cheats}{(local ? " (rolled on the client)" : "")}."
+        );
         return result;
     }
 
@@ -394,6 +428,10 @@ internal static class CheaterRoster
             if (Hash(account, salt++) < (p?.Value<float?>(cheat.ToString()) ?? 0))
                 cheats |= cheat;
         }
+
+        // Like the server's shared mode: a closet cheater that rolled nothing still runs one of the two.
+        if (type == CheaterType.Closet && cheats == Cheat.None && play.Value<string?>("Mode") != "PerType")
+            cheats = Hash(account, 30) < .5f ? Cheat.Aimbot : Cheat.Esp;
 
         return new Rolled(
             type,
@@ -419,7 +457,8 @@ internal static class CheaterRoster
         return r with { Cheats = cheats };
     }
 
-    private static float Weight(CheaterType type) => Math.Max(0, (table[type.ToString()] as JObject)?.Value<float?>("Weight") ?? 0);
+    private static float Weight(CheaterType type) =>
+        Math.Max(0, (table[type.ToString()] as JObject)?.Value<float?>("Weight") ?? 0);
 
     private static CheaterType RollType(int account)
     {
@@ -441,6 +480,15 @@ internal static class CheaterRoster
     internal static bool Has(Player player, Cheat cheat) => (CheatsOf(player) & cheat) != 0;
 
     internal static float SinceHit(Player player) => lastHit.TryGetValue(player, out float t) ? Time.time - t : float.MaxValue;
+
+    // Whoever last shot this cheater, if that was within the last 8 s and they are still alive.
+    internal static Player? Attacker(Player player) =>
+        SinceHit(player) < 8
+        && attackers.TryGetValue(player, out var from)
+        && from != null
+        && from.HealthController?.IsAlive == true
+            ? from
+            : null;
 
     internal static void Suspect(Player player, float amount)
     {
@@ -467,6 +515,7 @@ internal static class CheaterRoster
     }
 
     private static float Hash(int account, int salt) => (uint)((account * 2654435761u) ^ (uint)(salt * 40503)) % 10000 / 10000f;
+
     // Hits feed the anticheat: a cheater landing headshots, or one that soaks bullets with godmode.
     private static bool Damage(Player __instance, DamageInfo damageInfo, EBodyPart bodyPartType)
     {
@@ -481,6 +530,12 @@ internal static class CheaterRoster
         if (!IsCheater(__instance))
             return true;
         lastHit[__instance] = Time.time;
+        if (damageInfo.Player?.iPlayer is Player from && from != __instance)
+        {
+            attackers[__instance] = from;
+            if (from.IsYourPlayer && Has(__instance, Cheat.Vacuum))
+                Anger(__instance, from);
+        }
         if (!Has(__instance, Cheat.Godmode))
             return true;
         // Two godmode cheaters could never finish each other, so godmode does not hold against another cheater.
@@ -559,7 +614,11 @@ internal static class CheaterRoster
             _ = Refresh();
         }
 
-        if (spawner is null && Singleton<IBotGame>.Instantiated && Singleton<IBotGame>.Instance.BotsController?.BotSpawner is { } s)
+        if (
+            spawner is null
+            && Singleton<IBotGame>.Instantiated
+            && Singleton<IBotGame>.Instance.BotsController?.BotSpawner is { } s
+        )
         {
             spawner = s;
             s.OnBotCreated += BotCreated;
@@ -725,75 +784,324 @@ internal static class CheaterRoster
 
     // How far a vacuum reaches. Without BigBrain nothing walks the bot to loot, so it reaches across the map like it used to.
     internal static float VacuumReach => BrainInstalled ? 6 : 150;
-    private const float LootScan = 150;
 
-    // Pulls the best loose items within reach into its bag through the normal pickup and inventory transaction, the way
-    // a bot's own item taker does, so the items are really its (other mods see the pickup, they drop with its body).
-    // With nothing in reach the brain walks (or flies) it to the best item that still fits. It keeps going until nothing fits.
+    // Stuck at the closest point it can reach (a locked marked room, a fenced yard), it pulls through the wall from this far.
+    private const float StuckReach = 15;
+
+    // A cluster: loot within this many metres of the item it is planned around.
+    private const float StopRadius = 25;
+
+    // Below this an item is not worth the trip, unless the map has nothing better left.
+    private const int Worth = 15000;
+
+    private static EFT.Interactive.LootableContainer[]? containers;
+
+    private readonly record struct Loot(Item Item, Vector3 Position, int Price);
+
+    // Loose items and what sits in containers, worth taking. Weapons and quest items stay.
+    private static List<Loot> Scan(CheaterMind mind)
+    {
+        var found = new List<Loot>();
+        var loose = Singleton<GameWorld>.Instance.LootItems;
+        for (int i = 0; i < loose.Count; i++)
+        {
+            var item = loose.GetByIndex(i);
+            if (item != null && item is not EFT.Interactive.Corpse && item.Item is { } it)
+                Consider(found, mind, it, item.transform.position);
+        }
+
+        // Bots spawning with the raid can scan before containers exist.
+        if (containers is null || containers.Length == 0)
+            containers = UnityEngine.Object.FindObjectsOfType<EFT.Interactive.LootableContainer>();
+        foreach (var container in containers)
+        {
+            if (
+                container == null
+                || container.ItemOwner?.RootItem is not EFT.InventoryLogic.CompoundItem root
+                || root.Grids is null
+            )
+                continue;
+            var at = container.transform.position;
+            foreach (var grid in root.Grids)
+                if (grid?.Items is { } items)
+                    foreach (var item in items)
+                        if (item is not null)
+                            Consider(found, mind, item, at);
+        }
+
+        return found;
+    }
+
+    private static void Consider(List<Loot> found, CheaterMind mind, Item item, Vector3 at)
+    {
+        if (item.QuestItem || item is EFT.InventoryLogic.Weapon || mind.Skip.Contains(item))
+            return;
+        int price = item.Template.CreditsPrice * Math.Max(1, item.StackObjectsCount);
+        if (price > 0)
+            found.Add(new Loot(item, at, price));
+    }
+
+    // Richest cluster on the map, clear it, next one, then an exit. Pulls are real pickup transactions, so loot drops with the body.
     private static void Vacuum(Player player)
     {
         var mind = CheaterMind.Of(player);
-        if (mind.Full || mind.Pulling || Time.time < mind.NextPull)
+        if (mind.Pulling || Time.time < mind.NextPull)
             return;
+        // Leaving with no exit it could reach: look again now and then, an exit may have opened.
+        if (mind.Leaving)
+        {
+            mind.NextPull = Time.time + 30;
+            if (BrainInstalled && mind.Exit is null)
+                PickExit(player, mind);
+            return;
+        }
         mind.NextPull = Time.time + UnityEngine.Random.Range(1.5f, 3f);
         var controller = player.InventoryController;
         var bags = Bags(controller);
-        if (bags.Length == 0)
+        if (bags.Length == 0 || mind.Full)
         {
-            Fill(player, mind);
+            Leave(player, mind, "has no room left");
+            return;
+        }
+        if (BrainInstalled && Time.time >= mind.LeaveAt)
+        {
+            Leave(player, mind, "has been at it long enough");
             return;
         }
 
-        var loot = Singleton<GameWorld>.Instance.LootItems;
-        var near = new List<(EFT.Interactive.LootItem Item, int Price)>();
-        var far = new List<(EFT.Interactive.LootItem Item, float Score)>();
-        float reach = VacuumReach;
-        for (int i = 0; i < loot.Count; i++)
+        var loot = Scan(mind);
+        // Nothing found at all is a scan problem, not an empty map: wait and look again rather than leave.
+        if (loot.Count == 0)
         {
-            var item = loot.GetByIndex(i);
-            if (item == null || item.Item is null || item.Item.QuestItem || item.Item is EFT.InventoryLogic.Weapon)
-                continue;
-            int price = item.Item.Template.CreditsPrice * Math.Max(1, item.Item.StackObjectsCount);
-            if (price <= 0)
-                continue;
-            float d = Vector3.Distance(item.transform.position, player.Position);
-            if (d <= reach)
-                near.Add((item, price));
-            else if (d <= LootScan)
-                far.Add((item, price / (1 + d / 40f)));
+            Log(
+                $"{player.Profile.Nickname} sees no loot ({Singleton<GameWorld>.Instance.LootItems.Count} loose items, {containers?.Length ?? 0} containers on the map)."
+            );
+            mind.NextPull = Time.time + 10;
+            return;
         }
+        var pos = player.Position;
+        float reach = VacuumReach;
+        bool rich = loot.Exists(l => l.Price >= Worth);
 
+        // In reach: everything worth it, best first. A stuck bot reaches further for the item it was walking to.
+        var near = loot.Where(l =>
+                (l.Position - pos).sqrMagnitude <= reach * reach
+                || mind.Stuck > 0 && l.Item == mind.LootItem && (l.Position - pos).sqrMagnitude <= StuckReach * StuckReach
+            )
+            .Where(l => !rich || l.Price >= Worth / 3)
+            .OrderByDescending(l => l.Price)
+            .Take(10)
+            .ToList();
         if (near.Count > 0)
         {
-            mind.LootSpot = null;
-            _ = Pull(player, mind, bags, near.OrderByDescending(p => p.Price).Take(10).ToList(), UnityEngine.Random.Range(1, 4));
+            _ = Pull(player, mind, bags, near, UnityEngine.Random.Range(2, 5));
             return;
         }
 
-        foreach (var (item, _) in far.OrderByDescending(p => p.Score).Take(10))
+        if (!BrainInstalled)
+            return;
+
+        // The item it was walking to, unreachable even after a teleport: give up on it.
+        if (mind.Stuck >= 3 && mind.LootItem is { } lost)
         {
-            if (!Place(item.Item, controller, bags).Succeeded)
-                continue;
-            if (mind.LootSpot is not { } old || (old - item.transform.position).sqrMagnitude > 1)
-                Log($"{player.Profile.Nickname} heads for {item.Item.TemplateId} {Vector3.Distance(item.transform.position, player.Position):0} m away.");
-            mind.LootSpot = item.transform.position;
-            mind.Misses = 0;
-            return;
+            mind.Skip.Add(lost);
+            Log($"{player.Profile.Nickname} cannot get to {lost.TemplateId} and skips it.");
         }
 
-        mind.LootSpot = null;
-        // Nothing around that fits. A few of those in a row and it counts as full; an empty map just waits.
-        if (far.Count > 0 && ++mind.Misses >= 3)
-            Fill(player, mind);
-        else
-            mind.NextPull = Time.time + UnityEngine.Random.Range(8f, 15f);
+        if (
+            mind.Stop is { } stop
+            && Next(
+                player,
+                mind,
+                controller,
+                bags,
+                loot.Where(l => (l.Position - stop).sqrMagnitude <= StopRadius * StopRadius && (!rich || l.Price >= Worth / 3))
+            )
+        )
+            return;
+        if (mind.Stop is not null)
+        {
+            mind.Stop = null;
+            Log($"{player.Profile.Nickname} cleared a spot ({++mind.Stops} of {mind.StopsPlanned}, {mind.Looted} items so far).");
+            if (mind.Stops >= mind.StopsPlanned)
+            {
+                Leave(player, mind, "got what it came for");
+                return;
+            }
+        }
+
+        if (!Plan(player, mind, controller, bags, rich ? loot.Where(l => l.Price >= Worth).ToList() : loot))
+        {
+            mind.LootSpot = null;
+            mind.LootItem = null;
+            // Nothing anywhere that fits any more.
+            if (++mind.Misses >= 3)
+                Leave(player, mind, $"is full ({loot.Count} items around, none fit)");
+            else
+                mind.NextPull = Time.time + UnityEngine.Random.Range(4f, 8f);
+        }
     }
 
-    private static void Fill(Player player, CheaterMind mind)
+    // Walks to the best item in the cluster that still fits, nearer ones first.
+    private static bool Next(
+        Player player,
+        CheaterMind mind,
+        InventoryController controller,
+        CompoundItem[] bags,
+        IEnumerable<Loot> cluster
+    )
     {
+        foreach (
+            var l in cluster.OrderByDescending(l => l.Price / (1 + Vector3.Distance(l.Position, player.Position) / 20f)).Take(10)
+        )
+        {
+            if (!Place(l.Item, controller, bags).Succeeded)
+                continue;
+            if (mind.LootItem != l.Item)
+            {
+                mind.Stuck = 0;
+                Log(
+                    $"{player.Profile.Nickname} heads for {l.Item.TemplateId} ({l.Price:N0} RUB) {Vector3.Distance(l.Position, player.Position):0} m away."
+                );
+            }
+            mind.LootSpot = l.Position;
+            mind.LootItem = l.Item;
+            mind.Misses = 0;
+            return true;
+        }
+
+        return false;
+    }
+
+    // Picks the richest cluster on the map, worth the walk: total value in 25 m around each good item, a little less the further it is.
+    private static bool Plan(
+        Player player,
+        CheaterMind mind,
+        InventoryController controller,
+        CompoundItem[] bags,
+        List<Loot> loot
+    )
+    {
+        var pos = player.Position;
+        var seeds = loot.OrderByDescending(l => l.Price).Take(40).ToList();
+        var ranked = new List<(Loot Seed, float Value, float Score)>();
+        foreach (var seed in seeds)
+        {
+            float value = 0;
+            foreach (var l in loot)
+                if ((l.Position - seed.Position).sqrMagnitude <= StopRadius * StopRadius)
+                    value += l.Price;
+            ranked.Add((seed, value, value / (1 + Vector3.Distance(seed.Position, pos) / 250f)));
+        }
+
+        foreach (var (seed, value, _) in ranked.OrderByDescending(r => r.Score))
+        {
+            if (!Place(seed.Item, controller, bags).Succeeded)
+                continue;
+            mind.Stop = seed.Position;
+            Log(
+                $"{player.Profile.Nickname} plans a run on {value:N0} RUB of loot {Vector3.Distance(seed.Position, pos):0} m away."
+            );
+            return Next(
+                player,
+                mind,
+                controller,
+                bags,
+                loot.Where(l => (l.Position - seed.Position).sqrMagnitude <= StopRadius * StopRadius)
+            );
+        }
+
+        return false;
+    }
+
+    private static void Leave(Player player, CheaterMind mind, string why)
+    {
+        mind.Leaving = true;
         mind.Full = true;
+        mind.Stop = null;
         mind.LootSpot = null;
-        Log($"{player.Profile.Nickname} is full after vacuuming {mind.Looted} items and plays on with its loot.");
+        mind.LootItem = null;
+        Log($"{player.Profile.Nickname} {why} after vacuuming {mind.Looted} items and heads out.");
+        if (BrainInstalled)
+            PickExit(player, mind);
+    }
+
+    // The nearest exit a bot can use on foot: open, no car, train, switch or co-op requirement, and not one it already failed to reach.
+    internal static void PickExit(Player player, CheaterMind mind)
+    {
+        mind.Exit = null;
+        mind.ExitTries = 0;
+        if (Singleton<GameWorld>.Instance.ExfiltrationController?.ExfiltrationPoints is not { } exits)
+            return;
+        EFT.Interactive.ExfiltrationPoint? best = null,
+            fallback = null;
+        Vector3 bestSpot = default,
+            fallbackSpot = default;
+        float nearest = float.MaxValue,
+            nearestFallback = float.MaxValue;
+        foreach (var exit in exits)
+        {
+            if (
+                exit == null
+                || mind.BadExits.Contains(exit)
+                || exit.Status == EFT.Interactive.EExfiltrationStatus.NotPresent
+                || exit.Settings?.ExfiltrationType == EFT.Interactive.EExfiltrationType.SharedTimer
+                || exit.Requirements?.Any(r =>
+                    r.Requirement
+                        is EFT.Interactive.ERequirementState.Train
+                            or EFT.Interactive.ERequirementState.ScavCooperation
+                            or EFT.Interactive.ERequirementState.WorldEvent
+                ) == true
+                || !UnityEngine.AI.NavMesh.SamplePosition(
+                    exit.transform.position,
+                    out var hit,
+                    8f,
+                    UnityEngine.AI.NavMesh.AllAreas
+                )
+            )
+                continue;
+            float d = Vector3.Distance(hit.position, player.Position);
+            bool open =
+                exit.Status is EFT.Interactive.EExfiltrationStatus.RegularMode or EFT.Interactive.EExfiltrationStatus.Countdown;
+            if (open && d < nearest)
+            {
+                nearest = d;
+                best = exit;
+                bestSpot = hit.position;
+            }
+            else if (!open && d < nearestFallback)
+            {
+                nearestFallback = d;
+                fallback = exit;
+                fallbackSpot = hit.position;
+            }
+        }
+
+        mind.Exit = best ?? fallback;
+        mind.ExitSpot = best is not null ? bestSpot : fallbackSpot;
+        if (mind.Exit is { } chosen)
+            Log(
+                $"{player.Profile.Nickname} heads for {chosen.Settings?.Name} {Vector3.Distance(mind.ExitSpot, player.Position):0} m away."
+            );
+        else
+            Log($"{player.Profile.Nickname} has no exit it can reach and plays on with its loot.");
+    }
+
+    // Leaves the raid with its loot, the way bot mods extract a bot.
+    internal static void Extract(Player player)
+    {
+        if (player.AIData?.BotOwner is not { } owner || !extracted.Add(player))
+            return;
+        Log($"{player.Profile.Nickname} extracted with {CheaterMind.Of(player).Looted} vacuumed items.");
+        See(player, "Extracted");
+        try
+        {
+            owner.LeaveData.RemoveFromMap();
+        }
+        catch (Exception ex)
+        {
+            Log($"Extract failed for {player.Profile.Nickname}: {ex.Message}");
+        }
     }
 
     // Backpack first, then rig and pockets. Never the secure container, so the loot drops with the body.
@@ -806,15 +1114,18 @@ internal static class CheaterRoster
             .ToArray()!;
     }
 
-    private static Diz.LanguageExtensions.OperationResult<IItemOperationResult> Place(Item item, InventoryController controller, EFT.InventoryLogic.CompoundItem[] bags) =>
-        ItemManipulator.QuickFindAppropriatePlace(item, controller, bags, ItemManipulator.EMoveItemOrder.PickUp, true);
+    private static Diz.LanguageExtensions.OperationResult<IItemOperationResult> Place(
+        Item item,
+        InventoryController controller,
+        EFT.InventoryLogic.CompoundItem[] bags
+    ) => ItemManipulator.QuickFindAppropriatePlace(item, controller, bags, ItemManipulator.EMoveItemOrder.PickUp, true);
 
     // Same steps as BotItemTaker: the pickup animation, then the move as a network transaction.
     private static async Task Pull(
         Player player,
         CheaterMind mind,
         EFT.InventoryLogic.CompoundItem[] bags,
-        List<(EFT.Interactive.LootItem Item, int Price)> picks,
+        List<Loot> picks,
         int take
     )
     {
@@ -824,29 +1135,35 @@ internal static class CheaterRoster
         try
         {
             var controller = player.InventoryController;
-            foreach (var (loose, price) in picks)
+            foreach (var (item, at, price) in picks)
             {
                 if (got >= take || player.HealthController?.IsAlive != true)
                     break;
-                // Someone else may have taken it while the last move ran.
-                if (loose == null || loose.Item is not { } item)
+                // Loose items have no address. One that ended up in an inventory (someone picked it up) is left alone.
+                if (item.CurrentAddress?.GetOwnerOrNull() is InventoryController)
                     continue;
                 var place = Place(item, controller, bags);
                 if (!place.Succeeded)
+                {
+                    mind.Skip.Add(item);
                     continue;
+                }
                 tried++;
-                float distance = Vector3.Distance(loose.transform.position, player.Position);
+                float distance = Vector3.Distance(at, player.Position);
                 var ready = new TaskCompletionSource<bool>();
                 try
                 {
                     player.CurrentManagedState.Pickup(true, () => ready.TrySetResult(true));
                     // A busy hands controller may never call back.
                     await Task.WhenAny(ready.Task, Task.Delay(1500));
-                    if (player.HealthController?.IsAlive != true || loose == null)
+                    if (player.HealthController?.IsAlive != true)
                         break;
                     var result = await controller.TryRunNetworkTransaction(place, null);
                     if (result.Failed)
+                    {
+                        mind.Skip.Add(item);
                         continue;
+                    }
                 }
                 finally
                 {
@@ -861,8 +1178,16 @@ internal static class CheaterRoster
                 got++;
                 mind.Looted++;
                 mind.Misses = 0;
+                if (item == mind.LootItem)
+                {
+                    mind.LootItem = null;
+                    mind.LootSpot = null;
+                    mind.Stuck = 0;
+                }
                 Suspect(player, distance > 3 ? 1 : .3f);
-                Log($"{player.Profile.Nickname} vacuumed {item.TemplateId} ({price:N0} RUB) from {distance:0} m, {mind.Looted} so far.");
+                Log(
+                    $"{player.Profile.Nickname} vacuumed {item.TemplateId} ({price:N0} RUB) from {distance:0} m, {mind.Looted} so far."
+                );
                 See(player, "Spawned");
             }
         }
@@ -877,8 +1202,12 @@ internal static class CheaterRoster
 
         // Things in reach but nothing fits any more.
         if (got == 0 && tried == 0 && ++mind.Misses >= 3)
-            Fill(player, mind);
+            mind.Full = true;
+        // Pulls again soon while there is more in reach.
+        else if (got > 0)
+            mind.NextPull = Time.time + UnityEngine.Random.Range(.5f, 1.2f);
     }
+
     // "Scav ahead" or "Hold fire" on a macro: each line cut off a split second in by the next, like a key held down.
     private static void Spam(Player player, float now)
     {

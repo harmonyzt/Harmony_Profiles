@@ -2451,3 +2451,36 @@
     width: 17%;
     white-space: normal
 }
+
+.pbt-editor .fb-personas {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px
+}
+
+.pbt-editor .fb-persona {
+    border: 1px solid var(--fb-border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px
+}
+
+.pbt-editor .fb-persona p {
+    margin: 0;
+    color: var(--fb-muted);
+    font-size: 13px
+}
+
+.pbt-editor .fb-persona-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline
+}
+
+.pbt-editor .fb-persona-share {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--fb-primary)
+}
