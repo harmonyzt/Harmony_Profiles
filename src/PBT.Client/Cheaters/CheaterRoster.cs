@@ -209,6 +209,12 @@ internal static class CheaterRoster
                 postfix: new HarmonyMethod(typeof(CheaterRoster), nameof(SpeedhackDone))
             );
 
+        var shall = AccessTools.Method(typeof(BotReload), nameof(BotReload.FightShallReload));
+        if (shall is null)
+            Plugin.Report("Cheater reloads unavailable.");
+        else
+            harmony.Patch(shall, prefix: new HarmonyMethod(typeof(CheaterRoster), nameof(ShallReload)));
+
         var steer = AccessTools.Method(typeof(BotSteering), nameof(BotSteering.ManualFixedUpdate));
         if (steer is null)
             Plugin.Report("Cheater spinbot movement fix unavailable.");
@@ -267,6 +273,28 @@ internal static class CheaterRoster
         {
             nextRefresh = 0;
             Plugin.Report("Cheater roster unavailable: " + ex.Message);
+        }
+
+        LoadPrices();
+    }
+
+    // Client item templates carry no price, so loot is valued by the server's handbook.
+    private static readonly Dictionary<string, int> prices = new();
+
+    private static void LoadPrices()
+    {
+        if (prices.Count > 0)
+            return;
+        try
+        {
+            if (JObject.Parse(RequestHandler.PostJson("/pbt/raid/prices", "{}"))["Prices"] is JObject table)
+                foreach (var pair in table)
+                    prices[pair.Key] = (int)Math.Min(int.MaxValue, pair.Value?.Value<double>() ?? 0);
+            Log($"Loaded {prices.Count} loot prices.");
+        }
+        catch (Exception ex)
+        {
+            Plugin.Report("Loot prices unavailable: " + ex.Message);
         }
     }
 
@@ -481,6 +509,59 @@ internal static class CheaterRoster
 
     internal static float SinceHit(Player player) => lastHit.TryGetValue(player, out float t) ? Time.time - t : float.MaxValue;
 
+    // The game refuses reloads with an enemy in view or when it would rather swap guns; a cheater's own request gets through.
+    private static readonly HashSet<BotOwner> reloading = new();
+    private static readonly AccessTools.FieldRef<BotData, BotOwner> dataOwner = AccessTools.FieldRefAccess<BotData, BotOwner>(
+        "_owner"
+    );
+
+    private static bool ShallReload(BotReload __instance, ref bool __result)
+    {
+        if (reloading.Count == 0 || !reloading.Contains(dataOwner(__instance)) || __instance.Reloading)
+            return true;
+        __result = true;
+        return false;
+    }
+
+    // Clears a jam through the game's own repair steps. True while it is still at it.
+    internal static bool ClearJam(BotOwner owner)
+    {
+        if (owner.WeaponManager?.Malfunctions is not { } jam || !jam.HaveMalfunction())
+            return false;
+        jam.Update();
+        return true;
+    }
+
+    // Reloads when empty, or below about a third while not shooting. True if a reload started.
+    internal static bool Reload(BotOwner owner, bool firing)
+    {
+        if (owner.WeaponManager?.Reload is not { } reload || reload.Reloading)
+            return false;
+        int count = reload.BulletCount,
+            max = reload.MaxBulletCount;
+        if (max <= 0 || count > 0 && (firing || count > max * .35f))
+            return false;
+        reloading.Add(owner);
+        try
+        {
+            bool started = reload.TryReload();
+            if (!started && count == 0)
+                Log(
+                    $"{owner.Profile?.Nickname} could not reload ({count}/{max}, no ammo cached: {reload.NoAmmoForReloadCached})."
+                );
+            return started;
+        }
+        catch (Exception ex)
+        {
+            Log($"Reload failed for {owner.Profile?.Nickname}: {ex.Message}");
+            return false;
+        }
+        finally
+        {
+            reloading.Remove(owner);
+        }
+    }
+
     // Whoever last shot this cheater, if that was within the last 8 s and they are still alive.
     internal static Player? Attacker(Player player) =>
         SinceHit(player) < 8
@@ -676,6 +757,9 @@ internal static class CheaterRoster
 
             if (Has(player, Cheat.Esp) && !driven.Contains(player))
                 Esp(player, now);
+            // ORBIT never reloads (it leaves that to SAIN, which cheaters skip), so a cheater it drives is kept loaded here.
+            if (banRoll && !driven.Contains(player) && player.AIData?.BotOwner is { } owner && !ClearJam(owner))
+                Reload(owner, owner.Memory?.GoalEnemy?.IsVisible == true);
             if (banRoll)
                 MaybeBan(player);
         }
@@ -836,7 +920,8 @@ internal static class CheaterRoster
     {
         if (item.QuestItem || item is EFT.InventoryLogic.Weapon || mind.Skip.Contains(item))
             return;
-        int price = item.Template.CreditsPrice * Math.Max(1, item.StackObjectsCount);
+        int each = prices.TryGetValue(item.TemplateId.ToString(), out int known) ? known : item.Template.CreditsPrice;
+        int price = (int)Math.Min(int.MaxValue, (long)each * Math.Max(1, item.StackObjectsCount));
         if (price > 0)
             found.Add(new Loot(item, at, price));
     }
@@ -902,7 +987,7 @@ internal static class CheaterRoster
             return;
 
         // The item it was walking to, unreachable even after a teleport: give up on it.
-        if (mind.Stuck >= 3 && mind.LootItem is { } lost)
+        if (mind.Stuck >= 2 && mind.LootItem is { } lost)
         {
             mind.Skip.Add(lost);
             Log($"{player.Profile.Nickname} cannot get to {lost.TemplateId} and skips it.");
@@ -951,9 +1036,11 @@ internal static class CheaterRoster
         IEnumerable<Loot> cluster
     )
     {
-        foreach (
-            var l in cluster.OrderByDescending(l => l.Price / (1 + Vector3.Distance(l.Position, player.Position) / 20f)).Take(10)
-        )
+        // Sticks with the item it is walking to. Re-ranking as it moved flipped it between items and reset its stuck count.
+        var ranked = cluster
+            .OrderByDescending(l => l.Item == mind.LootItem)
+            .ThenByDescending(l => l.Price / (1 + Vector3.Distance(l.Position, player.Position) / 20f));
+        foreach (var l in ranked.Take(10))
         {
             if (!Place(l.Item, controller, bags).Succeeded)
                 continue;

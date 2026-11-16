@@ -19,6 +19,8 @@ public sealed partial class PopulationStore
             .GroupBy(i => i.Id.ToString())
             .ToDictionary(g => g.Key, g => g.First().Price!.Value);
 
+    public Dictionary<string, double> LootPrices() => HandbookPrices();
+
     private readonly Dictionary<int, List<KeyValuePair<string, double>>> trophyCatalogs = new();
 
     // Friend gifts read this off the gate.

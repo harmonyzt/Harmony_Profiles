@@ -279,6 +279,11 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         peeks,
         peekLimit = 2;
     private Vector3? teleportTo;
+    private bool teleportPeek;
+    private EFT.InventoryLogic.Item? arrivedFor;
+    private float arrivedAt;
+    private int arrivedLooted;
+    private int blinksLeft;
     private readonly List<Vector3> used = new();
     private Player? seen,
         engaged;
@@ -354,8 +359,23 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
 
         if (Stalking(bot, mind))
             return true;
+        var fighting = InFight(owner, bot, mind);
+        // Whoever is right in front of it comes first, ahead of a fight or hunt further off.
+        if (
+            CheaterRoster.TypeOf(bot) != CheaterType.Looter
+            && Spotted(owner, bot, mind) is { } close
+            && Closer(bot, close, fighting)
+            && Closer(bot, close, mind.Target is { } current && Valid(bot, current) && Clear(bot, current) ? current : null)
+        )
+        {
+            if (mind.Target != close)
+                CheaterRoster.Log($"{bot.Profile.Nickname} spots {close.Profile.Nickname}.");
+            mind.Track(close, close.Position);
+            return true;
+        }
+
         // A fight its own AI walked into is fought with the cheats, not by SAIN.
-        if (InFight(owner, bot, mind) is { } fighting)
+        if (fighting is not null)
         {
             if (mind.Target != fighting)
                 CheaterRoster.Log($"{bot.Profile.Nickname} fights {fighting.Profile.Nickname} with its cheats.");
@@ -369,15 +389,6 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
             if (mind.Target != shooter)
                 CheaterRoster.Log($"{bot.Profile.Nickname} is shot by {shooter.Profile.Nickname} and fights back.");
             mind.Track(shooter, shooter.Position);
-            return true;
-        }
-
-        // ORBIT only yields to SAIN combat or incoming fire, and cheaters skip SAIN, so they must spot enemies themselves.
-        if (CheaterRoster.TypeOf(bot) != CheaterType.Looter && Spotted(owner, bot, mind) is { } seen)
-        {
-            if (mind.Target != seen)
-                CheaterRoster.Log($"{bot.Profile.Nickname} spots {seen.Profile.Nickname}.");
-            mind.Track(seen, seen.Position);
             return true;
         }
 
@@ -454,7 +465,11 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
             ? fighting
             : null;
 
-    // Nearest enemy in its 140 degree view within 70 m, or within 8 m. PMCs count before its group has met them.
+    private static bool Closer(Player bot, Player a, Player? b) =>
+        b is null || a == b || (a.Position - bot.Position).sqrMagnitude < (b.Position - bot.Position).sqrMagnitude * .5f;
+
+    // ORBIT only yields to SAIN combat or incoming fire, and cheaters skip SAIN, so they must spot enemies themselves.
+    // Nearest enemy in its 140 degree view within 70 m, or within 8 m. ESP and spinbots see all round, and anyone gunning for it counts within 15 m.
     private static Player? Spotted(BotOwner owner, Player bot, CheaterMind mind)
     {
         if (owner.BotsGroup is not { } group)
@@ -462,6 +477,7 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         Player? best = null;
         float nearest = 70 * 70;
         var look = bot.LookDirection;
+        bool allRound = CheaterRoster.Has(bot, Cheat.Esp | Cheat.Spinbot);
         foreach (var p in World.AllAlivePlayersList)
         {
             if (!Valid(bot, p) || CheaterRoster.Spares(bot, p) || mind.Ignores(p))
@@ -469,10 +485,17 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
             float d = (p.Position - bot.Position).sqrMagnitude;
             if (d >= nearest)
                 continue;
-            bool enemy;
+            bool enemy,
+                hostile;
             try
             {
-                enemy = group.IsEnemy(p) || p.IsYourPlayer || p.Side is EPlayerSide.Usec or EPlayerSide.Bear;
+                hostile = (object?)p.AIData?.BotOwner?.Memory?.GoalEnemy?.Person == bot;
+                enemy =
+                    hostile
+                    || group.IsEnemy(p)
+                    || p.IsYourPlayer
+                    || p.Side is EPlayerSide.Usec or EPlayerSide.Bear
+                    || p.Side == EPlayerSide.Savage && bot.Side != EPlayerSide.Savage;
             }
             catch
             {
@@ -480,7 +503,11 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
             }
             if (!enemy)
                 continue;
-            if (d > 8 * 8 && (Vector3.Angle(look, p.Position - bot.Position) > 70 || !Clear(bot, p)))
+            float close = hostile ? 15 : 8;
+            if (
+                d > close * close
+                && (!allRound && !hostile && Vector3.Angle(look, p.Position - bot.Position) > 70 || !Clear(bot, p))
+            )
                 continue;
             nearest = d;
             best = p;
@@ -629,6 +656,8 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
 
     public override void Stop()
     {
+        teleportTo = null;
+        arrivedFor = null;
         Trigger(false);
         Unstick();
         BotOwner.SetPose(1f);
@@ -650,6 +679,9 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         next = 0;
         engaged = null;
         angle = flank = null;
+        // A queued teleport or arrival timer belongs to the moment it was set, not to whatever comes next.
+        teleportTo = null;
+        arrivedFor = null;
         settled = false;
         Trigger(false);
         CheaterRoster.Aim(Bot, null);
@@ -706,14 +738,35 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         {
             // Arrived: pull soon, but at most twice a second since every pull scans the whole map.
             if (mind.LootSpot is not null)
+            {
                 mind.NextPull = Math.Min(mind.NextPull, Time.time + .5f);
+                // Still pulling other things around it counts as progress.
+                if (arrivedFor != mind.LootItem || arrivedLooted != mind.Looted)
+                {
+                    arrivedFor = mind.LootItem;
+                    arrivedLooted = mind.Looted;
+                    arrivedAt = Time.time;
+                }
+                // Standing at it and the pull still fails (other floor, sealed box): drop it rather than loop on it.
+                else if (Time.time - arrivedAt > 4 && mind.LootItem is { } stuck)
+                {
+                    mind.Skip.Add(stuck);
+                    mind.LootSpot = null;
+                    mind.LootItem = null;
+                    arrivedFor = null;
+                    CheaterRoster.Log(
+                        $"{Bot.Profile.Nickname} cannot pull {stuck.TemplateId} from where it stands and skips it."
+                    );
+                }
+            }
             if (BotOwner.Mover?.IsMoving == true)
                 BotOwner.Mover.Stop();
             BotOwner.SetPose(.7f);
             return;
         }
 
-        if (Travel(spot))
+        arrivedFor = null;
+        if (Travel(spot, true))
             mind.Stuck++;
     }
 
@@ -732,7 +785,7 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         {
             extractAt = 0;
             // An exit it cannot get to (blocked path, locked gate) is swapped for another.
-            if (Travel(mind.ExitSpot) && ++mind.ExitTries >= 3)
+            if (Travel(mind.ExitSpot, false) && ++mind.ExitTries >= 3)
             {
                 mind.BadExits.Add(exit);
                 CheaterRoster.PickExit(Bot, mind);
@@ -752,7 +805,7 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
     }
 
     // True after 12 s without getting closer; teleporters and flyers then blink there (into locked rooms too).
-    private bool Travel(Vector3 spot)
+    private bool Travel(Vector3 spot, bool breakIn)
     {
         BotOwner.SetPose(1f);
         BotOwner.SetTargetMoveSpeed(1f);
@@ -774,7 +827,23 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         {
             nextPath = Time.time + 5;
             // The loot can sit off the navmesh (on a shelf), so walk to the nearest point that is on it.
-            BotOwner.GoToPoint(Near(spot) ?? spot, false);
+            var status = BotOwner.GoToPoint(Near(spot) ?? spot, false);
+            // No way in (a locked or marked room): a teleporter just goes in, and out the same way.
+            if (
+                breakIn
+                && status != NavMeshPathStatus.PathComplete
+                && Has(Cheat.Fly | Cheat.FightTeleport)
+                && d is > 3 and < 60
+                && Time.time >= nextTeleport
+                && Near(spot) is { } inside
+            )
+            {
+                nextTeleport = Time.time + 20;
+                Blink(inside);
+                CheaterRoster.Suspect(Bot, 2);
+                CheaterRoster.Log($"{Bot.Profile.Nickname} has no way there and teleports in.");
+                return false;
+            }
         }
 
         BotOwner.Mover?.Sprint(!Has(Cheat.Spinbot));
@@ -1065,6 +1134,8 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         if (prey != engaged)
         {
             engaged = prey;
+            teleportTo = null;
+            blinksLeft = Type == CheaterType.Rage ? UnityEngine.Random.Range(2, 4) : UnityEngine.Random.Range(1, 3);
             Switch(PickTactic());
         }
 
@@ -1106,32 +1177,56 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
             return;
         }
 
-        // A teleport has a tell: a shout first, then it lands behind the target and needs a moment before it can shoot.
+        bool exposed = Exposed(prey, clear, distance);
+
+        // Teleports are moves with a reason, never a habit: out of a bad spot, or onto an angle the target is not watching.
         if (teleportTo is { } jump && Time.time >= tellUntil)
         {
             teleportTo = null;
             Blink(jump);
-            settleUntil = Time.time + UnityEngine.Random.Range(.6f, 1f);
-            if (tactic != Tactic.Push)
-                Switch(Tactic.Push);
+            Switch(Tactic.Hold);
+            angle = jump;
+            settleUntil = Time.time + UnityEngine.Random.Range(.4f, .8f);
             CheaterRoster.Suspect(Bot, 3);
-            CheaterRoster.Log($"{Bot.Profile.Nickname} teleported behind {prey.Profile.Nickname}.");
+            CheaterRoster.Log(
+                $"{Bot.Profile.Nickname} teleported {(teleportPeek ? "onto an angle on" : "away from")} {prey.Profile.Nickname}."
+            );
         }
-        else if (
-            teleportTo is null
-            && Has(Cheat.FightTeleport)
-            && (clear || esp)
-            && distance is > 10 and < 80
-            && Time.time >= nextTeleport
-        )
+        else if (teleportTo is null && Has(Cheat.FightTeleport) && Time.time >= nextTeleport)
         {
-            nextTeleport = Time.time + UnityEngine.Random.Range(10f, 22f);
-            if (BehindSpot(prey) is { } spot)
+            if (exposed || Grenade())
             {
-                teleportTo = spot;
-                tellUntil = Time.time + .6f;
-                Bot.Speaker?.Play(EPhraseTrigger.Gogogo, Bot.HealthStatus | ETagStatus.Combat, true);
+                nextTeleport = Time.time + UnityEngine.Random.Range(12f, 20f);
+                teleportTo = FleeSpot(prey);
+                teleportPeek = false;
+                tellUntil = Time.time + .15f;
             }
+            else if (
+                blinksLeft > 0
+                && (esp || Time.time - mind.LastSeenTime < 8)
+                && (!clear && Time.time - mind.LastSeenTime > 3 || distance > 45)
+                && GunReady
+            )
+            {
+                // The search is a dozen navmesh samples, so a miss waits a moment before the next try.
+                if (PeekSpot(prey) is not { } spot)
+                    nextTeleport = Time.time + 1.5f;
+                else
+                {
+                    blinksLeft--;
+                    nextTeleport = Time.time + UnityEngine.Random.Range(25f, 45f);
+                    teleportTo = spot;
+                    teleportPeek = true;
+                    tellUntil = Time.time + .6f;
+                    Bot.Speaker?.Play(EPhraseTrigger.Gogogo, Bot.HealthStatus | ETagStatus.Combat, true);
+                }
+            }
+        }
+        // Without a teleport it still gets out of the open to reload or when it is losing the trade.
+        else if (exposed && tactic == Tactic.Push && !duel)
+        {
+            Switch(Tactic.Hold);
+            CheaterRoster.Log($"{Bot.Profile.Nickname} breaks for cover.");
         }
 
         switch (tactic)
@@ -1344,18 +1439,62 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         return prey.AIData?.BotOwner?.Memory?.GoalEnemy is { IsVisible: true } busy && busy.Person != (IPlayer)Bot;
     }
 
-    // Lands behind the target, out of its view, a few metres off.
-    private Vector3? BehindSpot(Player prey)
+    // 15 to 30 m off the target's side or back with a standing line on its head, hidden crouched if it can find one.
+    private Vector3? PeekSpot(Player prey)
     {
-        var back = -prey.LookDirection;
-        back.y = 0;
-        if (back.sqrMagnitude < .01f)
+        var mask = LayersMaskController.HighPolyWithTerrainMask;
+        var look = prey.LookDirection;
+        look.y = 0;
+        if (look.sqrMagnitude < .01f)
             return null;
-        return Near(
-            prey.Position
-                + Quaternion.Euler(0, UnityEngine.Random.Range(-40f, 40f), 0) * back.normalized * UnityEngine.Random.Range(5f, 9f)
-        );
+        look.Normalize();
+        var eye = prey.PlayerBones.Head.position;
+        Vector3? best = null;
+        float bestScore = float.MinValue;
+        for (int i = 0; i < 14; i++)
+        {
+            float yaw = UnityEngine.Random.Range(100f, 180f) * (UnityEngine.Random.value < .5f ? -1 : 1);
+            var dir = Quaternion.Euler(0, yaw, 0) * look;
+            if (
+                Near(prey.Position + dir * UnityEngine.Random.Range(15f, 30f)) is not { } p
+                || Physics.Linecast(eye, p + Vector3.up * 1.55f, mask)
+            )
+                continue;
+            float score = 0;
+            if (Physics.Linecast(eye, p + Vector3.up * 1f, mask))
+                score += 3;
+            var facing = prey.Position - p;
+            facing.y = 0;
+            if (Physics.Raycast(p + Vector3.up * 1f, facing.normalized, 2f, mask))
+                score += 2;
+            if ((p - Bot.Position).sqrMagnitude < 10 * 10)
+                score -= 4;
+            if (score > bestScore)
+            {
+                bestScore = score;
+                best = p;
+            }
+        }
+
+        return best;
     }
+
+    // Reloading or clearing a jam in the target's view, or hurt and still taking hits.
+    private bool Exposed(Player prey, bool clear, float distance)
+    {
+        if (Has(Cheat.Godmode))
+            return false;
+        if (clear && distance < 60 && GunBusy && Watching(prey))
+            return true;
+        return CheaterRoster.SinceHit(Bot) < 1 && Health() < .45f;
+    }
+
+    private float Health() =>
+        Bot.HealthController?.GetBodyPartHealth(EBodyPart.Common, false) is { Maximum: > 0 } h ? h.Current / h.Maximum : 1;
+
+    private bool Grenade() => BotOwner.BewareGrenade?.SawGrenadeSoFar(2f) == true;
+
+    private bool GunReady => !GunBusy;
 
     // Scores spots around the bot (or partway to the target when moving up): hidden from the target when crouched, a view of it when standing, cover right in front.
     private Vector3 FindAngle(Player prey, Vector3 known, bool moveUp)
@@ -1588,27 +1727,19 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
 
     private void LookAt(Vector3 point) => BotOwner.Steering?.LookToPoint(point, CheaterRoster.AimOf(Bot).Turn);
 
-    // Reloads and jam clearing live in the AI's own brain nodes, which never run while this layer drives. Without this
-    // a cheater emptied its gun, kept clicking, and froze in the AI's hold position to reload once the layer let go.
+    // Reloads and jam clearing live in the AI's own brain nodes, which never run while this layer drives.
     private void KeepGunReady()
     {
-        if (BotOwner.WeaponManager is not { } weapons)
-            return;
-        if (weapons.Malfunctions is { } jam && jam.HaveMalfunction())
+        if (CheaterRoster.ClearJam(BotOwner))
         {
             Trigger(false);
-            jam.Update();
             return;
         }
-        if (weapons.Reload is not { } reload || reload.Reloading || Time.time < nextReload)
-            return;
-        int count = reload.BulletCount;
-        // Empty, or low between bursts.
-        if (count > 0 && (firing || count > reload.MaxBulletCount * .35f))
+        if (Time.time < nextReload)
             return;
         nextReload = Time.time + 1;
-        Trigger(false);
-        reload.TryReload();
+        if (CheaterRoster.Reload(BotOwner, firing))
+            Trigger(false);
     }
 
     private bool GunBusy =>
@@ -1658,14 +1789,15 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
     // A flyer skims ahead toward where it is going in short airborne hops, landing each time so the jump state ends normally.
     private void Glide(Vector3 goal)
     {
-        if (!Has(Cheat.Fly) || Time.time < nextGlide)
+        // Only to get somewhere. Blinking about mid-fight made it an enderman.
+        if (!Has(Cheat.Fly) || phase == CheaterPhase.Fight || Time.time < nextGlide)
             return;
         var to = goal - Bot.Position;
         to.y = 0;
         float d = to.magnitude;
-        if (d < 10)
+        if (d < 40)
             return;
-        nextGlide = Time.time + UnityEngine.Random.Range(1.2f, 2.5f);
+        nextGlide = Time.time + UnityEngine.Random.Range(6f, 12f);
         if (Near(Bot.Position + to / d * Mathf.Min(d - 4, UnityEngine.Random.Range(6f, 12f))) is not { } spot)
             return;
         Blink(spot + Vector3.up * UnityEngine.Random.Range(.8f, 1.6f));

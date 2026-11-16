@@ -155,11 +155,11 @@ public sealed partial class PopulationStore
             replacement.Add(copy);
         }
 
-        var items =
-            json.Deserialize<List<Item>>(replacement.ToJsonString())
+        var items = json.Deserialize<List<Item>>(replacement.ToJsonString())
             ?? throw new InvalidDataException("Cannot read the stored profile loadout.");
         var original = inventory.Items!.ToList();
         var reserves = Reserves(original, root);
+        var spares = SpareCounts(original, root);
         var equipped = new HashSet<string> { root };
         bool changed;
         do
@@ -185,6 +185,7 @@ public sealed partial class PopulationStore
                 TrackContainer(botId, inventory, root, slot);
             }
 
+            SpareMags(botId, inventory, root, spares, template);
             Resupply(botId, inventory, root, reserves);
 
             if (needsLoot)
@@ -303,7 +304,12 @@ public sealed partial class PopulationStore
 
     // Gives each gun of the stored kit spare rounds of the caliber it is loaded with, unless the kit already carries some.
     // APBS's own reserves for that caliber come back first; otherwise the loaded round, four stacks of it.
-    private void Resupply(MongoId botId, BotBaseInventory inventory, string root, Dictionary<string, (MongoId Tpl, int Count)> reserves)
+    private void Resupply(
+        MongoId botId,
+        BotBaseInventory inventory,
+        string root,
+        Dictionary<string, (MongoId Tpl, int Count)> reserves
+    )
     {
         var items = inventory.Items!;
         var children = items.Where(i => i.ParentId is not null).ToLookup(i => i.ParentId!);
@@ -348,14 +354,161 @@ public sealed partial class PopulationStore
                 int count = Math.Min(stack, left);
                 left -= count;
                 var id = new MongoId();
-                var ammo = new Item { Id = id, Template = tpl, Upd = new Upd { StackObjectsCount = count } };
-                if (botGenerator.AddItemWithChildrenToEquipmentSlot(botId, slots, id, tpl, [ammo], inventory) != ItemAddedResult.SUCCESS)
+                var ammo = new Item
+                {
+                    Id = id,
+                    Template = tpl,
+                    Upd = new Upd { StackObjectsCount = count },
+                };
+                if (
+                    botGenerator.AddItemWithChildrenToEquipmentSlot(botId, slots, id, tpl, [ammo], inventory)
+                    != ItemAddedResult.SUCCESS
+                )
                 {
                     break;
                 }
             }
         }
     }
+
+    private static readonly HashSet<EquipmentSlots> MagCarriers =
+    [
+        EquipmentSlots.TacticalVest,
+        EquipmentSlots.Pockets,
+        EquipmentSlots.Backpack,
+    ];
+
+    // Spare box mags in the rig, pockets and backpack.
+    private List<MongoId> CarriedMags(List<Item> items, string root)
+    {
+        var carriers = items
+            .Where(i => i.ParentId == root && i.SlotId is "TacticalVest" or "Pockets" or "Backpack")
+            .Select(i => i.Id.ToString())
+            .ToHashSet();
+        return items
+            .Where(i => i.ParentId is { } p && carriers.Contains(p) && BoxMagazine(i.Template.ToString()) is not null)
+            .Select(i => i.Template)
+            .ToList();
+    }
+
+    // How many spare mags APBS gave each gun slot of the inventory it just generated for this bot.
+    private Dictionary<string, int> SpareCounts(List<Item> items, string root)
+    {
+        var carried = CarriedMags(items, root);
+        var children = items.Where(i => i.ParentId is not null).ToLookup(i => i.ParentId!);
+        var counts = new Dictionary<string, int>();
+        foreach (var weapon in items.Where(i => i.ParentId == root && Weapons.Contains(i.SlotId)))
+        {
+            if (Descendant(children, weapon, "mod_magazine") is { } mag)
+                counts[weapon.SlotId!] = carried.Count((MagFilter(weapon.Template) ?? [mag.Template]).Contains);
+        }
+
+        return counts;
+    }
+
+    // SPT's own spare mag roll for the bot type, for a gun slot APBS left empty this time.
+    private static int SptMagCount(BotType template)
+    {
+        var weights = template.BotGeneration?.Items?.Magazines?.Weights;
+        if (weights is null || weights.Count == 0)
+            return 2;
+        double roll = Random.Shared.NextDouble() * weights.Values.Sum();
+        foreach (var (count, weight) in weights)
+            if ((roll -= weight) < 0)
+                return (int)count;
+        return (int)weights.Keys.Max();
+    }
+
+    // Cheater looks and upgrades swap guns without their mags, and bots reload box mags only from spare mags.
+    private void SpareMags(MongoId botId, BotBaseInventory inventory, string root, Dictionary<string, int> apbs, BotType template)
+    {
+        var items = inventory.Items!;
+        var children = items.Where(i => i.ParentId is not null).ToLookup(i => i.ParentId!);
+        var carried = CarriedMags(items, root);
+
+        foreach (var weapon in items.Where(i => i.ParentId == root && Weapons.Contains(i.SlotId)).ToList())
+        {
+            if (
+                Descendant(children, weapon, "mod_magazine") is not { } mag
+                || BoxMagazine(mag.Template.ToString()) is not { } magTemplate
+                || children[mag.Id.ToString()].FirstOrDefault(i => i.SlotId == "cartridges")?.Template is not { } ammo
+                || !templates.Items.TryGetValue(ammo, out var round)
+            )
+            {
+                continue;
+            }
+
+            var fits = MagFilter(weapon.Template) ?? [mag.Template];
+            int want = apbs.TryGetValue(weapon.SlotId!, out int given) ? given : SptMagCount(template);
+            int have = carried.Count(fits.Contains);
+            int capacity = (int)magTemplate.Properties!.Cartridges!.First().MaxCount!.Value;
+            int stack = Math.Max(1, round.Properties?.StackMaxSize ?? capacity);
+
+            for (; have < want; have++)
+            {
+                var magId = new MongoId();
+                var spare = new List<Item>
+                {
+                    new() { Id = magId, Template = mag.Template },
+                };
+                int stacks = (capacity + stack - 1) / stack;
+                for (int index = 0, left = capacity; index < stacks; index++)
+                {
+                    int count = Math.Min(stack, left);
+                    left -= count;
+                    spare.Add(
+                        new Item
+                        {
+                            Id = new MongoId(),
+                            Template = ammo,
+                            ParentId = magId.ToString(),
+                            SlotId = "cartridges",
+                            Location = stacks > 1 ? index : null,
+                            Upd = new Upd { StackObjectsCount = count },
+                        }
+                    );
+                }
+
+                if (
+                    botGenerator.AddItemWithChildrenToEquipmentSlot(botId, MagCarriers, magId, mag.Template, spare, inventory)
+                    != ItemAddedResult.SUCCESS
+                )
+                {
+                    break;
+                }
+
+                carried.Add(mag.Template);
+            }
+        }
+    }
+
+    private static Item? Descendant(ILookup<string, Item> children, Item from, string slot)
+    {
+        var open = new Stack<Item>(children[from.Id.ToString()]);
+        while (open.Count > 0)
+        {
+            var item = open.Pop();
+            if (item.SlotId == slot)
+            {
+                return item;
+            }
+
+            foreach (var child in children[item.Id.ToString()])
+            {
+                open.Push(child);
+            }
+        }
+
+        return null;
+    }
+
+    // Every mag the gun takes, so a rig of compatible mags (a 30 for a gun with a 60) already counts.
+    private HashSet<MongoId>? MagFilter(MongoId weapon) =>
+        templates.Items.TryGetValue(weapon, out var t)
+        && t.Properties?.Slots?.FirstOrDefault(s => s.Name == "mod_magazine")?.Properties?.Filters?.FirstOrDefault()?.Filter
+            is { Count: > 0 } filter
+            ? filter.ToHashSet()
+            : null;
 
     private MongoId? Loaded(ILookup<string, Item> children, Item weapon)
     {
@@ -404,8 +557,8 @@ public sealed partial class PopulationStore
             string magId = mag["_id"]!.ToString();
             int capacity = (int)template.Properties!.Cartridges!.First().MaxCount!.Value;
             var rounds = all.Where(i => i["parentId"]?.ToString() == magId && i["slotId"]?.ToString() == "cartridges").ToList();
-            string? ammo =
-                rounds.Select(r => r["_tpl"]?.ToString()).FirstOrDefault(t => t is not null) ?? AmmoFor(mag, all, template);
+            string? ammo = rounds.Select(r => r["_tpl"]?.ToString()).FirstOrDefault(t => t is not null)
+                ?? AmmoFor(mag, all, template);
 
             if (ammo is null || !templates.Items.TryGetValue(new MongoId(ammo), out var ammoTemplate))
             {
