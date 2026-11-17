@@ -941,8 +941,16 @@ internal static class CheaterRoster
             return;
         }
         mind.NextPull = Time.time + UnityEngine.Random.Range(1.5f, 3f);
+        if (mind.HaulTarget == 0)
+            mind.HaulTarget = (long)(300_000 + Hash(Account(player), 34) * 1_200_000);
         var controller = player.InventoryController;
         var bags = Bags(controller);
+        // Misses only mean the last few items did not fit. Room left means it keeps going, those items are already skipped.
+        if (mind.Full && bags.Length > 0 && Fill(bags) < .8f)
+        {
+            mind.Full = false;
+            mind.Misses = 0;
+        }
         if (bags.Length == 0 || mind.Full)
         {
             Leave(player, mind, "has no room left");
@@ -1007,12 +1015,14 @@ internal static class CheaterRoster
         if (mind.Stop is not null)
         {
             mind.Stop = null;
-            Log($"{player.Profile.Nickname} cleared a spot ({++mind.Stops} of {mind.StopsPlanned}, {mind.Looted} items so far).");
-            if (mind.Stops >= mind.StopsPlanned)
-            {
-                Leave(player, mind, "got what it came for");
-                return;
-            }
+            Log(
+                $"{player.Profile.Nickname} cleared a spot ({++mind.Stops} so far, {mind.Looted} items worth {mind.Haul:N0} of {mind.HaulTarget:N0} RUB)."
+            );
+        }
+        if (mind.Haul >= mind.HaulTarget)
+        {
+            Leave(player, mind, $"got what it came for ({mind.Haul:N0} RUB)");
+            return;
         }
 
         if (!Plan(player, mind, controller, bags, rich ? loot.Where(l => l.Price >= Worth).ToList() : loot))
@@ -1020,7 +1030,7 @@ internal static class CheaterRoster
             mind.LootSpot = null;
             mind.LootItem = null;
             // Nothing anywhere that fits any more.
-            if (++mind.Misses >= 3)
+            if (++mind.Misses >= 3 && Fill(bags) >= .8f)
                 Leave(player, mind, $"is full ({loot.Count} items around, none fit)");
             else
                 mind.NextPull = Time.time + UnityEngine.Random.Range(4f, 8f);
@@ -1083,8 +1093,12 @@ internal static class CheaterRoster
 
         foreach (var (seed, value, _) in ranked.OrderByDescending(r => r.Score))
         {
+            // Bags only fill up, so what does not fit now never will.
             if (!Place(seed.Item, controller, bags).Succeeded)
+            {
+                mind.Skip.Add(seed.Item);
                 continue;
+            }
             mind.Stop = seed.Position;
             Log(
                 $"{player.Profile.Nickname} plans a run on {value:N0} RUB of loot {Vector3.Distance(seed.Position, pos):0} m away."
@@ -1179,7 +1193,8 @@ internal static class CheaterRoster
     {
         if (player.AIData?.BotOwner is not { } owner || !extracted.Add(player))
             return;
-        Log($"{player.Profile.Nickname} extracted with {CheaterMind.Of(player).Looted} vacuumed items.");
+        var mind = CheaterMind.Of(player);
+        Log($"{player.Profile.Nickname} extracted with {mind.Looted} vacuumed items worth {mind.Haul:N0} RUB.");
         See(player, "Extracted");
         try
         {
@@ -1199,6 +1214,27 @@ internal static class CheaterRoster
             .Select(slot => equipment.GetSlot(slot).ContainedItem as EFT.InventoryLogic.CompoundItem)
             .Where(bag => bag is not null)
             .ToArray()!;
+    }
+
+    // Share of the bags' cells in use, its own kit included since that takes room too.
+    private static float Fill(EFT.InventoryLogic.CompoundItem[] bags)
+    {
+        int total = 0,
+            used = 0;
+        foreach (var bag in bags)
+            if (bag.Grids is { } grids)
+                foreach (var grid in grids)
+                {
+                    if (grid is null)
+                        continue;
+                    total += grid.GridWidth * grid.GridHeight;
+                    foreach (var item in grid.Items)
+                    {
+                        var size = item.CalculateCellSize();
+                        used += size.X * size.Y;
+                    }
+                }
+        return total == 0 ? 1 : Math.Min(1, (float)used / total);
     }
 
     private static Diz.LanguageExtensions.OperationResult<IItemOperationResult> Place(
@@ -1264,6 +1300,7 @@ internal static class CheaterRoster
 
                 got++;
                 mind.Looted++;
+                mind.Haul += price;
                 mind.Misses = 0;
                 if (item == mind.LootItem)
                 {

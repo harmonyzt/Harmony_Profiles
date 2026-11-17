@@ -1,4 +1,5 @@
 using EFT;
+using EFT.InventoryLogic;
 using HarmonyLib;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -234,11 +235,13 @@ internal static class RaidActivity
                     break;
                 }
 
+        // Only what is in the backpack is loot. Worn gear, the gun and spare ammo or mags are kit, not a haul.
         long value = 0;
-        var items = victim.Profile?.Inventory?.AllRealPlayerItems;
-        if (items != null)
-            foreach (var item in items)
-                value += (long)(item.Template?.CreditsPrice ?? 0) * Math.Max(1, item.StackObjectsCount);
+        var backpack = victim.Profile?.Inventory?.Equipment?.GetSlot(EquipmentSlot.Backpack).ContainedItem;
+        if (backpack != null)
+            foreach (var item in backpack.GetAllItems())
+                if (item != backpack && item is not Ammo and not Magazine)
+                    value += (long)(item.Template?.CreditsPrice ?? 0) * Math.Max(1, item.StackObjectsCount);
         dead.LootValue = (int)Math.Min(int.MaxValue, value);
     }
 

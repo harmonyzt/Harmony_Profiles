@@ -47,11 +47,12 @@ internal sealed class CheaterMind
     public EFT.InventoryLogic.Item? LootItem;
     public int Stuck;
 
-    // A vacuum bot's run: the loot cluster it is clearing, how many it clears before leaving, and the exit it leaves by.
+    // A vacuum bot's run: the loot cluster it is clearing, what it has vacuumed and wants to (RUB, its own gear never counts), and the exit it leaves by.
     public Vector3? Stop;
-    public int Stops,
-        StopsPlanned = UnityEngine.Random.Range(2, 5);
-    public float LeaveAt = Time.time + UnityEngine.Random.Range(600f, 1200f);
+    public int Stops;
+    public long Haul,
+        HaulTarget;
+    public float LeaveAt = Time.time + UnityEngine.Random.Range(900f, 1500f);
     public bool Leaving;
     public EFT.Interactive.ExfiltrationPoint? Exit;
     public Vector3 ExitSpot;
