@@ -215,6 +215,12 @@ internal static class CheaterRoster
         else
             harmony.Patch(shall, prefix: new HarmonyMethod(typeof(CheaterRoster), nameof(ShallReload)));
 
+        var preActivate = AccessTools.Method(typeof(BotOwner), nameof(BotOwner.PreActivate));
+        if (preActivate is null)
+            Plugin.Report("Cheater spawn check unavailable, SAIN may take late cheaters.");
+        else
+            harmony.Patch(preActivate, prefix: new HarmonyMethod(typeof(CheaterRoster), nameof(PreActivate)));
+
         var steer = AccessTools.Method(typeof(BotSteering), nameof(BotSteering.ManualFixedUpdate));
         if (steer is null)
             Plugin.Report("Cheater spinbot movement fix unavailable.");
@@ -263,6 +269,7 @@ internal static class CheaterRoster
         refreshSoon = false;
         nextBanRoll = 0;
         picked = 0;
+        lastSpawnFetch = -10;
         // Fetched before any bot spawns, so a cheater acts like one (and ORBIT never gets it) from its first frame.
         nextRefresh = Time.unscaledTime + 20;
         try
@@ -300,7 +307,32 @@ internal static class CheaterRoster
 
     private static string RosterRequest() => new JObject { ["RaidId"] = raidId }.ToString(Newtonsoft.Json.Formatting.None);
 
-    // Bots can be generated after the raid-start fetch, so an unknown PBT PMC spawning asks again right away.
+    // SAIN picks its bots in a PreActivate postfix and never lets go, which is before OnBotCreated. A PMC generated after
+    // the last roster fetch (waves, debug picks) has to be known as a cheater here or SAIN keeps it for the whole raid.
+    private static void PreActivate(BotOwner __instance)
+    {
+        try
+        {
+            if (raidId.Length == 0 || __instance?.GetPlayer is not { } player)
+                return;
+            if (player.Side is not (EPlayerSide.Usec or EPlayerSide.Bear) || !RaidActivity.IsPbtAccount(Account(player)))
+                return;
+            Consider(player);
+            // One fetch covers a whole group, its profiles were all generated before the first one activates.
+            if (IsCheater(player) || Time.unscaledTime - lastSpawnFetch < 2)
+                return;
+            lastSpawnFetch = Time.unscaledTime;
+            Apply(RequestHandler.PostJson("/pbt/raid/cheaters", RosterRequest()));
+        }
+        catch (Exception ex)
+        {
+            Log("Spawn roster check failed: " + ex.Message);
+        }
+    }
+
+    private static float lastSpawnFetch = -10;
+
+    // Backstop for bots whose PreActivate check failed.
     private static void BotCreated(BotOwner owner)
     {
         try
@@ -1198,6 +1230,9 @@ internal static class CheaterRoster
         See(player, "Extracted");
         try
         {
+            // Same as SAIN's extract: other bots otherwise keep it in their enemy lists.
+            if (player.HealthController is ActiveHealthController health)
+                health.IsAlive = false;
             owner.LeaveData.RemoveFromMap();
         }
         catch (Exception ex)

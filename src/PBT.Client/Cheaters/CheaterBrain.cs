@@ -802,7 +802,26 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
             CheaterRoster.Log($"{Bot.Profile.Nickname} is extracting at {exit.Settings?.Name} with {mind.Looted} items.");
         }
         else if (Time.time >= extractAt)
-            CheaterRoster.Extract(Bot);
+        {
+            // The despawn freezes the body and can leave its gun hanging in the air, so nobody may be watching.
+            if (Watched())
+                extractAt = Time.time + 2;
+            else
+                CheaterRoster.Extract(Bot);
+        }
+    }
+
+    private bool Watched()
+    {
+        foreach (var p in World.AllAlivePlayersList)
+        {
+            if (p.IsAI || p.HealthController?.IsAlive != true)
+                continue;
+            float d = (p.Position - Bot.Position).sqrMagnitude;
+            if (d < 30f * 30f || d < 200f * 200f && Clear(p, Bot))
+                return true;
+        }
+        return false;
     }
 
     // True after 12 s without getting closer; teleporters and flyers then blink there (into locked rooms too).
