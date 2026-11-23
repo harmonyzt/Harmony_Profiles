@@ -7,7 +7,8 @@ public sealed partial class PopulationStore
 {
     private sealed record Lobby(string Map, HashSet<string> Careers, long Utc, string Server);
 
-    private sealed record MatchTimeline(string Map, long StartedMs, int Seconds, int Looking);
+    // Waiting names the session whose open wait-for-players match this is, until it fills.
+    private sealed record MatchTimeline(string Map, long StartedMs, int Seconds, int Looking, string? Waiting = null);
 
     private readonly Dictionary<string, Lobby> lobbies = new();
     private readonly Dictionary<string, HashSet<string>> squadNext = new();
@@ -19,6 +20,7 @@ public sealed partial class PopulationStore
         public string Map = "";
         public int Target;
         public long StartedUtc;
+        public long PolledUtc;
         public HashSet<string> Careers = new();
         public MatchedServer Server = null!;
     }
@@ -46,6 +48,7 @@ public sealed partial class PopulationStore
                     Map = key,
                     Target = Math.Max(1, Random.Shared.Next(waitMap.MinPlayers, waitMap.MaxPlayers + 1) - 1),
                     StartedUtc = now,
+                    PolledUtc = now,
                     Server = PickServer(now),
                 };
                 pendingMatches[session.ToString()] = pending;
@@ -54,7 +57,7 @@ public sealed partial class PopulationStore
                 poolNotices.RemoveWhere(n => n.StartsWith(session.ToString(), StringComparison.Ordinal));
                 FillServer(waitMap, session, now, pending.Careers, pending.Target, fromMenu: false);
                 Hold(pending, now);
-                lastMatch = new(key, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), world.MaximumWaitSeconds, 0);
+                lastMatch = new(key, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), world.MaximumWaitSeconds, 0, session.ToString());
                 return (0, 0, pending.Careers.Count, pending.Server, true, pending.Target);
             }
 
@@ -92,6 +95,7 @@ public sealed partial class PopulationStore
                 return (0, 0, true, 0, 0);
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             long elapsed = now - pending.StartedUtc;
+            pending.PolledUtc = now;
             FillServer(map, session, now, pending.Careers, pending.Target, fromMenu: false);
             bool full = pending.Careers.Count >= pending.Target;
             bool timedOut = elapsed >= policy.World.MaximumWaitSeconds;
@@ -240,6 +244,20 @@ public sealed partial class PopulationStore
             var match = lastMatch;
             if (match is null || match.Map != MapKey(map))
                 return (0, 0, 0);
+            // A host that stopped polling left its wait open, and followers would show Matching over their real loading.
+            if (
+                match.Waiting is { } owner
+                && (
+                    !pendingMatches.TryGetValue(owner, out var pending)
+                    || DateTimeOffset.UtcNow.ToUnixTimeSeconds() - pending.PolledUtc > 15
+                )
+            )
+            {
+                lastMatch = null;
+                logger.Info($"[PBT] Matching guard: the host's wait on {match.Map} was abandoned, Fika clients stop mirroring it.");
+                return (0, 0, 0);
+            }
+
             long elapsed = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - match.StartedMs;
             return elapsed > (match.Seconds + match.Looking + 5) * 1000L ? (0, 0, 0) : (match.Seconds, match.Looking, elapsed);
         }

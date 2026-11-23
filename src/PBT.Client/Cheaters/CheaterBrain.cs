@@ -33,7 +33,7 @@ internal enum Tactic
     Hold,
 }
 
-// What a cheater knows and wants. Outlives the BigBrain logic, which is rebuilt each time the layer takes over.
+// What a cheater knows and wants, shared by its layer and its logic.
 internal sealed class CheaterMind
 {
     public int Looted,
@@ -76,6 +76,12 @@ internal sealed class CheaterMind
     public bool Provoked;
     public bool Stalked,
         Wants;
+
+    // For the stuck-bot log, and a pause after the brain threw so its own AI can move the bot meanwhile.
+    public string Doing = "roaming";
+    public float LastCheck,
+        BrokenUntil;
+    public int Failures;
     public float NextCheck,
         LastSeenTime = -100,
         FirstSeen,
@@ -141,7 +147,7 @@ internal sealed class CheaterMind
                 || p.GroupId != dead.GroupId
                 || p.HealthController?.IsAlive != true
                 || CheaterRoster.Spares(bot, p)
-                || !string.IsNullOrEmpty(bot.GroupId) && p.GroupId == bot.GroupId
+                || CheaterRoster.IsFriendly(bot, p)
             )
                 continue;
             float d = (p.Position - bot.Position).sqrMagnitude;
@@ -225,10 +231,27 @@ internal sealed class CheaterLayer(BotOwner botOwner, int priority) : CustomLaye
         )
             return false;
         var mind = CheaterMind.Of(bot);
-        if (Time.time >= mind.NextCheck)
+        if (Time.time < mind.BrokenUntil)
+            return false;
+        // A hit, a near miss or an enemy in sight is looked at within a quarter second, not on the next one-second check.
+        bool alarm =
+            !mind.Wants
+            && Time.time - mind.LastCheck >= .25f
+            && (CheaterRoster.Attacker(bot) is not null || BotOwner.Memory?.GoalEnemy?.IsVisible == true);
+        if (Time.time >= mind.NextCheck || alarm)
         {
             mind.NextCheck = Time.time + 1;
-            bool wanted = CheaterLogic.Wants(BotOwner, bot, mind);
+            mind.LastCheck = Time.time;
+            bool wanted;
+            try
+            {
+                wanted = CheaterLogic.Wants(BotOwner, bot, mind);
+            }
+            catch (Exception ex)
+            {
+                CheaterLogic.Broke(bot, mind, "deciding", ex);
+                return false;
+            }
             if (wanted != mind.Wants)
                 CheaterRoster.Log($"{bot.Profile.Nickname} {(wanted ? "takes over from its AI" : "hands back to its AI")}.");
             mind.Wants = wanted;
@@ -358,7 +381,8 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
             }
         }
 
-        if (Stalking(bot, mind))
+        // Visits wait while someone shoots at it or it has a live fight, or a troll stood still between visits through every fight.
+        if (Stalking(bot, mind) && CheaterRoster.Attacker(bot) is null && !(mind.Target is not null && Knows(bot, mind)))
             return true;
         var fighting = InFight(owner, bot, mind);
         // Whoever is right in front of it comes first, ahead of a fight or hunt further off.
@@ -390,6 +414,15 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
             if (mind.Target != shooter)
                 CheaterRoster.Log($"{bot.Profile.Nickname} is shot by {shooter.Profile.Nickname} and fights back.");
             mind.Track(shooter, shooter.Position);
+            return true;
+        }
+
+        // A squadmate's fight is its fight too, or ORBIT walks it on past the shooting.
+        if (CheaterRoster.TypeOf(bot) != CheaterType.Looter && AllyFight(owner, bot, mind, out var allyEnemyAt) is { } ally)
+        {
+            if (mind.Target != ally)
+                CheaterRoster.Log($"{bot.Profile.Nickname} joins its squad's fight with {ally.Profile.Nickname}.");
+            mind.Track(ally, allyEnemyAt);
             return true;
         }
 
@@ -461,10 +494,44 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         && enemy.Person is Player fighting
         && Valid(bot, fighting)
         && !CheaterRoster.Spares(bot, fighting)
-        && (enemy.IsVisible || Time.time - enemy.PersonalLastSeenTime < 10 || Time.time - enemy.LastGetHitTime < 10)
+        // TimeLastSeen is the group's: also heard, or reported by a squadmate.
+        && (
+            enemy.IsVisible
+            || Time.time - enemy.PersonalLastSeenTime < 10
+            || Time.time - enemy.TimeLastSeen < 10
+            || Time.time - enemy.LastGetHitTime < 10
+        )
         && (!mind.Ignores(fighting) || Time.time - enemy.LastGetHitTime < 5)
             ? fighting
             : null;
+
+    // Nearest enemy the squad saw, heard or was shot by in the last 8 s, within 150 m.
+    private static Player? AllyFight(BotOwner owner, Player bot, CheaterMind mind, out Vector3 at)
+    {
+        at = default;
+        if (owner.BotsGroup?.Enemies is not { } enemies)
+            return null;
+        Player? best = null;
+        float nearest = 150 * 150;
+        foreach (var pair in enemies)
+        {
+            if (
+                pair.Key is not Player p
+                || Time.time - pair.Value.EnemyLastSeenTimeSense > 8
+                || !Valid(bot, p)
+                || CheaterRoster.Spares(bot, p)
+                || mind.Ignores(p)
+            )
+                continue;
+            float d = (p.Position - bot.Position).sqrMagnitude;
+            if (d >= nearest)
+                continue;
+            nearest = d;
+            best = p;
+            at = pair.Value.EnemyLastPosition;
+        }
+        return best;
+    }
 
     private static bool Closer(Player bot, Player a, Player? b) =>
         b is null || a == b || (a.Position - bot.Position).sqrMagnitude < (b.Position - bot.Position).sqrMagnitude * .5f;
@@ -633,7 +700,7 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         p is not null
         && p != bot
         && p.HealthController?.IsAlive == true
-        && (string.IsNullOrEmpty(bot.GroupId) || p.GroupId != bot.GroupId);
+        && !CheaterRoster.IsFriendly(bot, p);
 
     private static bool Clear(Player from, Player to) =>
         !Physics.Linecast(
@@ -645,11 +712,20 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
     public override void Start()
     {
         BotOwner.Mover?.Stop();
+        // A pause another mover left behind (ORBIT's loot session) would hold every GoToPoint below.
+        if (BotOwner.Mover is { Pause: true } mover)
+            mover.Pause = false;
+        // BigBrain keeps one logic per bot and only calls Start and Stop, so path timers from the last takeover would hold
+        // the new path back for up to 5 s after the Stop above.
+        nextPath = 0;
+        travelGoal = destination = Vector3.positiveInfinity;
+        stuckFrom = Bot.Position;
+        nextStuckCheck = Time.time + 6;
         Unstick();
         var mind = Mind;
         Enter(
             mind.Threat is not null ? CheaterPhase.Evade
-            : Stalking(Bot, mind) ? CheaterPhase.Stalk
+            : mind.Target is null && Stalking(Bot, mind) ? CheaterPhase.Stalk
             : Looting(mind) ? CheaterPhase.Loot
             : CheaterPhase.Fight
         );
@@ -665,6 +741,18 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         Bot.MovementContext?.SetTilt(0f);
         CheaterRoster.Aim(Bot, null);
         CheaterRoster.SetDriven(Bot, false);
+        Mind.Doing = "roaming";
+    }
+
+    // An exception out of IsActive or Update aborts the bot's whole BotOwner.UpdateManual (mover, memory, weapons) and the game
+    // swallows it, so the bot froze without a word. It hands back for a few seconds instead, and says why.
+    internal static void Broke(Player bot, CheaterMind mind, string where, Exception ex)
+    {
+        mind.BrokenUntil = Time.time + 3;
+        mind.Wants = false;
+        CheaterRoster.SetDriven(bot, false);
+        if (mind.Failures++ % 20 == 0)
+            CheaterRoster.Diag($"{bot.Profile?.Nickname} brain failed while {where} ({mind.Failures} so far), hands back for 3 s: {ex}");
     }
 
     public override void BuildDebugText(StringBuilder text) =>
@@ -686,6 +774,7 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         settled = false;
         Trigger(false);
         CheaterRoster.Aim(Bot, null);
+        Mind.Doing = to.ToString();
         CheaterRoster.Log($"{Bot.Profile.Nickname} now {to}.");
     }
 
@@ -693,30 +782,40 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
     {
         if (!Singleton<GameWorld>.Instantiated)
             return;
-        Unstick();
-        KeepGunReady();
-        // The layer decides once a second whether a looter runs, walks to loot or fights.
-        var want =
-            Mind.Threat is not null ? CheaterPhase.Evade
-            : Looting(Mind) ? CheaterPhase.Loot
-            : phase is CheaterPhase.Evade or CheaterPhase.Loot ? CheaterPhase.Fight
-            : phase;
-        if (want != phase)
-            Enter(want);
-        switch (phase)
+        try
         {
-            case CheaterPhase.Evade:
-                Evade();
-                break;
-            case CheaterPhase.Loot:
-                WalkToLoot();
-                break;
-            case CheaterPhase.Stalk:
-                Stalk();
-                break;
-            default:
-                Fight();
-                break;
+            Unstick();
+            KeepGunReady();
+            // The layer decides once a second whether a looter runs, walks to loot or fights. A fight pauses a troll's visits.
+            var want =
+                Mind.Threat is not null ? CheaterPhase.Evade
+                : Looting(Mind) ? CheaterPhase.Loot
+                : phase == CheaterPhase.Stalk && Mind.Target is not null ? CheaterPhase.Fight
+                : phase == CheaterPhase.Fight && Mind.Target is null && Stalking(Bot, Mind) ? CheaterPhase.Stalk
+                : phase is CheaterPhase.Evade or CheaterPhase.Loot ? CheaterPhase.Fight
+                : phase;
+            if (want != phase)
+                Enter(want);
+            switch (phase)
+            {
+                case CheaterPhase.Evade:
+                    Evade();
+                    break;
+                case CheaterPhase.Loot:
+                    WalkToLoot();
+                    break;
+                case CheaterPhase.Stalk:
+                    Stalk();
+                    break;
+                default:
+                    Fight();
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Trigger(false);
+            Broke(Bot, Mind, $"in {phase}", ex);
         }
     }
 
@@ -1123,6 +1222,7 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
         tacticUntil = Time.time + UnityEngine.Random.Range(20f, 40f);
         tacticSince = Time.time;
         BotOwner.SetPose(1f);
+        Mind.Doing = $"{phase}/{to}";
         CheaterRoster.Log(
             $"{Bot.Profile.Nickname} {to switch { Tactic.Hold => "works an angle on", Tactic.Flank => "circles behind", _ => "pushes" }} {Mind.Target?.Profile.Nickname}."
         );
@@ -1275,6 +1375,7 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
             && Time.time >= settleUntil
             && Facing(prey)
             && Moment(prey, mind)
+            && !CheaterRoster.FriendlyInLine(Bot, prey)
         )
         {
             // A spinbot is useless without an aim lock, so spinners always have one.
@@ -1763,7 +1864,7 @@ internal sealed class CheaterLogic(BotOwner botOwner) : CustomLogic(botOwner)
     }
 
     private bool GunBusy =>
-        BotOwner.WeaponManager is { } w && (w.Reload?.Reloading == true || w.Malfunctions?.HaveMalfunction() == true);
+        BotOwner.WeaponManager is { } w && (w.Reload?.Reloading == true || CheaterRoster.Jammed(BotOwner));
 
     private void Burst()
     {

@@ -24,6 +24,8 @@ internal static class BrainExclusions
         patched = true;
 
         var sain = AccessTools.Method("SAIN.SAINEnableClass:IsBotExcluded", new[] { typeof(BotOwner) });
+        if (AccessTools.Method("SAIN.SAINEnableClass:IsBotExcluded", new[] { typeof(string) }) is { } byId)
+            sainExcludedById = (Func<string, bool>)Delegate.CreateDelegate(typeof(Func<string, bool>), byId);
         if (sain is not null)
         {
             harmony.Patch(sain, prefix: new HarmonyMethod(typeof(BrainExclusions), nameof(SainExcluded)));
@@ -71,6 +73,11 @@ internal static class BrainExclusions
         }
         CheaterRoster.Log($"{layers} other brain layers kept off cheaters.");
     }
+
+    private static Func<string, bool>? sainExcludedById;
+
+    // SAIN caches its verdict per bot, so a cheater it took before the roster knew it stays a SAIN bot under the hood.
+    internal static bool SainOwns(Player player) => sainExcludedById is { } excluded && !excluded(player.ProfileId);
 
     private static bool IsCheaterBot(BotOwner? bot) =>
         CheaterRoster.Behaviour && bot?.GetPlayer is { } player && CheaterRoster.IsCheater(player);

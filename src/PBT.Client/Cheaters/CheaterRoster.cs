@@ -250,6 +250,9 @@ internal static class CheaterRoster
         heat.Clear();
         lastHit.Clear();
         attackers.Clear();
+        shotAt.Clear();
+        watched.Clear();
+        nextRefusal.Clear();
         angered.Clear();
         extracted.Clear();
         RaidStart = Time.time;
@@ -313,10 +316,13 @@ internal static class CheaterRoster
     {
         try
         {
-            if (raidId.Length == 0 || __instance?.GetPlayer is not { } player)
+            // Raid-start PMCs can activate before GameWorld.OnGameStarted, so neither the raid id nor the SAIN patch may be waited for.
+            if (__instance?.GetPlayer is not { } player)
                 return;
             if (player.Side is not (EPlayerSide.Usec or EPlayerSide.Bear) || !RaidActivity.IsPbtAccount(Account(player)))
                 return;
+            if (BrainInstalled)
+                BrainExclusions.RaidStarted();
             Consider(player);
             // One fetch covers a whole group, its profiles were all generated before the first one activates.
             if (IsCheater(player) || Time.unscaledTime - lastSpawnFetch < 2)
@@ -377,6 +383,46 @@ internal static class CheaterRoster
     // A vacuum bot leaves you be (and drops you as an enemy so its own AI does too) until you shoot it. Then it fights back for the rest of the raid.
     internal static bool Spares(Player bot, Player? p) =>
         p is not null && p.IsYourPlayer && IsCheater(bot) && Has(bot, Cheat.Vacuum) && !angered.Contains(bot);
+
+    // Bot profiles usually have no GroupId, so a squad is only known by its BotsGroup. Faction allies are deliberately not friends.
+    internal static bool IsFriendly(Player bot, Player? other)
+    {
+        if (other is null || other == bot)
+            return true;
+        if (!string.IsNullOrEmpty(bot.GroupId) && other.GroupId == bot.GroupId)
+            return true;
+        try
+        {
+            var mine = bot.AIData?.BotOwner;
+            var theirs = other.AIData?.BotOwner;
+            return mine?.BotsGroup is { } group && group == theirs?.BotsGroup;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    // A squadmate or ally standing within a body width of the line from the bot's head to the target.
+    internal static bool FriendlyInLine(Player bot, Player target)
+    {
+        var from = bot.PlayerBones.Head.position;
+        var line = target.PlayerBones.Head.position - from;
+        float length = line.magnitude;
+        if (length < .01f)
+            return false;
+        line /= length;
+        foreach (var p in Singleton<GameWorld>.Instance.AllAlivePlayersList)
+        {
+            if (p == null || p == bot || p == target || p.HealthController?.IsAlive != true || !IsFriendly(bot, p))
+                continue;
+            var to = p.Position + Vector3.up * 1.1f - from;
+            float along = Vector3.Dot(to, line);
+            if (along > 0 && along < length && (to - line * along).sqrMagnitude < .9f * .9f)
+                return true;
+        }
+        return false;
+    }
 
     private static readonly HashSet<Player> angered = new();
     private static readonly HashSet<Player> extracted = new();
@@ -555,11 +601,26 @@ internal static class CheaterRoster
         return false;
     }
 
+    internal static bool Jammed(BotOwner owner) =>
+        (owner.WeaponManager?.CurrentWeapon?.MalfState?.State ?? EFT.InventoryLogic.Weapon.EMalfunctionState.None)
+        != EFT.InventoryLogic.Weapon.EMalfunctionState.None;
+
     // Clears a jam through the game's own repair steps. True while it is still at it.
     internal static bool ClearJam(BotOwner owner)
     {
-        if (owner.WeaponManager?.Malfunctions is not { } jam || !jam.HaveMalfunction())
+        if (owner.WeaponManager?.Malfunctions is not { } jam)
             return false;
+        if (!Jammed(owner))
+        {
+            // The game latches _malfFixed after a repair and only its own malfunction layer resets it. Left set,
+            // HaveMalfunction stays true for good: no reload, no shooting, StopMove every frame.
+            if (jam._malfFixed || jam._preFixed)
+            {
+                jam._malfFixed = jam._preFixed = jam._weaponExamined = false;
+                Log($"{owner.Profile?.Nickname} cleared its jam.");
+            }
+            return false;
+        }
         jam.Update();
         return true;
     }
@@ -567,10 +628,32 @@ internal static class CheaterRoster
     // Reloads when empty, or below about a third while not shooting. True if a reload started.
     internal static bool Reload(BotOwner owner, bool firing)
     {
-        if (owner.WeaponManager?.Reload is not { } reload || reload.Reloading)
+        if (owner.WeaponManager?.Reload is not { } reload)
             return false;
-        int count = reload.BulletCount,
+        if (reload.Reloading)
+        {
+            // A reload whose callback never came keeps Reloading set. The game's own reset fires once per bot and only from
+            // its brain nodes, so the gun stayed "busy" for the rest of the raid.
+            if (Time.time - reload._reloadStartTime > 25)
+            {
+                reload.Reloading = false;
+                Diag($"{owner.Profile?.Nickname} was stuck reloading for 25 s, reset.");
+            }
+            return false;
+        }
+        int count,
+            max;
+        try
+        {
+            count = reload.BulletCount;
             max = reload.MaxBulletCount;
+        }
+        catch
+        {
+            // MaxBulletCount throws with no magazine in the gun, which is exactly when it needs one.
+            count = 0;
+            max = 1;
+        }
         if (max <= 0 || count > 0 && (firing || count > max * .35f))
             return false;
         reloading.Add(owner);
@@ -578,9 +661,9 @@ internal static class CheaterRoster
         {
             bool started = reload.TryReload();
             if (!started && count == 0)
-                Log(
-                    $"{owner.Profile?.Nickname} could not reload ({count}/{max}, no ammo cached: {reload.NoAmmoForReloadCached})."
-                );
+                started = ReloadFromBackpack(owner, reload);
+            if (!started && count == 0)
+                Refused(owner, reload, max);
             return started;
         }
         catch (Exception ex)
@@ -594,9 +677,52 @@ internal static class CheaterRoster
         }
     }
 
-    // Whoever last shot this cheater, if that was within the last 8 s and they are still alive.
+    private static readonly EquipmentSlot[] backpackSlot = [EquipmentSlot.Backpack];
+    private static readonly List<Magazine> packed = new();
+
+    // The game reloads box mags only from pockets and rig (Inventory.FastAccessSlots). A cheater kit with no rig, or a rig full
+    // of the old gun's mags, gets its spares put in the backpack by the server, so it emptied one mag and never reloaded again.
+    private static bool ReloadFromBackpack(BotOwner owner, BotReload reload)
+    {
+        if (
+            owner.WeaponManager?.CurrentWeapon is not { ReloadMode: EFT.InventoryLogic.Weapon.EReloadMode.ExternalMagazine } weapon
+            || weapon.GetMagazineSlot() is not { } slot
+            || owner.GetPlayer?.InventoryController is not { } inventory
+            || reload.ShootController?.CanStartReload() != true
+        )
+            return false;
+        Magazine? best = null;
+        packed.Clear();
+        inventory.GetAcceptableItemsNonAlloc(backpackSlot, packed, mag => mag.Count > 0 && slot.CanAccept(mag));
+        foreach (var mag in packed)
+            if ((best is null || mag.Count > best.Count) && ItemManipulator.CheckMoveIgnoringTargetItem(mag, slot, inventory).Succeeded)
+                best = mag;
+        packed.Clear();
+        if (best is null)
+            return false;
+        reload.Reloading = true;
+        reload.ReloadMagazine(best);
+        Log($"{owner.Profile?.Nickname} reloads from its backpack.");
+        return true;
+    }
+
+    private static readonly Dictionary<BotOwner, float> nextRefusal = new();
+
+    // An empty gun that will not reload, with the game's reasons, at most every 10 s per bot.
+    private static void Refused(BotOwner owner, BotReload reload, int max)
+    {
+        if (nextRefusal.TryGetValue(owner, out float next) && Time.time < next)
+            return;
+        nextRefusal[owner] = Time.time + 10;
+        var weapons = owner.WeaponManager;
+        Diag(
+            $"{owner.Profile?.Nickname} cannot reload (0/{max}): hands {owner.GetPlayer?.HandsController?.GetType().Name}, weapon ready {weapons.IsWeaponReady}, jammed {Jammed(owner)}, malfunction flag {weapons.Malfunctions?.HaveMalfunction()}, no ammo cached {reload.NoAmmoForReloadCached}, retry in {reload._nextReloadTime - Time.time:0.0}s."
+        );
+    }
+
+    // Whoever last shot at this cheater (hit or near miss), if that was within the last 8 s and they are still alive.
     internal static Player? Attacker(Player player) =>
-        SinceHit(player) < 8
+        Math.Min(SinceHit(player), shotAt.TryGetValue(player, out float t) ? Time.time - t : float.MaxValue) < 8
         && attackers.TryGetValue(player, out var from)
         && from != null
         && from.HealthController?.IsAlive == true
@@ -643,7 +769,8 @@ internal static class CheaterRoster
         if (!IsCheater(__instance))
             return true;
         lastHit[__instance] = Time.time;
-        if (damageInfo.Player?.iPlayer is Player from && from != __instance)
+        // A squadmate's stray round is not someone to fight back against.
+        if (damageInfo.Player?.iPlayer is Player from && !IsFriendly(__instance, from))
         {
             attackers[__instance] = from;
             if (from.IsYourPlayer && Has(__instance, Cheat.Vacuum))
@@ -672,7 +799,12 @@ internal static class CheaterRoster
             return;
         if (!aims.TryGetValue(shooter, out var target))
             target = shooter.AIData?.BotOwner?.Memory?.GoalEnemy?.Person as Player;
-        if (target == null || target.HealthController?.IsAlive != true || Spares(shooter, target))
+        if (
+            target == null
+            || target.HealthController?.IsAlive != true
+            || Spares(shooter, target)
+            || IsFriendly(shooter, target)
+        )
             return;
 
         var aim = AimOf(shooter);
@@ -683,10 +815,15 @@ internal static class CheaterRoster
         var want = (point - from).normalized;
         if (!spinner && Vector3.Angle(shotDirection, want) > aim.Snap)
             return;
-        if (Physics.Linecast(from, point, LayersMaskController.HighPolyWithTerrainMask))
-            return;
         if (spinner)
             shotPosition = from + want * .3f;
+        if (Physics.Linecast(from, point, LayersMaskController.HighPolyWithTerrainMask))
+        {
+            // Left alone, a spinner's blocked shot flies wherever the spinning barrel points, often into its own squad.
+            if (spinner)
+                shotDirection = want;
+            return;
+        }
         if (UnityEngine.Random.value >= Mathf.Clamp01(aim.Hit * Accuracy(shooter)))
         {
             // A spinner's miss still flies past the target, not wherever the spinning barrel points.
@@ -794,7 +931,90 @@ internal static class CheaterRoster
                 Reload(owner, owner.Memory?.GoalEnemy?.IsVisible == true);
             if (banRoll)
                 MaybeBan(player);
+            if (banRoll && player.AIData?.BotOwner is { } bot)
+                Watch(player, bot);
         }
+    }
+
+    // Always on, unlike Log: the lines that explain a stuck or frozen cheater.
+    internal static void Diag(string message) => Plugin.Trace("[Cheater] " + message);
+
+    private sealed class Watched
+    {
+        public Vector3 At;
+        public float Since,
+            NextLog;
+        public string Layer = "";
+        public bool Listening,
+            SainChecked;
+    }
+
+    private static readonly Dictionary<Player, Watched> watched = new();
+    private static readonly Dictionary<Player, float> shotAt = new();
+
+    // Once a second per cheater: keeps the game's standby from parking it, hears near misses, and logs who drives it and when it stands still.
+    private static void Watch(Player player, BotOwner bot)
+    {
+        if (!watched.TryGetValue(player, out var w))
+            watched[player] = w = new Watched { At = player.Position, Since = Time.time };
+
+        // ORBIT turns standby off when it attaches; without it the game walks a far-off bot to cover and sleeps it for good.
+        if (bot.StandBy is { } standBy && (standBy.CanDoStandBy || standBy.StandByType != BotStandByType.active))
+        {
+            if (standBy.StandByType != BotStandByType.active)
+                Diag($"{player.Profile.Nickname} was put on standby ({standBy.StandByType}) by the game, woken.");
+            standBy.CanDoStandBy = false;
+            standBy.Activate();
+        }
+
+        if (!w.Listening && bot.Memory is { } memory)
+        {
+            w.Listening = true;
+            memory.OnBulletNear += (_, source) =>
+            {
+                if (source is Player from && from != player && !IsFriendly(player, from))
+                {
+                    shotAt[player] = Time.time;
+                    attackers[player] = from;
+                }
+            };
+        }
+
+        if (!w.SainChecked && BrainInstalled)
+        {
+            w.SainChecked = true;
+            if (BrainExclusions.SainOwns(player))
+                Diag($"{player.Profile.Nickname} was taken by SAIN before it was known as a cheater; SAIN may still steer it.");
+        }
+
+        string layer;
+        try
+        {
+            layer = bot.Brain?.ActiveLayerName() ?? "none";
+        }
+        catch
+        {
+            layer = "none";
+        }
+        if (layer != w.Layer)
+        {
+            Log($"{player.Profile.Nickname} control: {(w.Layer.Length == 0 ? "spawn" : w.Layer)} -> {layer}.");
+            w.Layer = layer;
+        }
+
+        if ((player.Position - w.At).sqrMagnitude > 1.5f * 1.5f)
+        {
+            w.At = player.Position;
+            w.Since = Time.time;
+            return;
+        }
+        if (Time.time - w.Since < 30 || Time.time < w.NextLog)
+            return;
+        w.NextLog = Time.time + 60;
+        var mind = CheaterMind.Of(player);
+        Diag(
+            $"{player.Profile.Nickname} has not moved for {Time.time - w.Since:0}s: layer {layer}, doing {mind.Doing}, wants {mind.Wants}, target {mind.Target?.Profile?.Nickname ?? "none"}, standby {bot.StandBy?.StandByType}, mover moving {bot.Mover?.IsMoving} paused {bot.Mover?.Pause}, jammed {Jammed(bot)} (flag {bot.WeaponManager?.Malfunctions?.HaveMalfunction()}), reloading {bot.WeaponManager?.Reload?.Reloading}, enemy {(bot.Memory?.GoalEnemy?.Person as Player)?.Profile?.Nickname ?? "none"}, under fire {bot.Memory?.IsUnderFire}."
+        );
     }
 
     // A bot on its normal AI with ESP gets told where the nearest player is now and then, so it flanks and pushes like it can see through walls.
@@ -816,9 +1036,8 @@ internal static class CheaterRoster
         {
             if (
                 p is null
-                || p == cheater
                 || p.HealthController?.IsAlive != true
-                || !string.IsNullOrEmpty(cheater.GroupId) && p.GroupId == cheater.GroupId
+                || IsFriendly(cheater, p)
                 || mind.Ignores(p)
                 || Spares(cheater, p)
                 || !mind.Worth(cheater, p)

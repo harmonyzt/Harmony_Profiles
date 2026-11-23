@@ -18,6 +18,15 @@ internal static class Matching
     private static bool onlineWording;
     private static int lobbySize;
 
+    // One simulated matching at a time. Once the game reports its own loading status, the fake ones stop.
+    private static volatile int run;
+    private static volatile bool simulating,
+        handedOver,
+        staleNoticed;
+
+    [ThreadStatic]
+    private static bool ours;
+
     internal static void Install(Harmony harmony)
     {
         create = AccessTools.Method(typeof(TarkovApplication), nameof(TarkovApplication.LocalGameCreate));
@@ -59,8 +68,55 @@ internal static class Matching
     // After a simulated online queue, the vanilla offline wording gives the game away.
     private static void Rename(ref string status)
     {
+        if (simulating && !ours && !handedOver)
+        {
+            handedOver = true;
+            Plugin.Trace($"Matching guard: the game reported \"{status}\" during simulated matching, handing the screen over.");
+        }
+
         if (onlineWording && status == "Local game starting...")
             status = "Connecting to server";
+    }
+
+    private static int BeginSimulation()
+    {
+        handedOver = false;
+        staleNoticed = false;
+        simulating = true;
+        return ++run;
+    }
+
+    private static void EndSimulation(int id)
+    {
+        if (id == run)
+            simulating = false;
+    }
+
+    // Simulated statuses never overwrite the game's real loading progress or a newer matching.
+    private static void Simulated(TarkovApplication app, int id, string text)
+    {
+        if (id != run)
+        {
+            if (!staleNoticed)
+            {
+                staleNoticed = true;
+                Plugin.Trace($"Matching guard: an older matching tried to show \"{text}\", ignored.");
+            }
+
+            return;
+        }
+
+        if (handedOver)
+            return;
+        ours = true;
+        try
+        {
+            Status(app, text);
+        }
+        finally
+        {
+            ours = false;
+        }
     }
 
     // Fika replaces LocalGameCreate. Only the host waits, clients join once it is ready.
@@ -154,6 +210,7 @@ internal static class Matching
 
     private static async Task Queue(TarkovApplication app, string map, Func<Task> start, bool forward = false)
     {
+        int id = BeginSimulation();
         try
         {
             var response = JObject.Parse(
@@ -172,19 +229,32 @@ internal static class Matching
             {
                 int target = response.Value<int>("Target");
                 Plugin.Trace($"Matching on {map}: waiting for {target} players near your level.");
-                Status(app, "Matching...");
-                int looking = 0;
+                Simulated(app, id, "Matching...");
+                int looking = 0,
+                    failed = 0;
                 var clock = System.Diagnostics.Stopwatch.StartNew();
                 // The server gives up on its own after its longest wait. This only guards against a server that stopped answering.
                 while (clock.Elapsed.TotalSeconds < 1900)
                 {
                     await Task.Delay(2000);
-                    var poll = JObject.Parse(
-                        await RequestHandler.PostJsonAsync(
-                            "/pbt/world/matching/poll",
-                            new JObject { ["Map"] = map }.ToString(Newtonsoft.Json.Formatting.None)
-                        )
-                    );
+                    JObject poll;
+                    try
+                    {
+                        poll = JObject.Parse(
+                            await RequestHandler.PostJsonAsync(
+                                "/pbt/world/matching/poll",
+                                new JObject { ["Map"] = map }.ToString(Newtonsoft.Json.Formatting.None)
+                            )
+                        );
+                        failed = 0;
+                    }
+                    catch (Exception ex) when (++failed < 3)
+                    {
+                        // Giving up on one dropped poll leaves the server's wait open and Fika clients on a stale timeline.
+                        Plugin.Report($"Matching poll failed ({failed}/3), retrying: {ex.Message}");
+                        continue;
+                    }
+
                     if (poll.Value<int>("ProtocolVersion") != 1)
                         break;
                     lobbySize = poll.Value<int>("Found");
@@ -195,11 +265,11 @@ internal static class Matching
                 }
 
                 Plugin.Trace($"Matched on {map} after {(int)clock.Elapsed.TotalSeconds}s with {lobbySize} of {target} players.");
-                Status(app, "Looking for server...");
+                Simulated(app, id, "Looking for server...");
                 await Task.Delay(Math.Max(1000, looking));
-                Status(app, "Preparing the game...");
+                Simulated(app, id, "Preparing the game...");
                 await Task.Delay(new Random().Next(200, 1001));
-                Status(app, "Awaiting server response...");
+                Simulated(app, id, "Awaiting server response...");
                 await Task.Delay(100);
             }
             else if (seconds > 0)
@@ -207,13 +277,13 @@ internal static class Matching
                 var random = new Random();
                 int looking = response.Value<int?>("Looking") is int served and > 0 ? served * 1000 : random.Next(5000, 15001);
                 Plugin.Trace($"Matching on {map}: {seconds}s, then {looking / 1000}s looking for a server.");
-                Status(app, "Matching...");
+                Simulated(app, id, "Matching...");
                 await Task.Delay(seconds * 1000);
-                Status(app, "Looking for server...");
+                Simulated(app, id, "Looking for server...");
                 await Task.Delay(looking);
-                Status(app, "Preparing the game...");
+                Simulated(app, id, "Preparing the game...");
                 await Task.Delay(random.Next(200, 1001));
-                Status(app, "Awaiting server response...");
+                Simulated(app, id, "Awaiting server response...");
                 await Task.Delay(100);
             }
             else
@@ -227,10 +297,19 @@ internal static class Matching
             Plugin.Report("Matching simulation skipped: " + ex.Message);
         }
 
+        EndSimulation(id);
         // The previous raid's game can still be the singleton while the next one is being created.
         var previous = Singleton<AbstractGame>.Instantiated ? Singleton<AbstractGame>.Instance : null;
         passing = true;
-        var game = start();
+        Task game;
+        try
+        {
+            game = start();
+        }
+        finally
+        {
+            passing = false;
+        }
         if (forward && onlineWording)
             await ForwardStatus(app, game, previous);
         await game;
@@ -333,10 +412,23 @@ internal static class Matching
     {
         Connection.Matched(null);
         passing = true;
-        var game = start();
+        Task game;
         try
         {
-            for (int tries = 0; !game.IsCompleted && tries < 60; tries++)
+            game = start();
+        }
+        finally
+        {
+            passing = false;
+        }
+
+        int id = BeginSimulation();
+        try
+        {
+            bool followed = false;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            // The host's timeline is re-read every couple of seconds: a wait-for-players match only learns its real length when it fills.
+            while (!game.IsCompleted && !handedOver && clock.Elapsed.TotalSeconds < 1900)
             {
                 var response = JObject.Parse(
                     await RequestHandler.PostJsonAsync(
@@ -347,28 +439,46 @@ internal static class Matching
                 int seconds = response.Value<int>("ProtocolVersion") == 1 ? response.Value<int>("Seconds") : 0;
                 if (seconds <= 0)
                 {
+                    if (followed)
+                    {
+                        Plugin.Trace("Matching guard: the host's matching timeline ended, waiting for the game.");
+                        break;
+                    }
+
+                    if (clock.Elapsed.TotalSeconds >= 120)
+                        break;
                     await Task.WhenAny(game, Task.Delay(2000));
                     continue;
                 }
 
+                followed = true;
                 long matching = seconds * 1000L,
                     looking = matching + response.Value<int>("Looking") * 1000L,
                     offset = response.Value<long>("ElapsedMs");
-                var clock = System.Diagnostics.Stopwatch.StartNew();
-                for (long elapsed = offset; !game.IsCompleted && elapsed < looking; elapsed = offset + clock.ElapsedMilliseconds)
+                var since = System.Diagnostics.Stopwatch.StartNew();
+                long elapsed = offset;
+                for (; !game.IsCompleted && !handedOver && elapsed < looking && since.ElapsedMilliseconds < 2000; elapsed = offset + since.ElapsedMilliseconds)
                 {
-                    Status(app, elapsed < matching ? "Matching..." : "Looking for server...");
+                    Simulated(app, id, elapsed < matching ? "Matching..." : "Looking for server...");
                     await Task.WhenAny(game, Task.Delay(500));
                 }
 
-                if (!game.IsCompleted)
-                    Status(app, "Awaiting server response...");
-                break;
+                if (elapsed >= looking)
+                    break;
             }
+
+            if (handedOver)
+                Plugin.Trace("Matching guard: stopped mirroring the host, the game is loading.");
+            else if (followed && !game.IsCompleted)
+                Simulated(app, id, "Awaiting server response...");
         }
         catch (Exception ex)
         {
             Plugin.Report("Host matching status unavailable: " + ex.Message);
+        }
+        finally
+        {
+            EndSimulation(id);
         }
 
         await game;
